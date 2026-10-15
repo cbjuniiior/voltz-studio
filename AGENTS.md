@@ -18,7 +18,7 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
 ## Stack & estrutura
 - C/C++ + Qt 6 (motor libobs + frontend). Código Voltz novo em `frontend/voltz/` (shell, core, project,
   annotate, tests) e `plugins/voltz-sources/`. Instalador Inno Setup em `installer/`.
-- Fork: `github.com/cbjuniiior/voltz-studio`, branch de trabalho **`voltz`** (base tag `32.2.2`).
+- Fork: `github.com/cbjuniiior/voltz-studio`, branch de trabalho **`voltz`** (base tag `32.2.2`; branch padrão do fork, publicado).
   Remotes: `origin` (fork), `upstream` (obsproject). Clone parcial (`blob:none`).
 - **Build:** CMake do VS 2022 Build Tools
   (`C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe`)

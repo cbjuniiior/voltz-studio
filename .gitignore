@@ -37,6 +37,7 @@
 !AGENTS.md
 !CLAUDE.md
 !installer
+!tools
 
 # Exclude lock files
 *.lock.json

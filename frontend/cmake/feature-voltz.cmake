@@ -14,4 +14,7 @@ if(ENABLE_VOLTZ_TESTS)
 endif()
 
 target_link_libraries(obs-studio PRIVATE Voltz::core)
-target_compile_definitions(obs-studio PRIVATE VOLTZ_STUDIO "VOLTZ_VERSION=\"${VOLTZ_VERSION}\"")
+target_compile_definitions(
+  obs-studio
+  PRIVATE VOLTZ_STUDIO "VOLTZ_VERSION=\"${VOLTZ_VERSION}\"" "VOLTZ_CONFIG_DIR=\"Voltz Studio\""
+)

@@ -1,0 +1,55 @@
+<#
+  Smoke test do Voltz Studio.
+  Abre o app em modo portatil com configuracao limpa, espera, fecha pela janela principal
+  e confere pasta de configuracao, log e encerramento.
+  Uso: powershell -ExecutionPolicy Bypass -File tools/voltz-smoke.ps1 [-SkipShell] [-Seconds 20]
+#>
+param(
+    [string]$Config = "RelWithDebInfo",
+    [int]$Seconds = 20,
+    [switch]$SkipShell
+)
+
+$ErrorActionPreference = "Stop"
+$root = Split-Path -Parent $PSScriptRoot
+$rundir = Join-Path $root "build_x64\rundir\$Config"
+$bin = Join-Path $rundir "bin\64bit"
+$exe = Join-Path $bin "VoltzStudio.exe"
+if (-not (Test-Path $exe)) { Write-Host "FALHOU executavel nao encontrado: $exe"; exit 1 }
+
+$cfg = Join-Path $rundir "config"
+if (Test-Path $cfg) { Remove-Item -Recurse -Force $cfg }
+
+$proc = Start-Process -FilePath $exe -ArgumentList '--portable', '--multi' -WorkingDirectory $bin -PassThru
+Start-Sleep -Seconds $Seconds
+$aliveAfterStart = -not $proc.HasExited
+
+$cleanExit = $false
+if ($aliveAfterStart) {
+    $proc.Refresh()
+    [void]$proc.CloseMainWindow()
+    $cleanExit = $proc.WaitForExit(20000)
+    if (-not $cleanExit) { Stop-Process -Id $proc.Id -Force }
+}
+
+$voltzCfg = Join-Path $cfg "Voltz Studio"
+$log = Get-ChildItem (Join-Path $voltzCfg "logs") -Filter *.txt -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime | Select-Object -Last 1
+
+$checks = [ordered]@{}
+$checks["processo vivo apos $Seconds s"] = $aliveAfterStart
+$checks["pasta de config 'Voltz Studio' criada"] = (Test-Path $voltzCfg)
+$checks["pasta 'obs-studio' ausente"] = -not (Test-Path (Join-Path $cfg "obs-studio"))
+$checks["log gerado"] = [bool]$log
+if (-not $SkipShell) {
+    $checks["log contem '[voltz] shell pronta'"] = [bool]($log -and (Select-String -Path $log.FullName -Pattern '\[voltz\] shell pronta' -Quiet))
+    $checks["encerrou limpo ao fechar a janela"] = $cleanExit
+}
+
+$failed = 0
+foreach ($k in $checks.Keys) {
+    if ($checks[$k]) { Write-Host "OK     $k" } else { Write-Host "FALHOU $k"; $failed++ }
+}
+if ($log) { Write-Host "log: $($log.FullName)" }
+if ($failed -gt 0) { exit 1 }
+Write-Host "SMOKE OK"

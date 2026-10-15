@@ -30,10 +30,14 @@ target_sources(
     voltz/shell/FrontendBridge.hpp
     voltz/shell/Icons.cpp
     voltz/shell/Icons.hpp
+    voltz/shell/PresetBuilder.cpp
+    voltz/shell/PresetBuilder.hpp
     voltz/shell/RecordPage.cpp
     voltz/shell/RecordPage.hpp
     voltz/shell/ScenesPanel.cpp
     voltz/shell/ScenesPanel.hpp
+    voltz/shell/SharedSources.cpp
+    voltz/shell/SharedSources.hpp
     voltz/shell/ShellLocale.cpp
     voltz/shell/ShellLocale.hpp
     voltz/shell/SourcesPanel.cpp

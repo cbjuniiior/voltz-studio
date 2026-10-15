@@ -33,6 +33,11 @@
 !INSTALL
 !README.rst
 
+# Voltz Studio
+!AGENTS.md
+!CLAUDE.md
+!installer
+
 # Exclude lock files
 *.lock.json
 

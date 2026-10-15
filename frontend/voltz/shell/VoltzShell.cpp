@@ -1,6 +1,7 @@
 #include "VoltzShell.hpp"
 
 #include "FrontendBridge.hpp"
+#include "Icons.hpp"
 #include "RecordPage.hpp"
 #include "ShellLocale.hpp"
 
@@ -47,6 +48,7 @@ QString loadStyleSheet()
 VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 {
 	loadShellLocale();
+	loadShellFonts();
 	setObjectName("voltzShell");
 	/* qualificado: dentro de QMainWindow, "windowTitle" sem namespace é QWidget::windowTitle() */
 	setWindowTitle(QString::fromStdString(voltz::windowTitle(currentVersion(), "")));

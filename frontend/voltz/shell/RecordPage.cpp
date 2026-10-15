@@ -5,6 +5,8 @@
 
 #include <voltz/core/time-format.hpp>
 
+#include <OBSApp.hpp>
+
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -47,9 +49,9 @@ RecordPage::RecordPage(FrontendBridge *bridge, QWidget *parent) : QWidget(parent
 	sourcesHint->setWordWrap(true);
 	sourcesHint->setAlignment(Qt::AlignTop | Qt::AlignLeft);
 
-	QFrame *scenesPanel = makePanel(QStringLiteral("CENAS"), scenes_, this);
+	QFrame *scenesPanel = makePanel(QTStr("Voltz.Panel.Scenes"), scenes_, this);
 	scenesPanel->setFixedWidth(200);
-	QFrame *sidePanel = makePanel(QStringLiteral("FONTES"), sourcesHint, this);
+	QFrame *sidePanel = makePanel(QTStr("Voltz.Panel.Sources"), sourcesHint, this);
 	sidePanel->setFixedWidth(260);
 
 	auto *body = new QHBoxLayout();
@@ -153,13 +155,13 @@ void RecordPage::updateRecordingUi(bool active, bool paused)
 
 	pendingStart_ = false;
 	recordButton_->setEnabled(true);
-	recordButton_->setText(active ? QStringLiteral("■  Parar") : QStringLiteral("●  Gravar"));
+	recordButton_->setText(active ? QTStr("Voltz.Record.Stop") : QTStr("Voltz.Record.Start"));
 	recordButton_->setProperty("recording", active);
 	recordButton_->style()->unpolish(recordButton_);
 	recordButton_->style()->polish(recordButton_);
 
 	pauseButton_->setEnabled(active);
-	pauseButton_->setText(active && paused ? QStringLiteral("▶  Retomar") : QStringLiteral("⏸  Pausar"));
+	pauseButton_->setText(active && paused ? QTStr("Voltz.Record.Resume") : QTStr("Voltz.Record.Pause"));
 
 	tickClock();
 }
@@ -170,7 +172,7 @@ void RecordPage::showRecordingTransition(bool stopping)
 	 * "stopping" (parada forçada, pode truncar o arquivo): botões travados até STARTED/STOPPED. */
 	recordButton_->setEnabled(false);
 	pauseButton_->setEnabled(false);
-	recordButton_->setText(stopping ? QStringLiteral("Finalizando…") : QStringLiteral("Iniciando…"));
+	recordButton_->setText(stopping ? QTStr("Voltz.Record.Stopping") : QTStr("Voltz.Record.Starting"));
 
 	if (!stopping) {
 		/* Falha síncrona ao iniciar (OBSBasic::StartRecording emite STARTING, mas o start da saída

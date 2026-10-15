@@ -290,8 +290,7 @@ void OBSBasic::UploadLog(const char *subdir, const char *file, const LogUploadTy
 	if (GetAppConfigPath(logDir, sizeof(logDir), subdir) > 0) {
 		QDesktopServices::openUrl(QUrl::fromLocalFile(QT_UTF8(logDir)));
 	}
-	const QString uploadDisabledMsg =
-		QStringLiteral("O envio de logs está desativado no Voltz Studio. A pasta de logs foi aberta.");
+	const QString uploadDisabledMsg = QTStr("Voltz.LogUpload.Disabled");
 	emit App()->logUploadFailed(uploadType, uploadDisabledMsg);
 	return;
 #endif

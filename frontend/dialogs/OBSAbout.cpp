@@ -94,7 +94,7 @@ void OBSAbout::ShowAbout()
 {
 #ifdef VOLTZ_STUDIO
 	const voltz::VersionInfo info{"Voltz Studio", VOLTZ_VERSION, obs_get_version_string()};
-	ui->textBrowser->setHtml(QString::fromStdString(voltz::aboutLine(info, "baseado no OBS Studio")).toHtmlEscaped());
+	ui->textBrowser->setHtml(QString::fromStdString(voltz::aboutLine(info, QTStr("Voltz.About.BasedOn").toStdString())).toHtmlEscaped());
 	return;
 #endif
 	OBSBasic *main = OBSBasic::Get();

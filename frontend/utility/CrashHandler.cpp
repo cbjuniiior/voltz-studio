@@ -297,8 +297,7 @@ void CrashHandler::uploadCrashLogToServer()
 			QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromUtf8(crashesDir)));
 		}
 	}
-	emit crashLogUploadFailed(QStringLiteral(
-		"O envio de relatórios de falha está desativado no Voltz Studio. A pasta de relatórios foi aberta."));
+	emit crashLogUploadFailed(QTStr("Voltz.CrashUpload.Disabled"));
 	return;
 #endif
 	std::string crashLogFileContent = getCrashLogFileContent(lastCrashLogFile_);

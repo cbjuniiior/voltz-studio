@@ -26,6 +26,8 @@ target_sources(
     voltz/shell/FrontendBridge.hpp
     voltz/shell/RecordPage.cpp
     voltz/shell/RecordPage.hpp
+    voltz/shell/ShellLocale.cpp
+    voltz/shell/ShellLocale.hpp
     voltz/shell/VoltzPreview.cpp
     voltz/shell/VoltzPreview.hpp
     voltz/shell/VoltzShell.cpp

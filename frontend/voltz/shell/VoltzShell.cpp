@@ -2,9 +2,11 @@
 
 #include "FrontendBridge.hpp"
 #include "RecordPage.hpp"
+#include "ShellLocale.hpp"
 
 #include <OBSApp.hpp>
 #include <widgets/OBSBasic.hpp>
+#include <qt-wrappers.hpp>
 #include <voltz/core/voltz-version.hpp>
 
 #include <obs.h>
@@ -44,6 +46,7 @@ QString loadStyleSheet()
 
 VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 {
+	loadShellLocale();
 	setObjectName("voltzShell");
 	/* qualificado: dentro de QMainWindow, "windowTitle" sem namespace é QWidget::windowTitle() */
 	setWindowTitle(QString::fromStdString(voltz::windowTitle(currentVersion(), "")));
@@ -55,10 +58,8 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 
 	pages_ = new QStackedWidget(this);
 	pages_->addWidget(new RecordPage(bridge_, pages_));
-	pages_->addWidget(buildPlaceholderPage(QStringLiteral("Projetos"),
-					       QStringLiteral("Em breve: suas gravações aparecem aqui.")));
-	pages_->addWidget(buildPlaceholderPage(QStringLiteral("Presets"),
-					       QStringLiteral("Em breve: layouts e configurações prontas.")));
+	pages_->addWidget(buildPlaceholderPage(QTStr("Voltz.Projects.Title"), QTStr("Voltz.Projects.Soon")));
+	pages_->addWidget(buildPlaceholderPage(QTStr("Voltz.Presets.Title"), QTStr("Voltz.Presets.Soon")));
 	pages_->addWidget(buildSettingsPage());
 
 	auto *central = new QWidget(this);
@@ -75,7 +76,8 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 		deleteLater();
 	});
 
-	blog(LOG_INFO, "[voltz] shell pronta (%s)", aboutLine(currentVersion(), "baseado no OBS Studio").c_str());
+	blog(LOG_INFO, "[voltz] shell pronta (%s)",
+	     aboutLine(currentVersion(), QTStr("Voltz.About.BasedOn").toStdString()).c_str());
 }
 
 QWidget *VoltzShell::buildSideNav()
@@ -90,8 +92,8 @@ QWidget *VoltzShell::buildSideNav()
 	navGroup_ = new QButtonGroup(this);
 	navGroup_->setExclusive(true);
 
-	const QStringList labels = {QStringLiteral("●\nGravar"), QStringLiteral("▤\nProjetos"),
-				    QStringLiteral("◫\nPresets"), QStringLiteral("⚙\nAjustes")};
+	const QStringList labels = {QTStr("Voltz.Nav.Record"), QTStr("Voltz.Nav.Projects"), QTStr("Voltz.Nav.Presets"),
+				    QTStr("Voltz.Nav.Settings")};
 	for (int i = 0; i < labels.size(); i++) {
 		auto *button = new QToolButton(nav);
 		button->setText(labels[i]);
@@ -131,11 +133,11 @@ QWidget *VoltzShell::buildPlaceholderPage(const QString &title, const QString &t
 
 QWidget *VoltzShell::buildSettingsPage()
 {
-	QWidget *page =
-		buildPlaceholderPage(QStringLiteral("Ajustes"),
-				     QString::fromStdString(aboutLine(currentVersion(), "baseado no OBS Studio")));
+	QWidget *page = buildPlaceholderPage(
+		QTStr("Voltz.Settings.Title"),
+		QString::fromStdString(aboutLine(currentVersion(), QTStr("Voltz.About.BasedOn").toStdString())));
 
-	auto *classic = new QPushButton(QStringLiteral("Abrir modo clássico (OBS completo)"), page);
+	auto *classic = new QPushButton(QTStr("Voltz.Settings.OpenClassic"), page);
 	connect(classic, &QPushButton::clicked, this, []() {
 		/* SetShowing é slot privado do OBSBasic: religa a prévia e o texto da bandeja junto com o show */
 		OBSBasic *main = OBSBasic::Get();

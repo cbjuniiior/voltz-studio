@@ -35,6 +35,8 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
 - Plano 1 (Fundação) concluído: `VoltzStudio.exe` 1.0.0, config em `%APPDATA%\Voltz Studio`, sem phone-home,
   câmera virtual própria, `voltz-core` + testes doctest, casca `VoltzShell` (Gravar com cenas/prévia/gravar/pausar)
   sobre `OBSBasic` oculta. Patches no OBS listados em `docs/voltz/upstream-patches.md`.
+- Plano 2A concluído: tela Gravar completa (cenas por UUID, fontes, áudio, erros de gravação visíveis), textos
+  pt-BR/en-US (`frontend/data/locale/voltz-*.ini`), ícones Phosphor, DM Sans, barra de título escura.
 
 ## Decisões
 - **Casca Qt nova** + `OBSBasic` oculta como motor (modo clássico = saída de emergência); não reformar `OBSBasic.ui`.
@@ -47,6 +49,7 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
   `obs_canvas` + `cursor.jsonl` + `anotacoes.jsonl` + `projeto.voltz`.
 - Anotações/mouse **ao vivo + editáveis**: overlay com `WDA_EXCLUDEFROMCAPTURE`, render no programa por fontes Voltz.
 - Instalador **Inno Setup** (repo do OBS não tem script de instalador; só gera ZIP).
+- Fontes de áudio globais com o nome padrão do OBS ('Desktop Audio'/'Mic/Aux' ou equivalente traduzido) são renomeadas para 'Som do sistema'/'Microfone' (fica na coleção de cenas; nunca sobrescreve nome personalizado).
 - Logo: obturador de 3 lâminas lima inclinado sobre squircle preto; bolinha REC só ao gravar.
 
 ## Armadilhas
@@ -61,7 +64,11 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
 - O fechamento da casca deve chamar `OBSBasic::close()` via `Qt::QueuedConnection` (síncrono destrói a casca dentro do próprio closeEvent).
 - Build x86 auxiliar às vezes falha com MSB4018 "Touch"/ZERO_CHECK (race) — rodar de novo.
 - Smoke de gravação usa `--startrecording` + `ConfirmOnExit=false` no user.ini portátil; sem coleção de cenas em disco o OBS ignora `--startrecording` (por isso o script abre o app uma vez antes). Fechar gravando não loga `==== Recording Stop` (comportamento do upstream; o arquivo é finalizado).
+- Regras da casca no QSS precisam do prefixo `#voltzShell` (o tema do OBS é global e tem `QPushButton { max-height }`).
+- Sinais do libobs (cena, saída, `channel_change`, `source_rename`) chegam fora da thread da UI: repassar com `Qt::QueuedConnection`.
+- `OBSBasic::AddSourceDialog` só abre se chamado por QAction → disparar `actionAddSource` com `trigger()`.
+- A saída de gravação é recriada ao mudar configurações: reconectar o sinal `stop` a cada `RECORDING_STARTING`.
 
 ## Próximos passos
-1. Antes de escrever o Plano 2, ler `docs/voltz/backlog-plano-2.md`. Depois escrever e executar o Plano 2 (casca completa: layout H2 final, fontes/áudio, Projetos/Presets/Ajustes, tema `.ovt`, DM Sans, locale, bandeja).
+1. Escrever e executar o Plano 2B (Presets, Projetos, Ajustes, tema `.ovt` do clássico, bandeja, diálogos de saída/falha) a partir de `docs/voltz/backlog-plano-2.md`.
 2. Depois: Plano 3 (gravação em projeto), 4 (anotações + mouse), 5 (marca visual + instalador + CI).

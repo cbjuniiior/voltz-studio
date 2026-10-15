@@ -3,15 +3,18 @@
 Itens levantados nas revisões de código do Plano 1 que ficaram de fora de propósito. Entram no Plano 2
 (casca completa) a menos que indicado.
 
+## Feito no Plano 2A
+- Erros de gravação agora visíveis na casca (sinal `stop` da saída + faixa vermelha).
+- `nativeEvent` da casca repassa mudanças de monitor ao display da prévia.
+- Cenas por UUID (`ScenesPanel`).
+- Pausa habilitada só quando a saída suporta.
+- Ícones Phosphor no lugar dos glifos de texto.
+- DM Sans empacotada.
+- `aboutLine` traduzível (locale `Voltz.*`).
+- Mensagens fixas em português do upload de log/crash movidas para o locale.
+- Tema do OBS deixou de vazar para a casca (regras QSS com prefixo `#voltzShell`).
+
 ## Casca / ciclo de vida
-- **OBRIGATÓRIO antes de qualquer teste com usuário real. Erros de gravação invisíveis:** `OBSBasic::RecordingStop` só mostra diálogos de erro `if (isVisible())`
-  (OBSBasic_Recording.cpp ~190-226); com a clássica oculta, erros de encoder/disco cheio não chegam ao usuário.
-  Expor erro no `RECORDING_STOPPED` para a casca ou tratar `HasVoltzShell()` como visível nesses checks.
-- **`nativeEvent` da casca:** repassar `WM_MOVE`/`WM_DISPLAYCHANGE` ao `OBSQTDisplay` (como `OBSBasic::nativeEvent`,
-  OBSBasic.cpp ~1780-1798) para a prévia acompanhar troca de monitor SDR/HDR.
-- **Cenas por UUID:** guardar o UUID da cena em `Qt::UserRole` e usar `obs_get_source_by_uuid` (nome é ambíguo com
-  canvases do OBS 32); `clearSelection()` quando a cena atual não estiver na lista.
-- **Pausa só quando suportada:** habilitar ⏸ apenas se `obs_output_can_pause(obs_frontend_get_recording_output())`.
 - **Bandeja do Windows:** ícone/menu "Mostrar/Ocultar" hoje alternam a janela clássica, não a casca.
 - **"Ocultar janelas do OBS da captura"** (`SetDisplayAffinity`) e overlay da barra de tarefas não cobrem a casca.
 - **`obs_frontend_get_main_window()`** ainda devolve a `OBSBasic` oculta (diálogos/docks de plugins se prendem a ela).
@@ -19,21 +22,24 @@ Itens levantados nas revisões de código do Plano 1 que ficaram de fora de prop
 - **Diálogo de encerramento inesperado** (`frontend/OBSApp.cpp` ~110-112) ainda mostra o aviso de privacidade do OBS
   e a caixa "Enviar relatório".
 - **Menu clássico** mostra "Verificar atualizações"/"Reparar" desativados — esconder.
+- **Erro de gravação avisado duas vezes:** com o `OBSBasic` oculto, o `RecordingStop` do OBS também mostra o balão
+  da bandeja (`SysTrayNotify`) junto com a faixa vermelha da casca — decidir junto com a bandeja da casca.
+- **Grupos no painel de Fontes:** `obs_scene_enum_items` lista só o nível de topo; um grupo aparece como uma linha,
+  sem os filhos (expandir/recolher).
+- **Painel de Áudio não reage a Configurações → Áudio:** decaimento e tipo do medidor só valem na criação do
+  controle; reconstruir ao aplicar configurações (evento/flag a definir).
+- **Acabamento do painel de Áudio (visual):** a escala de dB do `VolumeMeter` fica sobreposta na largura de 280 px
+  ("-6054-48-42…"); slider azul do OBS (trocar para lima `#D4F53C` via QSS `#voltzShell`); botões de mudo/monitor e
+  seta de menu com o estilo do OBS — alinhar à identidade Voltz (ícones Phosphor `speaker-high`/`microphone`).
+- **Rótulos de áudio:** os nomes vêm das fontes globais do OBS (renomeadas para "Som do sistema"/"Microfone" quando
+  ainda têm o nome padrão); um rótulo próprio da casca exigiria tornar `VolumeControl::setName` público.
 - **macOS:** a ordem de destruição da casca depende do event loop (o flush de DeferredDelete é `#ifndef __APPLE__`) —
   irrelevante enquanto o alvo for só Windows.
 
 ## Marca / i18n
-- **Ícones Phosphor (pedido do usuário):** trocar todos os glifos de texto do protótipo (barra lateral ●▤◫⚙,
-  botões ⏸/▶/●/■) por ícones do Phosphor Icons (`@phosphor-icons/core`, MIT, versão fixa). Só os SVGs usados vão
-  para `frontend/voltz/shell/icons/` + `.qrc`; recolorir em runtime com a cor do tema (normal `#82828C`, ativo
-  `#D4F53C`). Peso Regular no normal, Fill no ativo. Incluir a licença MIT do Phosphor no instalador/Sobre.
-- Mensagens fixas em português no `UploadLog`/`uploadCrashLogToServer` -> mover para o locale.
-- `voltz::aboutLine` tem texto em português fixo; receber o template traduzido (pt-BR/en-US) do locale da casca.
 - "Sobre" do modo clássico ainda tem links "Doar"/"Participe" para obsproject.com.
-- Fonte DM Sans ainda não empacotada (cai em Segoe UI); glifos ⏸/▶ podem renderizar mal — trocar por ícones.
-- Tema do OBS (stylesheet global) ainda vaza para a casca em alguns widgets.
-
 ## Testes / ferramentas
+- **Testes manuais pendentes do 2A (precisam de mãos humanas):** tirar pendrive durante gravação → faixa vermelha; adicionar fonte pelo diálogo do `+`; travar/ordem/propriedades/filtros/remover com confirmação; volume/mudo; desativar microfone em Configurações → controle some.
 - Smoke sem `--multi` para provar o crash sentinel (`config\Voltz Studio\.sentinel\run_*` existe durante a execução
   e some após saída limpa). O log "No crash sentinel location set" no smoke atual é efeito do `--multi`.
 - `ENABLE_VOLTZ_TESTS` liga por padrão; considerar desligar no preset de release/instalador (Plano 5).

@@ -1174,14 +1174,14 @@ void OBSBasic::OBSInit()
 	bool sysTrayWhenStarted = config_get_bool(App()->GetUserConfig(), "BasicWindow", "SysTrayWhenStarted");
 	bool hideWindowOnStart = QSystemTrayIcon::isSystemTrayAvailable() && sysTrayEnabled &&
 				 (opt_minimize_tray || sysTrayWhenStarted);
-
-#ifdef _WIN32
-	SetWin32DropStyle(this);
-
 #ifdef VOLTZ_STUDIO
 	/* Voltz: a casca Voltz é a janela principal; OBSBasic fica oculta (modo clássico) */
 	hideWindowOnStart = true;
 #endif
+
+#ifdef _WIN32
+	SetWin32DropStyle(this);
+
 	if (!hideWindowOnStart) {
 		show();
 	}
@@ -1732,10 +1732,10 @@ void OBSBasic::closeEvent(QCloseEvent *event)
 	}
 
 #ifdef VOLTZ_STUDIO
-	/* Voltz: fechar o modo clássico só esconde; quem encerra o app é a casca */
-	if (App()->HasVoltzShell() && !App()->IsVoltzQuitting()) {
-		hide();
+	/* Voltz: o X da janela clássica só esconde; fechamentos programáticos (Sair, reiniciar) seguem normalmente */
+	if (App()->HasVoltzShell() && event->spontaneous()) {
 		event->ignore();
+		SetShowing(false);
 		return;
 	}
 #endif
@@ -1973,10 +1973,24 @@ bool OBSBasic::promptToClose()
 {
 	isClosePromptOpen_ = true;
 
+#ifdef VOLTZ_STUDIO
+	/* Voltz: com a casca, não reabrir o modo clássico só para perguntar; a pergunta sai sobre a janela ativa */
+	QWidget *promptParent = this;
+	if (App()->HasVoltzShell()) {
+		if (QWidget *active = App()->activeWindow())
+			promptParent = active;
+	} else {
+		SetShowing(true);
+	}
+	QMessageBox::StandardButton button =
+		OBSMessageBox::question(promptParent, QTStr("ConfirmExit.Title"), QTStr("ConfirmExit.Text"),
+					QMessageBox::StandardButtons(QMessageBox::Ok | QMessageBox::Cancel));
+#else
 	SetShowing(true);
 	QMessageBox::StandardButton button =
 		OBSMessageBox::question(this, QTStr("ConfirmExit.Title"), QTStr("ConfirmExit.Text"),
 					QMessageBox::StandardButtons(QMessageBox::Ok | QMessageBox::Cancel));
+#endif
 
 	if (button == QMessageBox::Cancel) {
 		isClosePromptOpen_ = false;

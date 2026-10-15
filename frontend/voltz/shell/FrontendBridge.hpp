@@ -30,11 +30,15 @@ signals:
 	void sceneListChanged();
 	void currentSceneChanged(const QString &name);
 	void recordingStateChanged(bool active, bool paused);
+	// Gravação iniciando (stopping=false) ou finalizando (stopping=true): estado transitório.
+	void recordingTransition(bool stopping);
 	void exiting();
 
 private:
 	static void handleEvent(enum obs_frontend_event event, void *data);
 	void dispatch(enum obs_frontend_event event);
+
+	bool registered_ = true;
 };
 
 } // namespace voltz

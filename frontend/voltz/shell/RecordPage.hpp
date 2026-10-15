@@ -26,6 +26,7 @@ private:
 	void refreshScenes();
 	void selectScene(const QString &name);
 	void updateRecordingUi(bool active, bool paused);
+	void showRecordingTransition(bool stopping);
 	void tickClock();
 
 	FrontendBridge *bridge_;
@@ -39,6 +40,7 @@ private:
 	QElapsedTimer monotonic_;
 	RecordingClock recordingClock_;
 	bool updatingList_ = false;
+	bool pendingStart_ = false;
 };
 
 } // namespace voltz

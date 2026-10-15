@@ -86,7 +86,6 @@ private:
 	QPointer<OBSMainWindow> mainWindow;
 #ifdef VOLTZ_STUDIO
 	QPointer<voltz::VoltzShell> voltzShell;
-	bool voltzQuitting = false;
 #endif
 	profiler_name_store_t *profilerNameStore = nullptr;
 	std::vector<UpdateBranch> updateBranches;
@@ -167,8 +166,6 @@ public:
 	inline QMainWindow *GetMainWindow() const { return mainWindow.data(); }
 #ifdef VOLTZ_STUDIO
 	inline bool HasVoltzShell() const { return !voltzShell.isNull(); }
-	inline bool IsVoltzQuitting() const { return voltzQuitting; }
-	inline void SetVoltzQuitting(bool quitting) { voltzQuitting = quitting; }
 #endif
 
 	inline config_t *GetAppConfig() const { return appConfig; }

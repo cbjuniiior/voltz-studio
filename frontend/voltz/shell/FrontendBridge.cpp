@@ -13,7 +13,9 @@ FrontendBridge::FrontendBridge(QObject *parent) : QObject(parent)
 
 FrontendBridge::~FrontendBridge()
 {
-	obs_frontend_remove_event_callback(&FrontendBridge::handleEvent, this);
+	/* Após o EXIT a frontend API já foi desligada; remover de novo só gera erro no log */
+	if (registered_)
+		obs_frontend_remove_event_callback(&FrontendBridge::handleEvent, this);
 }
 
 QStringList FrontendBridge::sceneNames() const
@@ -93,7 +95,16 @@ void FrontendBridge::dispatch(enum obs_frontend_event event)
 	case OBS_FRONTEND_EVENT_RECORDING_STOPPED:
 		emit recordingStateChanged(false, false);
 		break;
+	case OBS_FRONTEND_EVENT_RECORDING_STARTING:
+		emit recordingTransition(false);
+		break;
+	case OBS_FRONTEND_EVENT_RECORDING_STOPPING:
+		emit recordingTransition(true);
+		break;
 	case OBS_FRONTEND_EVENT_EXIT:
+		/* Seguro durante o próprio evento: OBSStudioAPI::on_event percorre os callbacks de trás para frente */
+		obs_frontend_remove_event_callback(&FrontendBridge::handleEvent, this);
+		registered_ = false;
 		emit exiting();
 		break;
 	default:

@@ -102,6 +102,7 @@ RecordPage::RecordPage(FrontendBridge *bridge, QWidget *parent) : QWidget(parent
 	connect(bridge_, &FrontendBridge::sceneListChanged, this, &RecordPage::refreshScenes);
 	connect(bridge_, &FrontendBridge::currentSceneChanged, this, &RecordPage::selectScene);
 	connect(bridge_, &FrontendBridge::recordingStateChanged, this, &RecordPage::updateRecordingUi);
+	connect(bridge_, &FrontendBridge::recordingTransition, this, &RecordPage::showRecordingTransition);
 
 	refreshScenes();
 	updateRecordingUi(bridge_->isRecording(), bridge_->isRecordingPaused());
@@ -142,6 +143,8 @@ void RecordPage::updateRecordingUi(bool active, bool paused)
 	else
 		ticker_.stop();
 
+	pendingStart_ = false;
+	recordButton_->setEnabled(true);
 	recordButton_->setText(active ? QStringLiteral("■  Parar") : QStringLiteral("●  Gravar"));
 	recordButton_->setProperty("recording", active);
 	recordButton_->style()->unpolish(recordButton_);
@@ -151,6 +154,25 @@ void RecordPage::updateRecordingUi(bool active, bool paused)
 	pauseButton_->setText(active && paused ? QStringLiteral("▶  Retomar") : QStringLiteral("⏸  Pausar"));
 
 	tickClock();
+}
+
+void RecordPage::showRecordingTransition(bool stopping)
+{
+	/* Enquanto inicia/finaliza, um segundo clique chamaria StopRecording com a saída em
+	 * "stopping" (parada forçada, pode truncar o arquivo): botões travados até STARTED/STOPPED. */
+	recordButton_->setEnabled(false);
+	pauseButton_->setEnabled(false);
+	recordButton_->setText(stopping ? QStringLiteral("Finalizando…") : QStringLiteral("Iniciando…"));
+
+	if (!stopping) {
+		/* Falha síncrona ao iniciar (OBSBasic::StartRecording emite STARTING, mas o start da saída
+		 * falha e não vem STARTED nem STOPPED): sem isto o botão ficaria preso em "Iniciando…". */
+		pendingStart_ = true;
+		QTimer::singleShot(0, this, [this]() {
+			if (pendingStart_ && !bridge_->isRecording())
+				updateRecordingUi(false, false);
+		});
+	}
 }
 
 void RecordPage::tickClock()

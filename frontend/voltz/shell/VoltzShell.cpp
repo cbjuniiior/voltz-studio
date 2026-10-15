@@ -134,8 +134,9 @@ QWidget *VoltzShell::buildSettingsPage()
 
 	auto *classic = new QPushButton(QStringLiteral("Abrir modo clássico (OBS completo)"), page);
 	connect(classic, &QPushButton::clicked, this, []() {
+		/* SetShowing é slot privado do OBSBasic: religa a prévia e o texto da bandeja junto com o show */
 		OBSBasic *main = OBSBasic::Get();
-		main->show();
+		QMetaObject::invokeMethod(main, "SetShowing", Q_ARG(bool, true));
 		main->raise();
 		main->activateWindow();
 	});
@@ -161,7 +162,6 @@ void VoltzShell::closeEvent(QCloseEvent *event)
 	 * (confirmações, salvar cenas, liberar fontes). Ao final ele emite
 	 * OBS_FRONTEND_EVENT_EXIT e a casca se destrói antes do obs_shutdown. */
 	event->ignore();
-	App()->SetVoltzQuitting(true);
 	QMetaObject::invokeMethod(OBSBasic::Get(), "close", Qt::QueuedConnection);
 }
 

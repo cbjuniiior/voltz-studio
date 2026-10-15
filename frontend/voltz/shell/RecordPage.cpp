@@ -4,6 +4,7 @@
 #include "FrontendBridge.hpp"
 #include "Icons.hpp"
 #include "ScenesPanel.hpp"
+#include "SourcesPanel.hpp"
 #include "VoltzPreview.hpp"
 
 #include <voltz/core/recording-error.hpp>
@@ -42,11 +43,7 @@ RecordPage::RecordPage(FrontendBridge *bridge, QWidget *parent) : QWidget(parent
 	sideColumn_ = new QVBoxLayout(sideHolder);
 	sideColumn_->setContentsMargins(0, 0, 0, 0);
 	sideColumn_->setSpacing(12);
-	auto *sourcesHint = new QLabel(QStringLiteral("Fontes e áudio chegam no próximo plano."), sideHolder);
-	sourcesHint->setObjectName("muted");
-	sourcesHint->setWordWrap(true);
-	sideColumn_->addWidget(sourcesHint);
-	sideColumn_->addStretch(1);
+	sideColumn_->addWidget(new SourcesPanel(bridge_, sideHolder), 3);
 
 	auto *body = new QHBoxLayout();
 	body->setContentsMargins(12, 12, 12, 12);

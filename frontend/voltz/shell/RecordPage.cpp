@@ -4,6 +4,7 @@
 #include "FrontendBridge.hpp"
 #include "Icons.hpp"
 #include "ScenesPanel.hpp"
+#include "AudioPanel.hpp"
 #include "SourcesPanel.hpp"
 #include "VoltzPreview.hpp"
 
@@ -44,6 +45,7 @@ RecordPage::RecordPage(FrontendBridge *bridge, QWidget *parent) : QWidget(parent
 	sideColumn_->setContentsMargins(0, 0, 0, 0);
 	sideColumn_->setSpacing(12);
 	sideColumn_->addWidget(new SourcesPanel(bridge_, sideHolder), 3);
+	sideColumn_->addWidget(new AudioPanel(sideHolder), 2);
 
 	auto *body = new QHBoxLayout();
 	body->setContentsMargins(12, 12, 12, 12);

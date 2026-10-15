@@ -2159,7 +2159,7 @@ QString loadStyleSheet()
 VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 {
 	setObjectName("voltzShell");
-	setWindowTitle(QString::fromStdString(windowTitle(currentVersion(), "")));
+	setWindowTitle(QString::fromStdString(voltz::windowTitle(currentVersion(), "")));
 	setMinimumSize(1024, 640);
 	resize(1280, 800);
 	setStyleSheet(loadStyleSheet());

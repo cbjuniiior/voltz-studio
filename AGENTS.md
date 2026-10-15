@@ -39,6 +39,8 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
 ## Decisões
 - **Casca Qt nova** + `OBSBasic` oculta como motor (modo clássico = saída de emergência); não reformar `OBSBasic.ui`.
 - Cenas mantidas (simplificadas); layout **H2**; tema **preto #09090B + lima #D4F53C**; DM Sans.
+- Ícones: **Phosphor Icons** (MIT; SVGs do `@phosphor-icons/core` embutidos no `.qrc`, recoloridos pelo tema);
+  peso **Regular** no estado normal e **Fill** no item ativo. Nada de glifos de texto (●▤◫⚙⏸▶) na UI final.
 - Lives ocultas mas mantidas (Ajustes → Avançado).
 - Gravação em projeto: `programa.mp4` (MP4 híbrido, capítulos, 3 faixas) + ISO `tela.mkv`/`camera.mkv` via
   `obs_canvas` + `cursor.jsonl` + `anotacoes.jsonl` + `projeto.voltz`.

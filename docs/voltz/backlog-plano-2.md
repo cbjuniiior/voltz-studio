@@ -20,6 +20,10 @@ Itens levantados nas revisões de código do Plano 1 que ficaram de fora de prop
   irrelevante enquanto o alvo for só Windows.
 
 ## Marca / i18n
+- **Ícones Phosphor (pedido do usuário):** trocar todos os glifos de texto do protótipo (barra lateral ●▤◫⚙,
+  botões ⏸/▶/●/■) por ícones do Phosphor Icons (`@phosphor-icons/core`, MIT, versão fixa). Só os SVGs usados vão
+  para `frontend/voltz/shell/icons/` + `.qrc`; recolorir em runtime com a cor do tema (normal `#82828C`, ativo
+  `#D4F53C`). Peso Regular no normal, Fill no ativo. Incluir a licença MIT do Phosphor no instalador/Sobre.
 - `voltz::aboutLine` tem texto em português fixo; receber o template traduzido (pt-BR/en-US) do locale da casca.
 - "Sobre" do modo clássico ainda tem links "Doar"/"Participe" para obsproject.com.
 - Fonte DM Sans ainda não empacotada (cai em Segoe UI); glifos ⏸/▶ podem renderizar mal — trocar por ícones.

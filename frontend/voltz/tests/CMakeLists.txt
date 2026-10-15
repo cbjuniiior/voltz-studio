@@ -8,9 +8,12 @@ target_sources(
   voltz-core-tests
   PRIVATE
     test-main.cpp
+    test-preset-layout.cpp
     test-preview-fit.cpp
     test-recording-clock.cpp
     test-recording-error.cpp
+    test-recording-files.cpp
+    test-recording-settings.cpp
     test-svg-recolor.cpp
     test-time-format.cpp
     test-version.cpp

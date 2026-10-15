@@ -6,7 +6,14 @@ add_executable(voltz-core-tests)
 
 target_sources(
   voltz-core-tests
-  PRIVATE test-main.cpp test-preview-fit.cpp test-recording-clock.cpp test-time-format.cpp test-version.cpp
+  PRIVATE
+    test-main.cpp
+    test-preview-fit.cpp
+    test-recording-clock.cpp
+    test-recording-error.cpp
+    test-svg-recolor.cpp
+    test-time-format.cpp
+    test-version.cpp
 )
 
 target_include_directories(voltz-core-tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/third_party/doctest")

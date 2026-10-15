@@ -5,8 +5,14 @@ add_library(Voltz::core ALIAS voltz-core)
 
 target_sources(
   voltz-core
-  PRIVATE preview-fit.cpp recording-clock.cpp time-format.cpp voltz-version.cpp
-  PUBLIC preview-fit.hpp recording-clock.hpp time-format.hpp voltz-version.hpp
+  PRIVATE preview-fit.cpp recording-clock.cpp recording-error.cpp svg-recolor.cpp time-format.cpp voltz-version.cpp
+  PUBLIC
+    preview-fit.hpp
+    recording-clock.hpp
+    recording-error.hpp
+    svg-recolor.hpp
+    time-format.hpp
+    voltz-version.hpp
 )
 
 # Inclui a partir de frontend/ para usar <voltz/core/...>

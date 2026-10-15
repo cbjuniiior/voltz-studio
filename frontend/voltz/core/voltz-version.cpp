@@ -2,9 +2,9 @@
 
 namespace voltz {
 
-std::string aboutLine(const VersionInfo &info)
+std::string aboutLine(const VersionInfo &info, const std::string &basedOnLabel)
 {
-	return info.product + " " + info.productVersion + " · baseado no OBS Studio " + info.engineVersion +
+	return info.product + " " + info.productVersion + " · " + basedOnLabel + " " + info.engineVersion +
 	       " (GPL-2.0)";
 }
 

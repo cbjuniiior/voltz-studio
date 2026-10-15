@@ -75,7 +75,7 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 		deleteLater();
 	});
 
-	blog(LOG_INFO, "[voltz] shell pronta (%s)", aboutLine(currentVersion()).c_str());
+	blog(LOG_INFO, "[voltz] shell pronta (%s)", aboutLine(currentVersion(), "baseado no OBS Studio").c_str());
 }
 
 QWidget *VoltzShell::buildSideNav()
@@ -132,7 +132,8 @@ QWidget *VoltzShell::buildPlaceholderPage(const QString &title, const QString &t
 QWidget *VoltzShell::buildSettingsPage()
 {
 	QWidget *page =
-		buildPlaceholderPage(QStringLiteral("Ajustes"), QString::fromStdString(aboutLine(currentVersion())));
+		buildPlaceholderPage(QStringLiteral("Ajustes"),
+				     QString::fromStdString(aboutLine(currentVersion(), "baseado no OBS Studio")));
 
 	auto *classic = new QPushButton(QStringLiteral("Abrir modo clássico (OBS completo)"), page);
 	connect(classic, &QPushButton::clicked, this, []() {

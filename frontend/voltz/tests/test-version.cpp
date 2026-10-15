@@ -2,10 +2,13 @@
 
 #include <voltz/core/voltz-version.hpp>
 
-TEST_CASE("aboutLine credita o OBS Studio e a licença")
+TEST_CASE("aboutLine credita o OBS Studio e a licença com o rótulo traduzido")
 {
 	const voltz::VersionInfo info{"Voltz Studio", "1.0.0", "32.2.2"};
-	CHECK(voltz::aboutLine(info) == "Voltz Studio 1.0.0 · baseado no OBS Studio 32.2.2 (GPL-2.0)");
+	CHECK(voltz::aboutLine(info, "baseado no OBS Studio") ==
+	      "Voltz Studio 1.0.0 · baseado no OBS Studio 32.2.2 (GPL-2.0)");
+	CHECK(voltz::aboutLine(info, "based on OBS Studio") ==
+	      "Voltz Studio 1.0.0 · based on OBS Studio 32.2.2 (GPL-2.0)");
 }
 
 TEST_CASE("windowTitle sem projeto mostra produto e versão")

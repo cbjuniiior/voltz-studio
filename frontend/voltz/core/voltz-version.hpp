@@ -13,8 +13,9 @@ struct VersionInfo {
 	std::string engineVersion;  // obs_get_version_string(), ex.: "32.2.2"
 };
 
-// "Voltz Studio 1.0.0 · baseado no OBS Studio 32.2.2 (GPL-2.0)"
-std::string aboutLine(const VersionInfo &info);
+// "Voltz Studio 1.0.0 · <basedOnLabel> 32.2.2 (GPL-2.0)"; o rótulo vem traduzido
+// (ex.: "baseado no OBS Studio" / "based on OBS Studio").
+std::string aboutLine(const VersionInfo &info, const std::string &basedOnLabel);
 
 // "Voltz Studio 1.0.0" ou, com projeto, "Aula 03 — Voltz Studio 1.0.0"
 std::string windowTitle(const VersionInfo &info, const std::string &projectName);

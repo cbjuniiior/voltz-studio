@@ -34,6 +34,8 @@ target_sources(
     voltz/shell/PresetBuilder.hpp
     voltz/shell/PresetsPage.cpp
     voltz/shell/PresetsPage.hpp
+    voltz/shell/ProjectsPage.cpp
+    voltz/shell/ProjectsPage.hpp
     voltz/shell/PresetThumbnail.cpp
     voltz/shell/PresetThumbnail.hpp
     voltz/shell/RecordingConfig.cpp

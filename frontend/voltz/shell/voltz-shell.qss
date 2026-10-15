@@ -212,3 +212,30 @@
 	background: transparent;
 	border: none;
 }
+
+#voltzShell QTreeWidget#projectsList {
+	background: #111114;
+	border: 1px solid #1F1F24;
+	border-radius: 8px;
+	outline: none;
+}
+
+#voltzShell QTreeWidget#projectsList::item {
+	padding: 6px 4px;
+	color: #F2F2F3;
+}
+
+#voltzShell QTreeWidget#projectsList::item:selected {
+	background: rgba(212, 245, 60, 26);
+	color: #F2F2F3;
+}
+
+#voltzShell QHeaderView::section {
+	background: #111114;
+	color: #82828C;
+	border: none;
+	border-bottom: 1px solid #1F1F24;
+	padding: 6px 4px;
+	font-size: 11px;
+}
+```

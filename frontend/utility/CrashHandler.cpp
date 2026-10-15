@@ -283,6 +283,11 @@ void CrashHandler::saveCrashLogToConfig()
 
 void CrashHandler::uploadCrashLogToServer()
 {
+#ifdef VOLTZ_STUDIO
+	/* Voltz: relatórios de falha não são enviados; ficam na pasta crashes */
+	blog(LOG_INFO, "[voltz] envio de relatorio de falha desativado");
+	return;
+#endif
 	std::string crashLogFileContent = getCrashLogFileContent(lastCrashLogFile_);
 
 	if (crashLogFileContent.empty()) {

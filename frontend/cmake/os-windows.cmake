@@ -71,7 +71,10 @@ endif()
 
 set_source_files_properties(utility/AutoUpdateThread.cpp PROPERTIES COMPILE_DEFINITIONS OBS_COMMIT="${OBS_COMMIT}")
 
-add_subdirectory(updater)
+# Voltz Studio: o atualizador do OBS (obsproject.com) não é compilado nem distribuído
+if(NOT VOLTZ_VERSION)
+  add_subdirectory(updater)
+endif()
 
 set_property(TARGET obs-studio APPEND PROPERTY AUTORCC_OPTIONS --format-version 1)
 

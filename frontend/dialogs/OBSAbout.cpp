@@ -5,6 +5,10 @@
 
 #include <qt-wrappers.hpp>
 
+#ifdef VOLTZ_STUDIO
+#include <voltz/core/voltz-version.hpp>
+#endif
+
 #include <json11.hpp>
 
 #include "moc_OBSAbout.cpp"
@@ -30,6 +34,10 @@ OBSAbout::OBSAbout(QWidget *parent) : QDialog(parent), ui(new Ui::OBSAbout)
 	QString ver = obs_get_version_string();
 
 	ui->version->setText(ver + bitness);
+#ifdef VOLTZ_STUDIO
+	ui->name->setText(QStringLiteral("Voltz Studio"));
+	ui->version->setText(QStringLiteral(VOLTZ_VERSION) + bitness);
+#endif
 
 	ui->contribute->setText(QTStr("About.Contribute"));
 
@@ -64,6 +72,10 @@ OBSAbout::OBSAbout(QWidget *parent) : QDialog(parent), ui(new Ui::OBSAbout)
 
 	QPointer<OBSAbout> about(this);
 
+#ifdef VOLTZ_STUDIO
+	/* Voltz: sem buscar a lista de apoiadores no obsproject.com */
+	ShowAbout();
+#else
 	OBSBasic *main = OBSBasic::Get();
 	if (main->patronJson.empty() && !main->patronJsonThread) {
 		RemoteTextThread *thread =
@@ -75,10 +87,16 @@ OBSAbout::OBSAbout(QWidget *parent) : QDialog(parent), ui(new Ui::OBSAbout)
 	} else {
 		ShowAbout();
 	}
+#endif
 }
 
 void OBSAbout::ShowAbout()
 {
+#ifdef VOLTZ_STUDIO
+	const voltz::VersionInfo info{"Voltz Studio", VOLTZ_VERSION, obs_get_version_string()};
+	ui->textBrowser->setHtml(QString::fromStdString(voltz::aboutLine(info)).toHtmlEscaped());
+	return;
+#endif
 	OBSBasic *main = OBSBasic::Get();
 
 	if (main->patronJson.empty()) {

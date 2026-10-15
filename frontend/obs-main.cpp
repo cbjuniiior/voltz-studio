@@ -72,7 +72,11 @@ bool opt_start_virtualcam = false;
 bool opt_minimize_tray = false;
 bool opt_allow_opengl = false;
 bool opt_always_on_top = false;
+#ifdef VOLTZ_STUDIO
+bool opt_disable_updater = true; /* Voltz: sem o atualizador do OBS */
+#else
 bool opt_disable_updater = false;
+#endif
 bool opt_disable_missing_files_check = false;
 string opt_starting_collection;
 string opt_starting_profile;

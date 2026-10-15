@@ -47,6 +47,10 @@
 
 #include <qt-wrappers.hpp>
 
+#ifdef VOLTZ_STUDIO
+#include <voltz/core/voltz-version.hpp>
+#endif
+
 #include <nlohmann/json.hpp>
 #include <QDesktopServices>
 
@@ -279,6 +283,17 @@ static BPtr<char> ReadLogFile(const char *subdir, const char *log)
 
 void OBSBasic::UploadLog(const char *subdir, const char *file, const LogUploadType uploadType)
 {
+#ifdef VOLTZ_STUDIO
+	/* Voltz: nenhum log sai da máquina — abre a pasta local de logs */
+	UNUSED_PARAMETER(file);
+	char logDir[512];
+	if (GetAppConfigPath(logDir, sizeof(logDir), subdir) > 0) {
+		QDesktopServices::openUrl(QUrl::fromLocalFile(QT_UTF8(logDir)));
+	}
+	emit App()->logUploadFailed(uploadType,
+				    QStringLiteral("O envio de logs está desativado no Voltz Studio. A pasta de logs foi aberta."));
+	return;
+#endif
 	BPtr<char> fileString{ReadLogFile(subdir, file)};
 
 	if (!fileString || !*fileString) {
@@ -419,19 +434,31 @@ void OBSBasic::logUploadFinished(const std::string &text, const std::string &err
 
 void OBSBasic::on_actionHelpPortal_triggered()
 {
+#ifdef VOLTZ_STUDIO
+	QUrl url = QUrl(voltz::kProjectUrl, QUrl::TolerantMode);
+#else
 	QUrl url = QUrl("https://obsproject.com/help", QUrl::TolerantMode);
+#endif
 	QDesktopServices::openUrl(url);
 }
 
 void OBSBasic::on_actionWebsite_triggered()
 {
+#ifdef VOLTZ_STUDIO
+	QUrl url = QUrl(voltz::kProjectUrl, QUrl::TolerantMode);
+#else
 	QUrl url = QUrl("https://obsproject.com", QUrl::TolerantMode);
+#endif
 	QDesktopServices::openUrl(url);
 }
 
 void OBSBasic::on_actionDiscord_triggered()
 {
+#ifdef VOLTZ_STUDIO
+	QUrl url = QUrl(voltz::kIssuesUrl, QUrl::TolerantMode);
+#else
 	QUrl url = QUrl("https://obsproject.com/discord", QUrl::TolerantMode);
+#endif
 	QDesktopServices::openUrl(url);
 }
 
@@ -457,8 +484,12 @@ void OBSBasic::on_actionShowWhatsNew_triggered()
 
 void OBSBasic::on_actionReleaseNotes_triggered()
 {
+#ifdef VOLTZ_STUDIO
+	QUrl url(QString("%1/releases").arg(voltz::kProjectUrl), QUrl::TolerantMode);
+#else
 	QString addr("https://github.com/obsproject/obs-studio/releases");
 	QUrl url(QString("%1/%2").arg(addr, obs_get_version_string()), QUrl::TolerantMode);
+#endif
 	QDesktopServices::openUrl(url);
 }
 

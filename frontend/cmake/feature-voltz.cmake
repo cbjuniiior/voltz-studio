@@ -18,3 +18,5 @@ target_compile_definitions(
   obs-studio
   PRIVATE VOLTZ_STUDIO "VOLTZ_VERSION=\"${VOLTZ_VERSION}\"" "VOLTZ_CONFIG_DIR=\"Voltz Studio\""
 )
+
+target_sources(obs-studio PRIVATE voltz/shell/FrontendBridge.cpp voltz/shell/FrontendBridge.hpp)

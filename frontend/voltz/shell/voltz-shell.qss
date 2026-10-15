@@ -168,3 +168,47 @@
 #voltzShell OBSQTDisplay {
 	qproperty-displayBackgroundColor: #09090B;
 }
+
+#voltzShell QFrame#presetCard {
+	background: #111114;
+	border: 1px solid #1F1F24;
+	border-radius: 10px;
+}
+
+#voltzShell QFrame#presetCard:hover {
+	border-color: #3A3A42;
+}
+
+#voltzShell QFrame#presetCard QWidget {
+	background: transparent;
+}
+
+#voltzShell QLabel#cardTitle {
+	font-size: 15px;
+	font-weight: 600;
+}
+
+#voltzShell QFrame#welcomeBanner {
+	background: rgba(212, 245, 60, 20);
+	border: 1px solid rgba(212, 245, 60, 90);
+	border-radius: 8px;
+}
+
+/* Seletor extra: "#presetCard QWidget" (transparente) tem especificidade maior que "QPushButton#primaryButton". */
+#voltzShell QPushButton#primaryButton,
+#voltzShell QFrame#presetCard QPushButton#primaryButton {
+	background: #D4F53C;
+	color: #09090B;
+	border: none;
+	font-weight: 600;
+}
+
+#voltzShell QPushButton#primaryButton:hover,
+#voltzShell QFrame#presetCard QPushButton#primaryButton:hover {
+	background: #E2FA6A;
+}
+
+#voltzShell QScrollArea {
+	background: transparent;
+	border: none;
+}

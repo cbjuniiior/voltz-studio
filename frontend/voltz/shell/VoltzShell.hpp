@@ -27,6 +27,8 @@ private:
 	QWidget *buildPlaceholderPage(const QString &title, const QString &text);
 	QWidget *buildSettingsPage();
 	void selectPage(int index);
+	// Marca o botão da navegação e troca a página (para trocas que não vêm de clique).
+	void showPage(int index);
 
 	FrontendBridge *bridge_ = nullptr;
 	QStackedWidget *pages_ = nullptr;

@@ -2,6 +2,7 @@
 
 #include "FrontendBridge.hpp"
 #include "Icons.hpp"
+#include "PresetsPage.hpp"
 #include "RecordPage.hpp"
 #include "ShellLocale.hpp"
 #include "WindowChrome.hpp"
@@ -62,7 +63,8 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 	pages_ = new QStackedWidget(this);
 	pages_->addWidget(new RecordPage(bridge_, pages_));
 	pages_->addWidget(buildPlaceholderPage(QTStr("Voltz.Projects.Title"), QTStr("Voltz.Projects.Soon")));
-	pages_->addWidget(buildPlaceholderPage(QTStr("Voltz.Presets.Title"), QTStr("Voltz.Presets.Soon")));
+	auto *presets = new PresetsPage(pages_);
+	pages_->addWidget(presets);
 	pages_->addWidget(buildSettingsPage());
 
 	auto *central = new QWidget(this);
@@ -72,6 +74,12 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 	layout->addWidget(buildSideNav());
 	layout->addWidget(pages_, 1);
 	setCentralWidget(central);
+
+	connect(presets, &PresetsPage::presetApplied, this, [this]() { showPage(0); });
+	connect(presets, &PresetsPage::firstRunDismissed, this, [this]() { showPage(0); });
+	if (PresetsPage::isFirstRun()) {
+		showPage(2);
+	}
 
 	connect(bridge_, &FrontendBridge::exiting, this, [this]() {
 		exiting_ = true;
@@ -163,6 +171,12 @@ QWidget *VoltzShell::buildSettingsPage()
 void VoltzShell::selectPage(int index)
 {
 	pages_->setCurrentIndex(index);
+}
+
+void VoltzShell::showPage(int index)
+{
+	navGroup_->button(index)->setChecked(true);
+	selectPage(index);
 }
 
 bool VoltzShell::nativeEvent(const QByteArray &eventType, void *message, qintptr *result)

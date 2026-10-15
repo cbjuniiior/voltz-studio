@@ -32,6 +32,12 @@ target_sources(
     voltz/shell/Icons.hpp
     voltz/shell/PresetBuilder.cpp
     voltz/shell/PresetBuilder.hpp
+    voltz/shell/PresetsPage.cpp
+    voltz/shell/PresetsPage.hpp
+    voltz/shell/PresetThumbnail.cpp
+    voltz/shell/PresetThumbnail.hpp
+    voltz/shell/RecordingConfig.cpp
+    voltz/shell/RecordingConfig.hpp
     voltz/shell/RecordPage.cpp
     voltz/shell/RecordPage.hpp
     voltz/shell/ScenesPanel.cpp

@@ -109,21 +109,6 @@
       }
     },
     {
-      "name": "voltz-windows-x64",
-      "displayName": "Voltz Studio x64 (VS 2022)",
-      "description": "Build do Voltz Studio (x64) com Visual Studio 2022",
-      "inherits": ["windows-x64"],
-      "generator": "Visual Studio 17 2022",
-      "cacheVariables": {
-        "VIRTUALCAM_GUID": {"type": "STRING", "value": "EBB0E657-2F91-4DE0-BF14-BD030B7BF5D7"},
-        "ENABLE_AJA": false,
-        "ENABLE_DECKLINK": false,
-        "ENABLE_WHATSNEW": false,
-        "ENABLE_SERVICE_UPDATES": false,
-        "ENABLE_COMPAT_UPDATES": false
-      }
-    },
-    {
       "name": "macos-ci",
       "displayName": "macOS (CI)",
       "description": "CI macOS build (single architecture only)",
@@ -184,6 +169,21 @@
         "GPU_PRIORITY_VAL": {"type": "STRING", "value": "$penv{GPU_PRIORITY_VAL}"},
         "VIRTUALCAM_GUID": {"type": "STRING", "value": "A3FCE0F5-3493-419F-958A-ABA1250EC20B"},
         "ENABLE_BROWSER": true
+      }
+    },
+    {
+      "name": "voltz-windows-x64",
+      "displayName": "Voltz Studio x64 (VS 2022)",
+      "description": "Build do Voltz Studio (x64) com Visual Studio 2022",
+      "inherits": ["windows-x64"],
+      "generator": "Visual Studio 17 2022",
+      "cacheVariables": {
+        "VIRTUALCAM_GUID": {"type": "STRING", "value": "EBB0E657-2F91-4DE0-BF14-BD030B7BF5D7"},
+        "ENABLE_AJA": false,
+        "ENABLE_DECKLINK": false,
+        "ENABLE_WHATSNEW": false,
+        "ENABLE_SERVICE_UPDATES": false,
+        "ENABLE_COMPAT_UPDATES": false
       }
     },
     {

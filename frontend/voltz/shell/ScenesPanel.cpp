@@ -34,7 +34,17 @@ ScenesPanel::ScenesPanel(FrontendBridge *bridge, QWidget *parent) : QFrame(paren
 	connect(bridge_, &FrontendBridge::sceneListChanged, this, &ScenesPanel::refresh);
 	connect(bridge_, &FrontendBridge::currentSceneChanged, this, &ScenesPanel::selectScene);
 
+	renameSignal_.Connect(obs_get_signal_handler(), "source_rename", &ScenesPanel::handleSourceRename, this);
 	refresh();
+}
+
+void ScenesPanel::handleSourceRename(void *data, calldata_t *params)
+{
+	auto *source = static_cast<obs_source_t *>(calldata_ptr(params, "source"));
+	if (source && !obs_source_is_scene(source)) {
+		return;
+	}
+	QMetaObject::invokeMethod(static_cast<ScenesPanel *>(data), "refresh", Qt::QueuedConnection);
 }
 
 void ScenesPanel::refresh()

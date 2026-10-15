@@ -7,15 +7,20 @@
 #include <QFile>
 #include <QFontDatabase>
 #include <QHash>
+#include <QIconEngine>
 #include <QPainter>
+#include <QPaintDevice>
 #include <QPixmap>
 #include <QSvgRenderer>
+
+#include <cmath>
+#include <utility>
 
 namespace voltz {
 
 namespace {
 
-constexpr int kSizes[] = {16, 20, 24, 32, 40, 48};
+constexpr qreal kDisabledOpacity = 0.4;
 
 QString resourcePath(const QString &name, IconWeight weight)
 {
@@ -34,44 +39,107 @@ QByteArray recoloredSvg(const QString &name, const QColor &color, IconWeight wei
 	return QByteArray::fromStdString(recolorSvg(svg, color.name(QColor::HexRgb).toStdString()));
 }
 
-void addPixmaps(QIcon &icon, const QByteArray &svg, QIcon::State state)
-{
-	if (svg.isEmpty()) {
-		return;
+// Desenha o SVG recolorido no tamanho físico pedido (tamanho lógico × escala do monitor), então o
+// ícone fica nítido em qualquer DPI. Off = SVG normal; On = SVG do estado ligado (se houver).
+// Modo Disabled sai com opacidade reduzida.
+class PhosphorIconEngine final : public QIconEngine {
+public:
+	PhosphorIconEngine(QByteArray off, QByteArray on) : off_(std::move(off)), on_(std::move(on)) {}
+
+	void paint(QPainter *painter, const QRect &rect, QIcon::Mode mode, QIcon::State state) override
+	{
+		const qreal scale = painter->device() ? painter->device()->devicePixelRatioF() : 1.0;
+		painter->drawPixmap(rect, scaledPixmap(rect.size(), mode, state, scale));
 	}
-	QSvgRenderer renderer(svg);
-	for (int size : kSizes) {
-		QPixmap pixmap(size, size);
+
+	QPixmap pixmap(const QSize &size, QIcon::Mode mode, QIcon::State state) override
+	{
+		return scaledPixmap(size, mode, state, 1.0);
+	}
+
+	QPixmap scaledPixmap(const QSize &size, QIcon::Mode mode, QIcon::State state, qreal scale) override
+	{
+		if (size.isEmpty() || isNull()) {
+			return QPixmap();
+		}
+		if (scale <= 0) {
+			scale = 1.0;
+		}
+		const CacheKey key{size.width(), size.height(), qRound(scale * 1000), mode == QIcon::Disabled,
+				   state == QIcon::On && !on_.isEmpty()};
+		auto it = cache_.constFind(key);
+		if (it != cache_.constEnd()) {
+			return it.value();
+		}
+
+		const QSize physical(int(std::ceil(size.width() * scale)), int(std::ceil(size.height() * scale)));
+		QPixmap pixmap(physical);
 		pixmap.fill(Qt::transparent);
+		QSvgRenderer renderer(key.on ? on_ : off_);
 		QPainter painter(&pixmap);
-		renderer.render(&painter);
+		painter.setRenderHint(QPainter::Antialiasing);
+		if (key.disabled) {
+			painter.setOpacity(kDisabledOpacity);
+		}
+		renderer.render(&painter, QRectF(QPointF(0, 0), QSizeF(physical)));
 		painter.end();
-		icon.addPixmap(pixmap, QIcon::Normal, state);
+		pixmap.setDevicePixelRatio(scale);
+
+		cache_.insert(key, pixmap);
+		return pixmap;
 	}
-}
+
+	QIconEngine *clone() const override { return new PhosphorIconEngine(off_, on_); }
+
+	QString key() const override { return QStringLiteral("voltz-phosphor"); }
+
+	bool isNull() override { return off_.isEmpty(); }
+
+private:
+	struct CacheKey {
+		int width;
+		int height;
+		int scaleMilli; /* escala × 1000: chave exata, sem comparar ponto flutuante */
+		bool disabled;
+		bool on;
+
+		bool operator==(const CacheKey &other) const
+		{
+			return width == other.width && height == other.height && scaleMilli == other.scaleMilli &&
+			       disabled == other.disabled && on == other.on;
+		}
+
+		friend size_t qHash(const CacheKey &key, size_t seed = 0)
+		{
+			return qHashMulti(seed, key.width, key.height, key.scaleMilli, key.disabled, key.on);
+		}
+	};
+
+	QByteArray off_;
+	QByteArray on_;
+	QHash<CacheKey, QPixmap> cache_;
+};
 
 } // namespace
 
 QIcon phosphorIcon(const QString &name, const QColor &color, IconWeight weight)
 {
-	static QHash<QString, QIcon> cache;
+	/* Vazamento proposital: QIcon/QPixmap não podem ser destruídos depois do QApplication. */
+	static auto *cache = new QHash<QString, QIcon>();
 	const QString key = QStringLiteral("%1|%2|%3").arg(name, color.name()).arg(int(weight));
-	auto it = cache.find(key);
-	if (it != cache.end()) {
+	auto it = cache->constFind(key);
+	if (it != cache->constEnd()) {
 		return it.value();
 	}
-	QIcon icon;
-	addPixmaps(icon, recoloredSvg(name, color, weight), QIcon::Off);
-	cache.insert(key, icon);
+	const QIcon icon(new PhosphorIconEngine(recoloredSvg(name, color, weight), QByteArray()));
+	cache->insert(key, icon);
 	return icon;
 }
 
 QIcon phosphorToggleIcon(const QString &name, const QColor &off, const QColor &on)
 {
-	QIcon icon;
-	addPixmaps(icon, recoloredSvg(name, off, IconWeight::Regular), QIcon::Off);
-	addPixmaps(icon, recoloredSvg(name, on, IconWeight::Fill), QIcon::On);
-	return icon;
+	return QIcon(new PhosphorIconEngine(recoloredSvg(name, off, IconWeight::Regular),
+					    recoloredSvg(name, on, IconWeight::Fill)));
 }
 
 void loadShellFonts()

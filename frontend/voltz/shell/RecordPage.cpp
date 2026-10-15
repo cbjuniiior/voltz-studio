@@ -1,10 +1,10 @@
 #include "RecordPage.hpp"
 
+#include "AudioPanel.hpp"
 #include "ErrorBanner.hpp"
 #include "FrontendBridge.hpp"
 #include "Icons.hpp"
 #include "ScenesPanel.hpp"
-#include "AudioPanel.hpp"
 #include "SourcesPanel.hpp"
 #include "VoltzPreview.hpp"
 
@@ -32,26 +32,26 @@ RecordPage::RecordPage(FrontendBridge *bridge, QWidget *parent) : QWidget(parent
 	scenes_->setFixedWidth(200);
 	preview_ = new VoltzPreview(this);
 
-	centerColumn_ = new QVBoxLayout();
-	centerColumn_->setContentsMargins(0, 0, 0, 0);
-	centerColumn_->setSpacing(12);
+	auto *centerColumn = new QVBoxLayout();
+	centerColumn->setContentsMargins(0, 0, 0, 0);
+	centerColumn->setSpacing(12);
 	errorBanner_ = new ErrorBanner(this);
-	centerColumn_->addWidget(errorBanner_);
-	centerColumn_->addWidget(preview_, 1);
+	centerColumn->addWidget(errorBanner_);
+	centerColumn->addWidget(preview_, 1);
 
 	auto *sideHolder = new QWidget(this);
 	sideHolder->setFixedWidth(280);
-	sideColumn_ = new QVBoxLayout(sideHolder);
-	sideColumn_->setContentsMargins(0, 0, 0, 0);
-	sideColumn_->setSpacing(12);
-	sideColumn_->addWidget(new SourcesPanel(bridge_, sideHolder), 3);
-	sideColumn_->addWidget(new AudioPanel(sideHolder), 2);
+	auto *sideColumn = new QVBoxLayout(sideHolder);
+	sideColumn->setContentsMargins(0, 0, 0, 0);
+	sideColumn->setSpacing(12);
+	sideColumn->addWidget(new SourcesPanel(bridge_, sideHolder), 3);
+	sideColumn->addWidget(new AudioPanel(sideHolder), 2);
 
 	auto *body = new QHBoxLayout();
 	body->setContentsMargins(12, 12, 12, 12);
 	body->setSpacing(12);
 	body->addWidget(scenes_);
-	body->addLayout(centerColumn_, 1);
+	body->addLayout(centerColumn, 1);
 	body->addWidget(sideHolder);
 
 	pauseButton_ = new QPushButton(this);

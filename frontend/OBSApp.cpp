@@ -28,6 +28,7 @@
 #endif
 #include <widgets/OBSBasic.hpp>
 #ifdef VOLTZ_STUDIO
+#include <voltz/shell/ShellLocale.hpp>
 #include <voltz/shell/VoltzShell.hpp>
 #endif
 
@@ -1092,6 +1093,9 @@ void OBSApp::AppInit()
 	if (!InitLocale()) {
 		throw "Failed to load locale";
 	}
+#ifdef VOLTZ_STUDIO
+	voltz::loadShellLocale();
+#endif
 	if (!InitTheme()) {
 		throw "Failed to load theme";
 	}

@@ -14,10 +14,9 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QMessageBox>
+#include <QScrollBar>
 #include <QToolButton>
 #include <QVBoxLayout>
-
-#include <vector>
 
 #include "moc_SourcesPanel.cpp"
 
@@ -92,58 +91,84 @@ SourcesPanel::SourcesPanel(FrontendBridge *bridge, QWidget *parent) : QFrame(par
 	connect(bridge_, &FrontendBridge::currentSceneChanged, this, [this]() { bindCurrentScene(); });
 	connect(bridge_, &FrontendBridge::sceneListChanged, this, [this]() { bindCurrentScene(); });
 
-	renameSignal_.Connect(obs_get_signal_handler(), "source_rename", &SourcesPanel::handleSceneSignal, this);
+	renameSignal_.Connect(obs_get_signal_handler(), "source_rename", &SourcesPanel::queueRefresh, this);
 	bindCurrentScene();
 }
 
-void SourcesPanel::handleSceneSignal(void *data, calldata_t *)
+void SourcesPanel::queueRefresh(void *data, calldata_t *)
 {
-	/* Thread do libobs: só agenda o refresh na thread da UI. */
-	QMetaObject::invokeMethod(static_cast<SourcesPanel *>(data), "refresh", Qt::QueuedConnection);
+	/* Thread do libobs: só agenda o refresh na thread da UI; uma rajada de sinais vira um refresh só. */
+	auto *panel = static_cast<SourcesPanel *>(data);
+	if (!panel->refreshQueued_.exchange(true)) {
+		QMetaObject::invokeMethod(panel, "flushRefresh", Qt::QueuedConnection);
+	}
+}
+
+void SourcesPanel::flushRefresh()
+{
+	refreshQueued_ = false;
+	refresh();
 }
 
 void SourcesPanel::bindCurrentScene()
 {
-	sceneSignals_.clear();
 	OBSSourceAutoRelease source = obs_frontend_get_current_scene();
+
+	/* SCENE_LIST_CHANGED também chega aqui: mesma cena viva e já ligada, só redesenha. */
+	OBSSource bound = OBSGetStrongRef(sceneSource_);
+	if (source && bound.Get() == source.Get() && !sceneSignals_.empty()) {
+		refresh();
+		return;
+	}
+
+	const QString uuid = source ? QString::fromUtf8(obs_source_get_uuid(source)) : QString();
+	if (uuid != boundSceneUuid_) {
+		/* ids de item são por cena: o mesmo id em outra cena é outro item */
+		list_->setCurrentItem(nullptr);
+	}
+	boundSceneUuid_ = uuid;
+
+	sceneSignals_.clear();
 	sceneSource_ = OBSGetWeakRef(source);
 	if (source) {
 		signal_handler_t *handler = obs_source_get_signal_handler(source);
 		for (const char *signal :
 		     {"item_add", "item_remove", "reorder", "refresh", "item_visible", "item_locked"}) {
-			sceneSignals_.emplace_back(handler, signal, &SourcesPanel::handleSceneSignal, this);
+			sceneSignals_.emplace_back(handler, signal, &SourcesPanel::queueRefresh, this);
 		}
 	}
 	refresh();
 }
 
-obs_scene_t *SourcesPanel::currentScene() const
+OBSScene SourcesPanel::currentScene() const
 {
 	OBSSource source = OBSGetStrongRef(sceneSource_);
-	return source ? obs_scene_from_source(source) : nullptr;
+	return source ? OBSScene(obs_scene_from_source(source)) : OBSScene();
 }
 
-obs_sceneitem_t *SourcesPanel::selectedItem() const
+OBSSceneItem SourcesPanel::selectedItem() const
 {
-	obs_scene_t *scene = currentScene();
+	OBSScene scene = currentScene();
 	QListWidgetItem *row = list_->currentItem();
 	if (!scene || !row) {
-		return nullptr;
+		return OBSSceneItem();
 	}
-	return obs_scene_find_sceneitem_by_id(scene, row->data(kItemIdRole).toLongLong());
+	return OBSSceneItem(obs_scene_find_sceneitem_by_id(scene, row->data(kItemIdRole).toLongLong()));
 }
 
 void SourcesPanel::refresh()
 {
 	const qint64 selectedId = list_->currentItem() ? list_->currentItem()->data(kItemIdRole).toLongLong() : -1;
+	const int scroll = list_->verticalScrollBar()->value();
 	list_->clear();
 
-	std::vector<obs_sceneitem_t *> items;
-	if (obs_scene_t *scene = currentScene()) {
+	/* refs fortes: os itens continuam válidos enquanto as linhas são montadas */
+	std::vector<OBSSceneItem> items;
+	if (OBSScene scene = currentScene()) {
 		obs_scene_enum_items(
 			scene,
 			[](obs_scene_t *, obs_sceneitem_t *item, void *param) {
-				static_cast<std::vector<obs_sceneitem_t *> *>(param)->push_back(item);
+				static_cast<std::vector<OBSSceneItem> *>(param)->emplace_back(item);
 				return true;
 			},
 			&items);
@@ -163,6 +188,7 @@ void SourcesPanel::refresh()
 
 	empty_->setVisible(items.empty());
 	list_->setVisible(!items.empty());
+	list_->verticalScrollBar()->setValue(scroll);
 	updateButtons();
 }
 
@@ -207,15 +233,15 @@ QWidget *SourcesPanel::buildRow(obs_sceneitem_t *item)
 
 	/* Os botões só mudam o estado no OBS; o sinal da cena dispara refresh() e redesenha a linha. */
 	connect(visible, &QToolButton::clicked, this, [this, id](bool checked) {
-		if (obs_scene_t *scene = currentScene()) {
-			if (obs_sceneitem_t *target = obs_scene_find_sceneitem_by_id(scene, id)) {
+		if (OBSScene scene = currentScene()) {
+			if (OBSSceneItem target = obs_scene_find_sceneitem_by_id(scene, id)) {
 				obs_sceneitem_set_visible(target, checked);
 			}
 		}
 	});
 	connect(lock, &QToolButton::clicked, this, [this, id](bool checked) {
-		if (obs_scene_t *scene = currentScene()) {
-			if (obs_sceneitem_t *target = obs_scene_find_sceneitem_by_id(scene, id)) {
+		if (OBSScene scene = currentScene()) {
+			if (OBSSceneItem target = obs_scene_find_sceneitem_by_id(scene, id)) {
 				obs_sceneitem_set_locked(target, checked);
 			}
 		}
@@ -245,38 +271,49 @@ void SourcesPanel::addSource()
 
 void SourcesPanel::removeSelected()
 {
-	obs_sceneitem_t *item = selectedItem();
-	if (!item) {
+	/* Cena e id capturados antes do diálogo modal: durante ele a cena atual e a seleção podem mudar. */
+	OBSScene scene = currentScene();
+	QListWidgetItem *row = list_->currentItem();
+	if (!scene || !row) {
 		return;
 	}
-	const QString name = QString::fromUtf8(obs_source_get_name(obs_sceneitem_get_source(item)));
+	const qint64 id = row->data(kItemIdRole).toLongLong();
+	QString name;
+	{
+		OBSSceneItem item = obs_scene_find_sceneitem_by_id(scene, id);
+		if (!item) {
+			return;
+		}
+		name = QString::fromUtf8(obs_source_get_name(obs_sceneitem_get_source(item)));
+	}
+
 	const auto answer = QMessageBox::question(this, QTStr("Voltz.Sources.RemoveConfirm.Title"),
-						  QTStr("Voltz.Sources.RemoveConfirm.Text").arg(name));
+						  QTStr("Voltz.Sources.RemoveConfirm.Text").arg(name.toHtmlEscaped()));
 	if (answer != QMessageBox::Yes) {
 		return;
 	}
-	if (obs_sceneitem_t *again = selectedItem()) {
-		obs_sceneitem_remove(again);
+	if (OBSSceneItem item = obs_scene_find_sceneitem_by_id(scene, id)) {
+		obs_sceneitem_remove(item);
 	}
 }
 
 void SourcesPanel::moveSelected(obs_order_movement movement)
 {
-	if (obs_sceneitem_t *item = selectedItem()) {
+	if (OBSSceneItem item = selectedItem()) {
 		obs_sceneitem_set_order(item, movement);
 	}
 }
 
 void SourcesPanel::openProperties()
 {
-	if (obs_sceneitem_t *item = selectedItem()) {
+	if (OBSSceneItem item = selectedItem()) {
 		obs_frontend_open_source_properties(obs_sceneitem_get_source(item));
 	}
 }
 
 void SourcesPanel::openFilters()
 {
-	if (obs_sceneitem_t *item = selectedItem()) {
+	if (OBSSceneItem item = selectedItem()) {
 		obs_frontend_open_source_filters(obs_sceneitem_get_source(item));
 	}
 }

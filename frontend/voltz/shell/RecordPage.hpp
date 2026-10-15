@@ -8,7 +8,6 @@
 
 class QLabel;
 class QPushButton;
-class QVBoxLayout;
 
 namespace voltz {
 
@@ -35,8 +34,6 @@ private:
 	ScenesPanel *scenes_ = nullptr;
 	VoltzPreview *preview_ = nullptr;
 	ErrorBanner *errorBanner_ = nullptr;
-	QVBoxLayout *centerColumn_ = nullptr;
-	QVBoxLayout *sideColumn_ = nullptr;
 	QPushButton *pauseButton_ = nullptr;
 	QPushButton *recordButton_ = nullptr;
 	QLabel *timeLabel_ = nullptr;

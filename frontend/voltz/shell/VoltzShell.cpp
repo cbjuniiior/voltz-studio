@@ -8,13 +8,13 @@
 
 #include <OBSApp.hpp>
 #include <widgets/OBSBasic.hpp>
-#include <qt-wrappers.hpp>
 #include <voltz/core/voltz-version.hpp>
 
 #include <obs.h>
 
 #include <QButtonGroup>
 #include <QCloseEvent>
+#include <QEvent>
 #include <QFile>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -169,6 +169,15 @@ bool VoltzShell::nativeEvent(const QByteArray &eventType, void *message, qintptr
 {
 	forwardDisplayEvents(this, message);
 	return QMainWindow::nativeEvent(eventType, message, result);
+}
+
+void VoltzShell::changeEvent(QEvent *event)
+{
+	/* Trocar tema/paleta do sistema pode devolver a barra de título ao padrão: reaplica. */
+	if (event->type() == QEvent::ThemeChange || event->type() == QEvent::PaletteChange) {
+		applyDarkTitleBar(this);
+	}
+	QMainWindow::changeEvent(event);
 }
 
 void VoltzShell::closeEvent(QCloseEvent *event)

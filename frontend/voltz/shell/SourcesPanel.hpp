@@ -3,7 +3,9 @@
 #include <obs.hpp>
 
 #include <QFrame>
+#include <QString>
 
+#include <atomic>
 #include <vector>
 
 class QLabel;
@@ -23,12 +25,13 @@ public:
 	explicit SourcesPanel(FrontendBridge *bridge, QWidget *parent = nullptr);
 
 private slots:
-	void refresh();
+	void flushRefresh();
 
 private:
+	void refresh();
 	void bindCurrentScene();
-	obs_scene_t *currentScene() const;
-	obs_sceneitem_t *selectedItem() const;
+	OBSScene currentScene() const;
+	OBSSceneItem selectedItem() const;
 	QWidget *buildRow(obs_sceneitem_t *item);
 	void updateButtons();
 	void addSource();
@@ -38,10 +41,14 @@ private:
 	void openFilters();
 	void showContextMenu(const QPoint &pos);
 
-	static void handleSceneSignal(void *data, calldata_t *params);
+	// Thread do libobs: agenda um único flushRefresh() na thread da UI por rajada de sinais.
+	static void queueRefresh(void *data, calldata_t *params);
 
 	FrontendBridge *bridge_;
 	OBSWeakSource sceneSource_;
+	// ids de item são por cena: trocar de cena descarta a seleção.
+	QString boundSceneUuid_;
+	std::atomic<bool> refreshQueued_{false};
 	std::vector<OBSSignal> sceneSignals_;
 	OBSSignal renameSignal_;
 

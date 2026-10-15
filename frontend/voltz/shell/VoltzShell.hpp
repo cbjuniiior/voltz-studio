@@ -18,6 +18,7 @@ public:
 	explicit VoltzShell(QWidget *parent = nullptr);
 
 protected:
+	void changeEvent(QEvent *event) override;
 	void closeEvent(QCloseEvent *event) override;
 	bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
 

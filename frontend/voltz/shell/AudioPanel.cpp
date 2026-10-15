@@ -18,6 +18,32 @@ namespace {
 constexpr uint32_t kDesktopChannel = 1;
 constexpr uint32_t kMicChannel = 3;
 
+// Troca o nome padrão do OBS ("Áudio do desktop", "Mic/Aux"...) pelo nome da casca. Nunca mexe num nome
+// escolhido pelo usuário nem cria nome duplicado.
+void applyFriendlyName(obs_source_t *source, const char *obsDefaultKey, const char *obsDefaultEnUs,
+		       const char *voltzKey)
+{
+	const char *current = obs_source_get_name(source);
+	if (!current) {
+		return;
+	}
+	const QString name = QString::fromUtf8(current);
+	if (name != QString::fromUtf8(Str(obsDefaultKey)) && name != QLatin1String(obsDefaultEnUs)) {
+		return;
+	}
+	const QString target = QTStr(voltzKey);
+	if (target.isEmpty() || target == name) {
+		return;
+	}
+	const QByteArray targetUtf8 = target.toUtf8();
+	OBSSourceAutoRelease existing = obs_get_source_by_name(targetUtf8.constData());
+	if (existing) {
+		return;
+	}
+	obs_source_set_name(source, targetUtf8.constData());
+	blog(LOG_INFO, "[voltz] fonte de audio renomeada: '%s' -> '%s'", qUtf8Printable(name), targetUtf8.constData());
+}
+
 } // namespace
 
 AudioPanel::AudioPanel(QWidget *parent) : QFrame(parent)
@@ -57,8 +83,12 @@ void AudioPanel::handleChannelChange(void *data, calldata_t *params)
 
 void AudioPanel::rebuild()
 {
+	/* deleteLater: um menu de contexto do VolumeControl pode estar aberto (loop aninhado) agora. */
 	while (QLayoutItem *item = controls_->takeAt(0)) {
-		delete item->widget();
+		if (QWidget *widget = item->widget()) {
+			widget->hide();
+			widget->deleteLater();
+		}
 		delete item;
 	}
 	addChannel(kDesktopChannel);
@@ -71,6 +101,12 @@ void AudioPanel::addChannel(uint32_t channel)
 	OBSSourceAutoRelease source = obs_get_output_source(channel);
 	if (!source) {
 		return;
+	}
+
+	if (channel == kDesktopChannel) {
+		applyFriendlyName(source, "Basic.DesktopDevice1", "Desktop Audio", "Voltz.Audio.Desktop");
+	} else if (channel == kMicChannel) {
+		applyFriendlyName(source, "Basic.AuxDevice1", "Mic/Aux", "Voltz.Audio.Mic");
 	}
 
 	auto *control = new VolumeControl(source, this, false);

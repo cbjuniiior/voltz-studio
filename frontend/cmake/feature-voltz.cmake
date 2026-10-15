@@ -22,6 +22,8 @@ target_compile_definitions(
 target_sources(
   obs-studio
   PRIVATE
+    voltz/shell/AudioPanel.cpp
+    voltz/shell/AudioPanel.hpp
     voltz/shell/ErrorBanner.cpp
     voltz/shell/ErrorBanner.hpp
     voltz/shell/FrontendBridge.cpp
@@ -36,8 +38,6 @@ target_sources(
     voltz/shell/ShellLocale.hpp
     voltz/shell/SourcesPanel.cpp
     voltz/shell/SourcesPanel.hpp
-    voltz/shell/AudioPanel.cpp
-    voltz/shell/AudioPanel.hpp
     voltz/shell/VoltzPreview.cpp
     voltz/shell/VoltzPreview.hpp
     voltz/shell/VoltzShell.cpp

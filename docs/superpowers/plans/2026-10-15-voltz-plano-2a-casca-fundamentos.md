@@ -1324,7 +1324,7 @@ private:
 
 #include "FrontendBridge.hpp"
 
-#include <qt-wrappers.hpp>
+#include <OBSApp.hpp> // QTStr
 
 #include <QLabel>
 #include <QListWidget>
@@ -1457,7 +1457,7 @@ Substituir `frontend/voltz/shell/RecordPage.cpp` por:
 
 #include <voltz/core/time-format.hpp>
 
-#include <qt-wrappers.hpp>
+#include <OBSApp.hpp> // QTStr
 
 #include <QFrame>
 #include <QHBoxLayout>
@@ -1727,7 +1727,7 @@ private:
 
 #include "Icons.hpp"
 
-#include <qt-wrappers.hpp>
+#include <OBSApp.hpp> // QTStr
 
 #include <QHBoxLayout>
 #include <QLabel>
@@ -1935,7 +1935,7 @@ private:
 #include <widgets/OBSBasic.hpp>
 
 #include <obs-frontend-api.h>
-#include <qt-wrappers.hpp>
+#include <OBSApp.hpp> // QTStr
 
 #include <QAction>
 #include <QHBoxLayout>
@@ -2332,7 +2332,7 @@ private:
 #include <components/VolumeControl.hpp>
 #include <widgets/OBSBasic.hpp>
 
-#include <qt-wrappers.hpp>
+#include <OBSApp.hpp> // QTStr
 
 #include <QLabel>
 #include <QLayoutItem>

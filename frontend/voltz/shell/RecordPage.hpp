@@ -12,6 +12,7 @@ class QVBoxLayout;
 
 namespace voltz {
 
+class ErrorBanner;
 class FrontendBridge;
 class ScenesPanel;
 class VoltzPreview;
@@ -27,11 +28,13 @@ public:
 private:
 	void updateRecordingUi(bool active, bool paused);
 	void showRecordingTransition(bool stopping);
+	void showRecordingError(int code, const QString &lastError);
 	void tickClock();
 
 	FrontendBridge *bridge_;
 	ScenesPanel *scenes_ = nullptr;
 	VoltzPreview *preview_ = nullptr;
+	ErrorBanner *errorBanner_ = nullptr;
 	QVBoxLayout *centerColumn_ = nullptr;
 	QVBoxLayout *sideColumn_ = nullptr;
 	QPushButton *pauseButton_ = nullptr;

@@ -1,10 +1,12 @@
 #include "RecordPage.hpp"
 
+#include "ErrorBanner.hpp"
 #include "FrontendBridge.hpp"
 #include "Icons.hpp"
 #include "ScenesPanel.hpp"
 #include "VoltzPreview.hpp"
 
+#include <voltz/core/recording-error.hpp>
 #include <voltz/core/time-format.hpp>
 
 #include <OBSApp.hpp> // QTStr
@@ -31,6 +33,8 @@ RecordPage::RecordPage(FrontendBridge *bridge, QWidget *parent) : QWidget(parent
 	centerColumn_ = new QVBoxLayout();
 	centerColumn_->setContentsMargins(0, 0, 0, 0);
 	centerColumn_->setSpacing(12);
+	errorBanner_ = new ErrorBanner(this);
+	centerColumn_->addWidget(errorBanner_);
 	centerColumn_->addWidget(preview_, 1);
 
 	auto *sideHolder = new QWidget(this);
@@ -92,6 +96,7 @@ RecordPage::RecordPage(FrontendBridge *bridge, QWidget *parent) : QWidget(parent
 
 	connect(bridge_, &FrontendBridge::recordingStateChanged, this, &RecordPage::updateRecordingUi);
 	connect(bridge_, &FrontendBridge::recordingTransition, this, &RecordPage::showRecordingTransition);
+	connect(bridge_, &FrontendBridge::recordingFailed, this, &RecordPage::showRecordingError);
 
 	updateRecordingUi(bridge_->isRecording(), bridge_->isRecordingPaused());
 }
@@ -138,6 +143,22 @@ void RecordPage::updateRecordingUi(bool active, bool paused)
 	tickClock();
 }
 
+void RecordPage::showRecordingError(int code, const QString &lastError)
+{
+	const RecordingErrorText text = recordingErrorText(classifyRecordingStop(code), !lastError.isEmpty());
+	if (text.titleKey.empty()) {
+		return;
+	}
+	QString message = QTStr(text.messageKey.c_str());
+	if (text.lastErrorUse == LastErrorUse::FormatArg) {
+		message = message.arg(lastError.toHtmlEscaped());
+	} else if (text.lastErrorUse == LastErrorUse::Append) {
+		message += QStringLiteral("<br><br>") + lastError.toHtmlEscaped();
+	}
+	blog(LOG_WARNING, "[voltz] erro de gravacao (codigo %d): %s", code, qUtf8Printable(lastError));
+	errorBanner_->showError(QTStr(text.titleKey.c_str()), message);
+}
+
 void RecordPage::showRecordingTransition(bool stopping)
 {
 	/* Enquanto inicia/finaliza, um segundo clique chamaria StopRecording com a saída em
@@ -149,6 +170,7 @@ void RecordPage::showRecordingTransition(bool stopping)
 	if (!stopping) {
 		/* Falha síncrona ao iniciar (OBSBasic::StartRecording emite STARTING, mas o start da saída
 		 * falha e não vem STARTED nem STOPPED): sem isto o botão ficaria preso em "Iniciando…". */
+		errorBanner_->hide();
 		pendingStart_ = true;
 		QTimer::singleShot(0, this, [this]() {
 			if (pendingStart_ && !bridge_->isRecording()) {

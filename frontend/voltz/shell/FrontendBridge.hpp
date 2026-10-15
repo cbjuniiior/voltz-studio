@@ -1,6 +1,7 @@
 #pragma once
 
 #include <obs-frontend-api.h>
+#include <obs.hpp>
 
 #include <QObject>
 #include <QList>
@@ -40,10 +41,15 @@ signals:
 	// Gravação iniciando (stopping=false) ou finalizando (stopping=true): estado transitório.
 	void recordingTransition(bool stopping);
 	void exiting();
+	// Gravação terminou com erro (code != 0); lastError pode vir vazio.
+	void recordingFailed(int code, const QString &lastError);
 
 private:
 	static void handleEvent(enum obs_frontend_event event, void *data);
 	void dispatch(enum obs_frontend_event event);
+	void watchRecordingOutput();
+	static void handleOutputStop(void *data, calldata_t *params);
+	OBSSignal recordingStopSignal_;
 
 	bool registered_ = true;
 };

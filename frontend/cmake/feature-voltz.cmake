@@ -22,6 +22,8 @@ target_compile_definitions(
 target_sources(
   obs-studio
   PRIVATE
+    voltz/shell/ErrorBanner.cpp
+    voltz/shell/ErrorBanner.hpp
     voltz/shell/FrontendBridge.cpp
     voltz/shell/FrontendBridge.hpp
     voltz/shell/Icons.cpp

@@ -78,6 +78,32 @@ void FrontendBridge::setRecordingPaused(bool paused)
 	obs_frontend_recording_pause(paused);
 }
 
+void FrontendBridge::watchRecordingOutput()
+{
+	OBSOutputAutoRelease output = obs_frontend_get_recording_output();
+	if (!output) {
+		recordingStopSignal_.Disconnect();
+		return;
+	}
+	recordingStopSignal_.Connect(obs_output_get_signal_handler(output), "stop", &FrontendBridge::handleOutputStop,
+				     this);
+}
+
+void FrontendBridge::handleOutputStop(void *data, calldata_t *params)
+{
+	/* Thread do libobs: só copia os dados e entrega na thread da UI. */
+	auto *bridge = static_cast<FrontendBridge *>(data);
+	const int code = int(calldata_int(params, "code"));
+	const char *error = calldata_string(params, "last_error");
+	const QString lastError = error ? QString::fromUtf8(error) : QString();
+	if (code == 0) {
+		return;
+	}
+	QMetaObject::invokeMethod(
+		bridge, [bridge, code, lastError]() { emit bridge->recordingFailed(code, lastError); },
+		Qt::QueuedConnection);
+}
+
 void FrontendBridge::handleEvent(enum obs_frontend_event event, void *data)
 {
 	static_cast<FrontendBridge *>(data)->dispatch(event);
@@ -106,12 +132,14 @@ void FrontendBridge::dispatch(enum obs_frontend_event event)
 		emit recordingStateChanged(false, false);
 		break;
 	case OBS_FRONTEND_EVENT_RECORDING_STARTING:
+		watchRecordingOutput();
 		emit recordingTransition(false);
 		break;
 	case OBS_FRONTEND_EVENT_RECORDING_STOPPING:
 		emit recordingTransition(true);
 		break;
 	case OBS_FRONTEND_EVENT_EXIT:
+		recordingStopSignal_.Disconnect();
 		/* Seguro durante o próprio evento: OBSStudioAPI::on_event percorre os callbacks de trás para frente */
 		obs_frontend_remove_event_callback(&FrontendBridge::handleEvent, this);
 		registered_ = false;

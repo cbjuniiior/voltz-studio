@@ -1,101 +1,118 @@
-QWidget {
+/* Todas as regras prefixadas com #voltzShell para vencer o tema global do OBS (Yami etc.). */
+
+#voltzShell, #voltzShell QWidget {
 	background: #09090B;
 	color: #F2F2F3;
 	font-family: "DM Sans", "Segoe UI";
 	font-size: 13px;
 }
 
-QFrame#sideNav {
+#voltzShell QLabel {
+	background: transparent;
+}
+
+#voltzShell QFrame#sideNav {
 	background: #111114;
+	border: none;
 	border-right: 1px solid #1F1F24;
 }
 
-QFrame#sideNav QToolButton {
+#voltzShell QFrame#sideNav QToolButton {
 	background: transparent;
 	color: #82828C;
 	border: none;
 	border-radius: 8px;
-	padding: 8px 4px;
+	padding: 8px 2px 6px 2px;
+	margin: 0;
 	font-size: 11px;
+	font-weight: 500;
 }
 
-QFrame#sideNav QToolButton:hover {
+#voltzShell QFrame#sideNav QToolButton:hover {
 	color: #F2F2F3;
 	background: #18181C;
 }
 
-QFrame#sideNav QToolButton:checked {
+#voltzShell QFrame#sideNav QToolButton:checked {
 	color: #D4F53C;
 	background: rgba(212, 245, 60, 26);
 }
 
-QFrame#panel {
+#voltzShell QFrame#panel {
 	background: #111114;
 	border: 1px solid #1F1F24;
 	border-radius: 8px;
 }
 
-QLabel#panelTitle {
+#voltzShell QFrame#panel QWidget {
+	background: transparent;
+}
+
+#voltzShell QLabel#panelTitle {
 	color: #82828C;
 	font-size: 10px;
 	font-weight: 600;
-	background: transparent;
 }
 
-QLabel#muted {
+#voltzShell QLabel#muted {
 	color: #82828C;
-	background: transparent;
 }
 
-QLabel#pageTitle {
+#voltzShell QLabel#pageTitle {
 	font-size: 20px;
 	font-weight: 700;
-	background: transparent;
 }
 
-QListWidget {
+#voltzShell QListWidget {
 	background: transparent;
 	border: none;
 	outline: none;
+	padding: 0;
 }
 
-QListWidget::item {
+#voltzShell QListWidget::item {
 	padding: 6px 8px;
+	border: none;
 	border-radius: 4px;
+	color: #F2F2F3;
 }
 
-QListWidget::item:hover {
+#voltzShell QListWidget::item:hover {
 	background: #18181C;
 }
 
-QListWidget::item:selected {
+#voltzShell QListWidget::item:selected {
 	background: rgba(212, 245, 60, 26);
 	color: #F2F2F3;
 	border-left: 2px solid #D4F53C;
 }
 
-QFrame#bottomBar {
+#voltzShell QFrame#bottomBar {
 	background: #111114;
+	border: none;
 	border-top: 1px solid #1F1F24;
 }
 
-QPushButton {
+#voltzShell QPushButton {
 	background: #18181C;
 	color: #F2F2F3;
 	border: 1px solid #1F1F24;
 	border-radius: 16px;
 	padding: 7px 16px;
+	margin: 0;
+	min-height: 18px;
+	max-height: 16777215px;
 }
 
-QPushButton:hover {
+#voltzShell QPushButton:hover {
 	border-color: #3A3A42;
 }
 
-QPushButton:disabled {
+#voltzShell QPushButton:disabled {
 	color: #4A4A52;
 }
 
-QPushButton#recordButton {
+#voltzShell QPushButton#recordButton {
 	background: #FF4D4D;
 	color: #FFFFFF;
 	border: none;
@@ -103,13 +120,47 @@ QPushButton#recordButton {
 	padding: 8px 22px;
 }
 
-QPushButton#recordButton[recording="true"] {
+#voltzShell QPushButton#recordButton[recording="true"] {
 	background: #F2F2F3;
 	color: #09090B;
 }
 
-QLabel#timeLabel {
+#voltzShell QPushButton#recordButton:disabled {
+	background: #3A3A42;
+	color: #82828C;
+}
+
+#voltzShell QToolButton#iconButton {
+	background: transparent;
+	border: none;
+	border-radius: 6px;
+	padding: 4px;
+	margin: 0;
+}
+
+#voltzShell QToolButton#iconButton:hover {
+	background: #18181C;
+}
+
+#voltzShell QToolButton#iconButton:disabled {
+	background: transparent;
+}
+
+#voltzShell QFrame#errorBanner {
+	background: rgba(255, 77, 77, 31);
+	border: 1px solid rgba(255, 77, 77, 102);
+	border-radius: 8px;
+}
+
+#voltzShell QFrame#errorBanner QLabel {
+	color: #F2F2F3;
+}
+
+#voltzShell QLabel#errorTitle {
+	font-weight: 600;
+}
+
+#voltzShell QLabel#timeLabel {
 	color: #82828C;
 	font-family: "Cascadia Mono", "Consolas";
-	background: transparent;
 }

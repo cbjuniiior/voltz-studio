@@ -35,4 +35,10 @@ target_sources(
     voltz/shell/VoltzShell.cpp
     voltz/shell/VoltzShell.hpp
     voltz/shell/voltz-shell.qrc
+    voltz/shell/WindowChrome.cpp
+    voltz/shell/WindowChrome.hpp
 )
+
+if(OS_WINDOWS)
+  target_link_libraries(obs-studio PRIVATE dwmapi)
+endif()

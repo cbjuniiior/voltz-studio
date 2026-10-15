@@ -4,6 +4,7 @@
 #include "Icons.hpp"
 #include "RecordPage.hpp"
 #include "ShellLocale.hpp"
+#include "WindowChrome.hpp"
 
 #include <OBSApp.hpp>
 #include <widgets/OBSBasic.hpp>
@@ -78,6 +79,8 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 		deleteLater();
 	});
 
+	applyDarkTitleBar(this);
+
 	blog(LOG_INFO, "[voltz] shell pronta (%s)",
 	     aboutLine(currentVersion(), QTStr("Voltz.About.BasedOn").toStdString()).c_str());
 }
@@ -96,11 +99,15 @@ QWidget *VoltzShell::buildSideNav()
 
 	const QStringList labels = {QTStr("Voltz.Nav.Record"), QTStr("Voltz.Nav.Projects"), QTStr("Voltz.Nav.Presets"),
 				    QTStr("Voltz.Nav.Settings")};
+	const QStringList icons = {QStringLiteral("record"), QStringLiteral("folder-simple"),
+				   QStringLiteral("squares-four"), QStringLiteral("gear-six")};
 	for (int i = 0; i < labels.size(); i++) {
 		auto *button = new QToolButton(nav);
 		button->setText(labels[i]);
+		button->setIcon(phosphorToggleIcon(icons[i], palette::kMuted, palette::kAccent));
+		button->setIconSize(QSize(22, 22));
 		button->setCheckable(true);
-		button->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
 		button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 		navGroup_->addButton(button, i);
 		if (i == labels.size() - 1) {
@@ -156,6 +163,12 @@ QWidget *VoltzShell::buildSettingsPage()
 void VoltzShell::selectPage(int index)
 {
 	pages_->setCurrentIndex(index);
+}
+
+bool VoltzShell::nativeEvent(const QByteArray &eventType, void *message, qintptr *result)
+{
+	forwardDisplayEvents(this, message);
+	return QMainWindow::nativeEvent(eventType, message, result);
 }
 
 void VoltzShell::closeEvent(QCloseEvent *event)

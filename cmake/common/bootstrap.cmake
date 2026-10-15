@@ -41,11 +41,12 @@ if("${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
 # Set default global project variables
-set(OBS_COMPANY_NAME "OBS Project")
-set(OBS_PRODUCT_NAME "OBS Studio")
-set(OBS_WEBSITE "https://www.obsproject.com")
-set(OBS_COMMENTS "Free and open source software for video recording and live streaming")
-set(OBS_LEGAL_COPYRIGHT "(C) Lain Bailey")
+# Voltz Studio: identidade do produto (o motor continua sendo libobs/OBS Studio, GPL-2.0)
+set(OBS_COMPANY_NAME "VoltzPixel")
+set(OBS_PRODUCT_NAME "Voltz Studio")
+set(OBS_WEBSITE "https://github.com/cbjuniiior/voltz-studio")
+set(OBS_COMMENTS "Voltz Studio - gravador de tela e camera, baseado no OBS Studio")
+set(OBS_LEGAL_COPYRIGHT "(C) VoltzPixel. Baseado no OBS Studio (C) Lain Bailey")
 set(OBS_CMAKE_VERSION 3.0.0)
 
 # Configure default version strings

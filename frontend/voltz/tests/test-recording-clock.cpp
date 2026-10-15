@@ -59,3 +59,33 @@ TEST_CASE("RecordingClock nunca retorna negativo")
 	clock.start(5000);
 	CHECK(clock.elapsedMs(1000) == 0);
 }
+
+TEST_CASE("RecordingClock acumula dois ciclos completos de pausa")
+{
+	voltz::RecordingClock clock;
+	clock.start(0);
+	clock.pause(1000);
+	clock.resume(3000);
+	clock.pause(5000);
+	clock.resume(6000);
+	CHECK(clock.elapsedMs(10000) == 7000);
+}
+
+TEST_CASE("RecordingClock: pausar antes do start é ignorado")
+{
+	voltz::RecordingClock clock;
+	clock.pause(100);
+	clock.start(1000);
+	CHECK(clock.elapsedMs(1500) == 500);
+	CHECK_FALSE(clock.paused());
+}
+
+TEST_CASE("RecordingClock: retomar depois do stop é ignorado")
+{
+	voltz::RecordingClock clock;
+	clock.start(0);
+	clock.stop();
+	clock.resume(500);
+	CHECK_FALSE(clock.running());
+	CHECK(clock.elapsedMs(900) == 0);
+}

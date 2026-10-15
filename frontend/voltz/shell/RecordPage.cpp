@@ -1,16 +1,17 @@
 #include "RecordPage.hpp"
 
 #include "FrontendBridge.hpp"
+#include "Icons.hpp"
+#include "ScenesPanel.hpp"
 #include "VoltzPreview.hpp"
 
 #include <voltz/core/time-format.hpp>
 
-#include <OBSApp.hpp>
+#include <OBSApp.hpp> // QTStr
 
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QListWidget>
 #include <QPushButton>
 #include <QStyle>
 #include <QVBoxLayout>
@@ -19,51 +20,42 @@
 
 namespace voltz {
 
-namespace {
-
-QFrame *makePanel(const QString &title, QWidget *content, QWidget *parent)
-{
-	auto *panel = new QFrame(parent);
-	panel->setObjectName("panel");
-	auto *layout = new QVBoxLayout(panel);
-	layout->setContentsMargins(10, 10, 10, 10);
-	layout->setSpacing(8);
-	auto *label = new QLabel(title, panel);
-	label->setObjectName("panelTitle");
-	layout->addWidget(label);
-	layout->addWidget(content, 1);
-	return panel;
-}
-
-} // namespace
-
 RecordPage::RecordPage(FrontendBridge *bridge, QWidget *parent) : QWidget(parent), bridge_(bridge)
 {
 	monotonic_.start();
 
-	scenes_ = new QListWidget(this);
+	scenes_ = new ScenesPanel(bridge_, this);
+	scenes_->setFixedWidth(200);
 	preview_ = new VoltzPreview(this);
 
-	auto *sourcesHint = new QLabel(QStringLiteral("Fontes e áudio chegam no próximo plano."), this);
+	centerColumn_ = new QVBoxLayout();
+	centerColumn_->setContentsMargins(0, 0, 0, 0);
+	centerColumn_->setSpacing(12);
+	centerColumn_->addWidget(preview_, 1);
+
+	auto *sideHolder = new QWidget(this);
+	sideHolder->setFixedWidth(280);
+	sideColumn_ = new QVBoxLayout(sideHolder);
+	sideColumn_->setContentsMargins(0, 0, 0, 0);
+	sideColumn_->setSpacing(12);
+	auto *sourcesHint = new QLabel(QStringLiteral("Fontes e áudio chegam no próximo plano."), sideHolder);
 	sourcesHint->setObjectName("muted");
 	sourcesHint->setWordWrap(true);
-	sourcesHint->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-
-	QFrame *scenesPanel = makePanel(QTStr("Voltz.Panel.Scenes"), scenes_, this);
-	scenesPanel->setFixedWidth(200);
-	QFrame *sidePanel = makePanel(QTStr("Voltz.Panel.Sources"), sourcesHint, this);
-	sidePanel->setFixedWidth(260);
+	sideColumn_->addWidget(sourcesHint);
+	sideColumn_->addStretch(1);
 
 	auto *body = new QHBoxLayout();
 	body->setContentsMargins(12, 12, 12, 12);
 	body->setSpacing(12);
-	body->addWidget(scenesPanel);
-	body->addWidget(preview_, 1);
-	body->addWidget(sidePanel);
+	body->addWidget(scenes_);
+	body->addLayout(centerColumn_, 1);
+	body->addWidget(sideHolder);
 
 	pauseButton_ = new QPushButton(this);
+	pauseButton_->setIconSize(QSize(16, 16));
 	recordButton_ = new QPushButton(this);
 	recordButton_->setObjectName("recordButton");
+	recordButton_->setIconSize(QSize(16, 16));
 	timeLabel_ = new QLabel(QString::fromStdString(formatClock(0)), this);
 	timeLabel_->setObjectName("timeLabel");
 
@@ -88,11 +80,6 @@ RecordPage::RecordPage(FrontendBridge *bridge, QWidget *parent) : QWidget(parent
 	ticker_.setInterval(250);
 	connect(&ticker_, &QTimer::timeout, this, &RecordPage::tickClock);
 
-	connect(scenes_, &QListWidget::currentTextChanged, this, [this](const QString &name) {
-		if (!updatingList_ && !name.isEmpty()) {
-			bridge_->setCurrentScene(name);
-		}
-	});
 	connect(recordButton_, &QPushButton::clicked, this, [this]() {
 		if (bridge_->isRecording()) {
 			bridge_->stopRecording();
@@ -103,32 +90,10 @@ RecordPage::RecordPage(FrontendBridge *bridge, QWidget *parent) : QWidget(parent
 	connect(pauseButton_, &QPushButton::clicked, this,
 		[this]() { bridge_->setRecordingPaused(!bridge_->isRecordingPaused()); });
 
-	connect(bridge_, &FrontendBridge::sceneListChanged, this, &RecordPage::refreshScenes);
-	connect(bridge_, &FrontendBridge::currentSceneChanged, this, &RecordPage::selectScene);
 	connect(bridge_, &FrontendBridge::recordingStateChanged, this, &RecordPage::updateRecordingUi);
 	connect(bridge_, &FrontendBridge::recordingTransition, this, &RecordPage::showRecordingTransition);
 
-	refreshScenes();
 	updateRecordingUi(bridge_->isRecording(), bridge_->isRecordingPaused());
-}
-
-void RecordPage::refreshScenes()
-{
-	updatingList_ = true;
-	scenes_->clear();
-	scenes_->addItems(bridge_->sceneNames());
-	updatingList_ = false;
-	selectScene(bridge_->currentSceneName());
-}
-
-void RecordPage::selectScene(const QString &name)
-{
-	updatingList_ = true;
-	const QList<QListWidgetItem *> matches = scenes_->findItems(name, Qt::MatchExactly);
-	if (!matches.isEmpty()) {
-		scenes_->setCurrentItem(matches.first());
-	}
-	updatingList_ = false;
 }
 
 void RecordPage::updateRecordingUi(bool active, bool paused)
@@ -156,12 +121,19 @@ void RecordPage::updateRecordingUi(bool active, bool paused)
 	pendingStart_ = false;
 	recordButton_->setEnabled(true);
 	recordButton_->setText(active ? QTStr("Voltz.Record.Stop") : QTStr("Voltz.Record.Start"));
+	recordButton_->setIcon(active ? phosphorIcon(QStringLiteral("stop"), palette::kOnLight, IconWeight::Fill)
+				      : phosphorIcon(QStringLiteral("record"), palette::kText, IconWeight::Fill));
 	recordButton_->setProperty("recording", active);
 	recordButton_->style()->unpolish(recordButton_);
 	recordButton_->style()->polish(recordButton_);
 
-	pauseButton_->setEnabled(active);
+	const bool canPause = active && bridge_->canPauseRecording();
+	pauseButton_->setEnabled(canPause);
+	pauseButton_->setToolTip(active && !canPause ? QTStr("Voltz.Record.PauseUnavailable") : QString());
 	pauseButton_->setText(active && paused ? QTStr("Voltz.Record.Resume") : QTStr("Voltz.Record.Pause"));
+	pauseButton_->setIcon(active && paused
+				      ? phosphorIcon(QStringLiteral("play"), palette::kText, IconWeight::Fill)
+				      : phosphorIcon(QStringLiteral("pause"), palette::kText, IconWeight::Fill));
 
 	tickClock();
 }

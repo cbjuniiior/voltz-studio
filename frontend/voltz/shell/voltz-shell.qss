@@ -164,3 +164,7 @@
 	color: #82828C;
 	font-family: "Cascadia Mono", "Consolas";
 }
+
+#voltzShell OBSQTDisplay {
+	qproperty-displayBackgroundColor: #09090B;
+}

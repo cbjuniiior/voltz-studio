@@ -19,30 +19,38 @@ FrontendBridge::~FrontendBridge()
 	}
 }
 
-QStringList FrontendBridge::sceneNames() const
+QList<SceneEntry> FrontendBridge::scenes() const
 {
-	QStringList names;
-	struct obs_frontend_source_list scenes = {};
-	obs_frontend_get_scenes(&scenes);
-	for (size_t i = 0; i < scenes.sources.num; i++) {
-		names << QString::fromUtf8(obs_source_get_name(scenes.sources.array[i]));
+	QList<SceneEntry> result;
+	struct obs_frontend_source_list list = {};
+	obs_frontend_get_scenes(&list);
+	for (size_t i = 0; i < list.sources.num; i++) {
+		obs_source_t *source = list.sources.array[i];
+		result.append({QString::fromUtf8(obs_source_get_uuid(source)),
+			       QString::fromUtf8(obs_source_get_name(source))});
 	}
-	obs_frontend_source_list_free(&scenes);
-	return names;
+	obs_frontend_source_list_free(&list);
+	return result;
 }
 
-QString FrontendBridge::currentSceneName() const
+QString FrontendBridge::currentSceneUuid() const
 {
 	OBSSourceAutoRelease scene = obs_frontend_get_current_scene();
-	return scene ? QString::fromUtf8(obs_source_get_name(scene)) : QString();
+	return scene ? QString::fromUtf8(obs_source_get_uuid(scene)) : QString();
 }
 
-void FrontendBridge::setCurrentScene(const QString &name)
+void FrontendBridge::setCurrentSceneByUuid(const QString &uuid)
 {
-	OBSSourceAutoRelease scene = obs_get_source_by_name(name.toUtf8().constData());
+	OBSSourceAutoRelease scene = obs_get_source_by_uuid(uuid.toUtf8().constData());
 	if (scene) {
 		obs_frontend_set_current_scene(scene);
 	}
+}
+
+bool FrontendBridge::canPauseRecording() const
+{
+	OBSOutputAutoRelease output = obs_frontend_get_recording_output();
+	return output && obs_output_can_pause(output);
 }
 
 bool FrontendBridge::isRecording() const
@@ -82,10 +90,10 @@ void FrontendBridge::dispatch(enum obs_frontend_event event)
 	case OBS_FRONTEND_EVENT_SCENE_LIST_CHANGED:
 	case OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED:
 		emit sceneListChanged();
-		emit currentSceneChanged(currentSceneName());
+		emit currentSceneChanged(currentSceneUuid());
 		break;
 	case OBS_FRONTEND_EVENT_SCENE_CHANGED:
-		emit currentSceneChanged(currentSceneName());
+		emit currentSceneChanged(currentSceneUuid());
 		break;
 	case OBS_FRONTEND_EVENT_RECORDING_STARTED:
 	case OBS_FRONTEND_EVENT_RECORDING_UNPAUSED:

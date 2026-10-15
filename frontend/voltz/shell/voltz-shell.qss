@@ -1,0 +1,115 @@
+QWidget {
+	background: #09090B;
+	color: #F2F2F3;
+	font-family: "DM Sans", "Segoe UI";
+	font-size: 13px;
+}
+
+QFrame#sideNav {
+	background: #111114;
+	border-right: 1px solid #1F1F24;
+}
+
+QFrame#sideNav QToolButton {
+	background: transparent;
+	color: #82828C;
+	border: none;
+	border-radius: 8px;
+	padding: 8px 4px;
+	font-size: 11px;
+}
+
+QFrame#sideNav QToolButton:hover {
+	color: #F2F2F3;
+	background: #18181C;
+}
+
+QFrame#sideNav QToolButton:checked {
+	color: #D4F53C;
+	background: rgba(212, 245, 60, 26);
+}
+
+QFrame#panel {
+	background: #111114;
+	border: 1px solid #1F1F24;
+	border-radius: 8px;
+}
+
+QLabel#panelTitle {
+	color: #82828C;
+	font-size: 10px;
+	font-weight: 600;
+	background: transparent;
+}
+
+QLabel#muted {
+	color: #82828C;
+	background: transparent;
+}
+
+QLabel#pageTitle {
+	font-size: 20px;
+	font-weight: 700;
+	background: transparent;
+}
+
+QListWidget {
+	background: transparent;
+	border: none;
+	outline: none;
+}
+
+QListWidget::item {
+	padding: 6px 8px;
+	border-radius: 4px;
+}
+
+QListWidget::item:hover {
+	background: #18181C;
+}
+
+QListWidget::item:selected {
+	background: rgba(212, 245, 60, 26);
+	color: #F2F2F3;
+	border-left: 2px solid #D4F53C;
+}
+
+QFrame#bottomBar {
+	background: #111114;
+	border-top: 1px solid #1F1F24;
+}
+
+QPushButton {
+	background: #18181C;
+	color: #F2F2F3;
+	border: 1px solid #1F1F24;
+	border-radius: 16px;
+	padding: 7px 16px;
+}
+
+QPushButton:hover {
+	border-color: #3A3A42;
+}
+
+QPushButton:disabled {
+	color: #4A4A52;
+}
+
+QPushButton#recordButton {
+	background: #FF4D4D;
+	color: #FFFFFF;
+	border: none;
+	font-weight: 600;
+	padding: 8px 22px;
+}
+
+QPushButton#recordButton[recording="true"] {
+	background: #F2F2F3;
+	color: #09090B;
+}
+
+QLabel#timeLabel {
+	color: #82828C;
+	font-family: "Cascadia Mono", "Consolas";
+	background: transparent;
+}

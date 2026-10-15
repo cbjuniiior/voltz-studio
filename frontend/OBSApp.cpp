@@ -27,6 +27,9 @@
 #include <utility/models/branches.hpp>
 #endif
 #include <widgets/OBSBasic.hpp>
+#ifdef VOLTZ_STUDIO
+#include <voltz/shell/VoltzShell.hpp>
+#endif
 
 #if !defined(_WIN32) && !defined(__APPLE__)
 #include <obs-nix-platform.h>
@@ -1308,6 +1311,11 @@ bool OBSApp::OBSInit()
 	mainWindow->setAttribute(Qt::WA_DeleteOnClose, true);
 
 	mainWindow->OBSInit();
+
+#ifdef VOLTZ_STUDIO
+	voltzShell = new voltz::VoltzShell();
+	voltzShell->show();
+#endif
 
 	connect(OBSBasic::Get(), &OBSBasic::mainWindowClosed, crashHandler_.get(),
 		&OBS::CrashHandler::applicationShutdownHandler);

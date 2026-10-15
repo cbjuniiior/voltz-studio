@@ -55,6 +55,12 @@ enum class LogFileState { NoState, New, Uploaded };
 class PluginManager;
 } // namespace OBS
 
+#ifdef VOLTZ_STUDIO
+namespace voltz {
+class VoltzShell;
+}
+#endif
+
 struct UpdateBranch {
 	QString name;
 	QString display_name;
@@ -78,6 +84,10 @@ private:
 	ConfigFile userConfig;
 	TextLookup textLookup;
 	QPointer<OBSMainWindow> mainWindow;
+#ifdef VOLTZ_STUDIO
+	QPointer<voltz::VoltzShell> voltzShell;
+	bool voltzQuitting = false;
+#endif
 	profiler_name_store_t *profilerNameStore = nullptr;
 	std::vector<UpdateBranch> updateBranches;
 	bool branches_loaded = false;
@@ -155,6 +165,11 @@ public:
 	inline bool HotkeysEnabledInFocus() const { return enableHotkeysInFocus; }
 
 	inline QMainWindow *GetMainWindow() const { return mainWindow.data(); }
+#ifdef VOLTZ_STUDIO
+	inline bool HasVoltzShell() const { return !voltzShell.isNull(); }
+	inline bool IsVoltzQuitting() const { return voltzQuitting; }
+	inline void SetVoltzQuitting(bool quitting) { voltzQuitting = quitting; }
+#endif
 
 	inline config_t *GetAppConfig() const { return appConfig; }
 	inline config_t *GetUserConfig() const { return userConfig; }

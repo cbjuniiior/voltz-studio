@@ -28,4 +28,7 @@ target_sources(
     voltz/shell/RecordPage.hpp
     voltz/shell/VoltzPreview.cpp
     voltz/shell/VoltzPreview.hpp
+    voltz/shell/VoltzShell.cpp
+    voltz/shell/VoltzShell.hpp
+    voltz/shell/voltz-shell.qrc
 )

@@ -1178,6 +1178,10 @@ void OBSBasic::OBSInit()
 #ifdef _WIN32
 	SetWin32DropStyle(this);
 
+#ifdef VOLTZ_STUDIO
+	/* Voltz: a casca Voltz é a janela principal; OBSBasic fica oculta (modo clássico) */
+	hideWindowOnStart = true;
+#endif
 	if (!hideWindowOnStart) {
 		show();
 	}
@@ -1726,6 +1730,15 @@ void OBSBasic::closeEvent(QCloseEvent *event)
 		config_set_string(App()->GetUserConfig(), "BasicWindow", "geometry",
 				  saveGeometry().toBase64().constData());
 	}
+
+#ifdef VOLTZ_STUDIO
+	/* Voltz: fechar o modo clássico só esconde; quem encerra o app é a casca */
+	if (App()->HasVoltzShell() && !App()->IsVoltzQuitting()) {
+		hide();
+		event->ignore();
+		return;
+	}
+#endif
 
 	if (!isReadyToClose()) {
 		event->ignore();

@@ -1,0 +1,5 @@
+<RCC>
+  <qresource prefix="/voltz">
+    <file>voltz-shell.qss</file>
+  </qresource>
+</RCC>

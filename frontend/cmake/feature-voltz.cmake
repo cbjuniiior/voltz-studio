@@ -24,6 +24,8 @@ target_sources(
   PRIVATE
     voltz/shell/FrontendBridge.cpp
     voltz/shell/FrontendBridge.hpp
+    voltz/shell/RecordPage.cpp
+    voltz/shell/RecordPage.hpp
     voltz/shell/VoltzPreview.cpp
     voltz/shell/VoltzPreview.hpp
 )

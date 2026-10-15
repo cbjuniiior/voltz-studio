@@ -305,7 +305,11 @@ RunOnceMutex CheckIfAlreadyRunning(bool &already_running)
 	string name;
 
 	if (!portable_mode) {
+#ifdef VOLTZ_STUDIO
 		name = "VoltzStudioCore";
+#else
+		name = "OBSStudioCore";
+#endif
 	} else {
 		char path[500];
 		char absPath[512];
@@ -313,7 +317,11 @@ RunOnceMutex CheckIfAlreadyRunning(bool &already_running)
 		*absPath = 0;
 		GetAppConfigPath(path, sizeof(path), "");
 		os_get_abs_path(path, absPath, sizeof(absPath));
+#ifdef VOLTZ_STUDIO
 		name = "VoltzStudioPortable";
+#else
+		name = "OBSStudioPortable";
+#endif
 		name += absPath;
 	}
 

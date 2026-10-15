@@ -13,16 +13,18 @@ void RecordingClock::start(int64_t nowMs)
 
 void RecordingClock::pause(int64_t nowMs)
 {
-	if (!running_ || paused_)
+	if (!running_ || paused_) {
 		return;
+	}
 	paused_ = true;
 	pausedAtMs_ = nowMs;
 }
 
 void RecordingClock::resume(int64_t nowMs)
 {
-	if (!running_ || !paused_)
+	if (!running_ || !paused_) {
 		return;
+	}
 	pausedTotalMs_ += nowMs - pausedAtMs_;
 	paused_ = false;
 }
@@ -35,8 +37,9 @@ void RecordingClock::stop()
 
 int64_t RecordingClock::elapsedMs(int64_t nowMs) const
 {
-	if (!running_)
+	if (!running_) {
 		return 0;
+	}
 	const int64_t end = paused_ ? pausedAtMs_ : nowMs;
 	const int64_t elapsed = end - startMs_ - pausedTotalMs_;
 	return elapsed > 0 ? elapsed : 0;

@@ -13,26 +13,28 @@ namespace voltz {
 VoltzPreview::VoltzPreview(QWidget *parent) : OBSQTDisplay(parent)
 {
 	SetDisplayBackgroundColor(QColor(0x09, 0x09, 0x0B));
-	connect(this, &OBSQTDisplay::DisplayCreated, this, [this](OBSQTDisplay *) {
-		obs_display_add_draw_callback(GetDisplay(), &VoltzPreview::draw, this);
-	});
+	connect(this, &OBSQTDisplay::DisplayCreated, this,
+		[this](OBSQTDisplay *) { obs_display_add_draw_callback(GetDisplay(), &VoltzPreview::draw, this); });
 }
 
 VoltzPreview::~VoltzPreview()
 {
-	if (obs_display_t *display = GetDisplay())
+	if (obs_display_t *display = GetDisplay()) {
 		obs_display_remove_draw_callback(display, &VoltzPreview::draw, this);
+	}
 }
 
 void VoltzPreview::draw(void *, uint32_t cx, uint32_t cy)
 {
 	obs_video_info ovi;
-	if (!obs_get_video_info(&ovi))
+	if (!obs_get_video_info(&ovi)) {
 		return;
+	}
 
 	const FitRect r = fitCentered(int(ovi.base_width), int(ovi.base_height), int(cx), int(cy));
-	if (r.cx <= 0 || r.cy <= 0)
+	if (r.cx <= 0 || r.cy <= 0) {
 		return;
+	}
 
 	gs_viewport_push();
 	gs_projection_push();

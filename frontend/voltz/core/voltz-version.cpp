@@ -11,8 +11,9 @@ std::string aboutLine(const VersionInfo &info)
 std::string windowTitle(const VersionInfo &info, const std::string &projectName)
 {
 	const std::string base = info.product + " " + info.productVersion;
-	if (projectName.empty())
+	if (projectName.empty()) {
 		return base;
+	}
 	return projectName + " — " + base;
 }
 

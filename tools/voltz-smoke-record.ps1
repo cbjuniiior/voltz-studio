@@ -2,7 +2,7 @@
   Smoke test de gravacao do Voltz Studio.
   Abre o app em modo portatil com configuracao limpa (ConfirmOnExit=false), inicia a gravacao
   com --startrecording, espera, fecha pela janela principal e confere log e arquivo gravado.
-  Os arquivos de teste gravados em Videos sao apagados ao final.
+  Apaga ao final somente o arquivo exato cujo caminho consta no log da execucao.
   Uso: powershell -ExecutionPolicy Bypass -File tools/voltz-smoke-record.ps1 [-Seconds 15]
 #>
 param(
@@ -55,11 +55,23 @@ $log = Get-ChildItem (Join-Path $voltzCfg "logs") -Filter *.txt -ErrorAction Sil
 # Marcadores no log (OBS 32.2.2): "==== Recording Start" e emitido ao iniciar. "==== Recording Stop" so e
 # emitido quando a gravacao e parada com o app aberto; ao fechar o app gravando, o desligamento destroi
 # as saidas direto e o log traz "Output 'simple_file_output': stopping" (comportamento do upstream).
-$videos = [Environment]::GetFolderPath('MyVideos')
-$exts = '.mkv', '.mp4', '.mov', '.flv', '.ts'
-$files = @(Get-ChildItem $videos -File -ErrorAction SilentlyContinue |
-    Where-Object { $_.LastWriteTime -gt $start -and ($exts -contains $_.Extension.ToLower()) })
-$withData = @($files | Where-Object { $_.Length -gt 0 })
+# Arquivo gravado: extraido do log, NUNCA por varredura da pasta Videos (nao apagamos o que nao criamos).
+# Padrao no log (OBS 32.2.2):
+#   [mp4 output: 'simple_file_output'] Writing Hybrid MP4/MOV file 'C:/Users/X/Videos/2026-10-15 18-07-26.mp4'...
+#   [ffmpeg muxer: 'simple_file_output'] Writing file 'C:/Users/X/Videos/....mkv'...
+# Regex: "Writing ... file '<caminho>'...". Se nao der para extrair, o check falha e nada e apagado.
+$recPath = $null
+if ($log) {
+    $m = Select-String -Path $log.FullName -Pattern "Writing .*?file '(.+)'\.\.\.\s*$" | Select-Object -Last 1
+    if ($m) { $recPath = $m.Matches[0].Groups[1].Value -replace '/', '\' }
+}
+$recFile = $null
+if ($recPath -and (Test-Path -LiteralPath $recPath -PathType Leaf)) {
+    $item = Get-Item -LiteralPath $recPath
+    if ($item.LastWriteTime -gt $start) { $recFile = $item }
+}
+$withData = @(); if ($recFile -and $recFile.Length -gt 0) { $withData = @($recFile) }
+$files = @($recFile | Where-Object { $_ })
 
 $checks = [ordered]@{}
 $checks["processo vivo apos $Seconds s"] = $aliveAfterStart
@@ -67,17 +79,19 @@ $checks["log gerado"] = [bool]$log
 $checks["log contem '[voltz] shell pronta'"] = [bool]($log -and (Select-String -Path $log.FullName -Pattern '\[voltz\] shell pronta' -Quiet))
 $checks["log contem '==== Recording Start'"] = [bool]($log -and (Select-String -Path $log.FullName -SimpleMatch '==== Recording Start' -Quiet))
 $checks["log contem parada da saida de gravacao (stopping)"] = [bool]($log -and (Select-String -Path $log.FullName -Pattern "Output '.*file_output': stopping" -Quiet))
-$checks["arquivo de gravacao com tamanho > 0"] = ($withData.Count -gt 0)
+$checks["caminho da gravacao extraido do log"] = [bool]$recPath
+$checks["arquivo de gravacao (exato) existe, novo e com tamanho > 0"] = ($withData.Count -gt 0)
 $checks["encerrou limpo ao fechar a janela"] = $cleanExit
 
 $failed = 0
 foreach ($k in $checks.Keys) {
     if ($checks[$k]) { Write-Host "OK     $k" } else { Write-Host "FALHOU $k"; $failed++ }
 }
+Write-Host "caminho parseado: $recPath"
 if ($log) { Write-Host "log: $($log.FullName)" }
 foreach ($f in $withData) { Write-Host "gravacao: $($f.FullName) ($($f.Length) bytes)" }
 
-# Apaga a saida de teste (arquivos nossos, criados apos o inicio do smoke)
+# Apaga somente o arquivo exato que o app gravou (caminho vindo do log)
 foreach ($f in $files) { Remove-Item -Force $f.FullName; Write-Host "apagado: $($f.FullName)" }
 
 if ($failed -gt 0) { exit 1 }

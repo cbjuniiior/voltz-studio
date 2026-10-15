@@ -34,8 +34,9 @@ VersionInfo currentVersion()
 QString loadStyleSheet()
 {
 	QFile file(QStringLiteral(":/voltz/voltz-shell.qss"));
-	if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+	if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
 		return QString();
+	}
 	return QString::fromUtf8(file.readAll());
 }
 
@@ -98,8 +99,9 @@ QWidget *VoltzShell::buildSideNav()
 		button->setToolButtonStyle(Qt::ToolButtonTextOnly);
 		button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 		navGroup_->addButton(button, i);
-		if (i == labels.size() - 1)
+		if (i == labels.size() - 1) {
 			layout->addStretch(1);
+		}
 		layout->addWidget(button);
 	}
 
@@ -129,8 +131,8 @@ QWidget *VoltzShell::buildPlaceholderPage(const QString &title, const QString &t
 
 QWidget *VoltzShell::buildSettingsPage()
 {
-	QWidget *page = buildPlaceholderPage(QStringLiteral("Ajustes"),
-					     QString::fromStdString(aboutLine(currentVersion())));
+	QWidget *page =
+		buildPlaceholderPage(QStringLiteral("Ajustes"), QString::fromStdString(aboutLine(currentVersion())));
 
 	auto *classic = new QPushButton(QStringLiteral("Abrir modo clássico (OBS completo)"), page);
 	connect(classic, &QPushButton::clicked, this, []() {

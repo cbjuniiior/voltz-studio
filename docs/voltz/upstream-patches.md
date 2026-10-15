@@ -1,7 +1,10 @@
 # Alterações em arquivos do OBS (upstream)
 
-Toda alteração em arquivo do OBS fica dentro de `#ifdef VOLTZ_STUDIO` (C/C++) ou é comentada com
-"Voltz Studio" (CMake). Ao atualizar o OBS (merge de uma tag nova do upstream), revise cada item abaixo.
+As alterações em C/C++ ficam dentro de `#ifdef VOLTZ_STUDIO`, EXCETO: (a) literais de caminho de config, que agora usam
+`VOLTZ_CONFIG_DIR` (macro definida só para o alvo `obs-studio` em `feature-voltz.cmake`); (b) arquivos de plugin/shared
+(`plugins/win-dshow/**`, `shared/obs-shared-memory-queue/**`): `VOLTZ_STUDIO` não é visível aos alvos de plugin, então
+essas mudanças são incondicionais. Alterações em CMake são marcadas com comentários "Voltz Studio". Ao atualizar o OBS
+(merge de uma tag nova do upstream), revise cada item abaixo.
 Para listar tudo: `git diff ba2f32bdf..HEAD --stat` (base = tag 32.2.2).
 
 | Arquivo | O que muda | Por quê |
@@ -13,9 +16,9 @@ Para listar tudo: `git diff ba2f32bdf..HEAD --stat` (base = tag 32.2.2).
 | `frontend/cmake/windows/obs.rc.in` | versão/empresa/produto do Voltz | propriedades do `.exe` |
 | `frontend/obs-main.cpp` | `opt_disable_updater = true`; caminhos de logs/crashes/profiler via `VOLTZ_CONFIG_DIR` | sem atualizador; config própria |
 | 14 arquivos em `frontend/` (`git grep VOLTZ_CONFIG_DIR frontend`) | `"obs-studio/..."` (12 arquivos) e `"/obs-studio/..."` (`OBSBasic_Profiles.cpp`, `OBSBasic_SceneCollections.cpp`; 8 ocorrências com barra inicial) → `VOLTZ_CONFIG_DIR` | config em `%APPDATA%\Voltz Studio` |
-| `frontend/utility/platform-windows.cpp` | mutex `VoltzStudioCore` / `VoltzStudioPortable` | convive com OBS aberto |
+| `frontend/utility/platform-windows.cpp` | mutex `VoltzStudioCore` / `VoltzStudioPortable` dentro de `#ifdef VOLTZ_STUDIO` (upstream em `#else`) | convive com OBS aberto |
 | `frontend/widgets/OBSBasic_MainControls.cpp` | `UploadLog` abre pasta; links de ajuda | nada sai para obsproject.com |
-| `frontend/utility/CrashHandler.cpp` | `uploadCrashLogToServer` não envia (só loga) | idem |
+| `frontend/utility/CrashHandler.cpp` | `uploadCrashLogToServer` não envia: loga, abre a pasta `crashes` e emite `crashLogUploadFailed` (não deixa o diálogo travado) | idem |
 | `frontend/dialogs/OBSAbout.cpp` | nome/versão Voltz; sem busca do Patreon | idem + identidade |
 | `frontend/widgets/OBSBasic.cpp` | sem assistente na 1ª execução; oculta na abertura em todas as plataformas (`hideWindowOnStart = true`); `closeEvent`: com casca e `event->spontaneous()` → `ignore()` + `SetShowing(false)` (só o X do sistema esconde a clássica; `close()` programático — Sair, reiniciar — segue); `promptToClose`: com casca não chama `SetShowing(true)` e usa `App()->activeWindow()` como pai | casca é a janela principal |
 | `frontend/OBSApp.hpp/.cpp` | cria `VoltzShell`; apenas `voltzShell` + `HasVoltzShell()` | ciclo de vida da casca |

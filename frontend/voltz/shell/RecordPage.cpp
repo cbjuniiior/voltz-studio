@@ -87,14 +87,16 @@ RecordPage::RecordPage(FrontendBridge *bridge, QWidget *parent) : QWidget(parent
 	connect(&ticker_, &QTimer::timeout, this, &RecordPage::tickClock);
 
 	connect(scenes_, &QListWidget::currentTextChanged, this, [this](const QString &name) {
-		if (!updatingList_ && !name.isEmpty())
+		if (!updatingList_ && !name.isEmpty()) {
 			bridge_->setCurrentScene(name);
+		}
 	});
 	connect(recordButton_, &QPushButton::clicked, this, [this]() {
-		if (bridge_->isRecording())
+		if (bridge_->isRecording()) {
 			bridge_->stopRecording();
-		else
+		} else {
 			bridge_->startRecording();
+		}
 	});
 	connect(pauseButton_, &QPushButton::clicked, this,
 		[this]() { bridge_->setRecordingPaused(!bridge_->isRecordingPaused()); });
@@ -121,27 +123,33 @@ void RecordPage::selectScene(const QString &name)
 {
 	updatingList_ = true;
 	const QList<QListWidgetItem *> matches = scenes_->findItems(name, Qt::MatchExactly);
-	if (!matches.isEmpty())
+	if (!matches.isEmpty()) {
 		scenes_->setCurrentItem(matches.first());
+	}
 	updatingList_ = false;
 }
 
 void RecordPage::updateRecordingUi(bool active, bool paused)
 {
 	const int64_t now = monotonic_.elapsed();
-	if (active && !recordingClock_.running())
+	if (active && !recordingClock_.running()) {
 		recordingClock_.start(now);
-	if (active && paused)
+	}
+	if (active && paused) {
 		recordingClock_.pause(now);
-	if (active && !paused)
+	}
+	if (active && !paused) {
 		recordingClock_.resume(now);
-	if (!active)
+	}
+	if (!active) {
 		recordingClock_.stop();
+	}
 
-	if (active)
+	if (active) {
 		ticker_.start();
-	else
+	} else {
 		ticker_.stop();
+	}
 
 	pendingStart_ = false;
 	recordButton_->setEnabled(true);
@@ -169,8 +177,9 @@ void RecordPage::showRecordingTransition(bool stopping)
 		 * falha e não vem STARTED nem STOPPED): sem isto o botão ficaria preso em "Iniciando…". */
 		pendingStart_ = true;
 		QTimer::singleShot(0, this, [this]() {
-			if (pendingStart_ && !bridge_->isRecording())
+			if (pendingStart_ && !bridge_->isRecording()) {
 				updateRecordingUi(false, false);
+			}
 		});
 	}
 }

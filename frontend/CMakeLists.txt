@@ -63,6 +63,7 @@ include(cmake/feature-restream.cmake)
 include(cmake/feature-youtube.cmake)
 include(cmake/feature-whatsnew.cmake)
 include(cmake/feature-idian-playground.cmake)
+# Voltz Studio: feature Voltz (casca, macros VOLTZ_*, marca)
 include(cmake/feature-voltz.cmake)
 
 configure_file(cmake/templates/ui-config.h.in ui-config.h)
@@ -113,4 +114,5 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" PREFIX "Source Files" FILES ${ta
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" PREFIX "Header Files" FILES ${target_hpp_sources})
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" PREFIX "Qt Files" FILES ${target_qt_sources})
 
+# Voltz Studio: executavel renomeado para VoltzStudio.exe no Windows
 set_target_properties_obs(obs-studio PROPERTIES FOLDER frontend OUTPUT_NAME "$<IF:$<PLATFORM_ID:Windows>,VoltzStudio,obs>")

@@ -34,7 +34,7 @@ Os planos 2–5 são escritos depois deste, aproveitando o que o protótipo reve
 
 ## Convenções deste plano
 
-**Diretório de trabalho:** `C:\Users\Cassio\Documents\Projetos IA\voltz-studio` (branch `voltz`).
+**Diretório de trabalho:** a raiz do repositório (branch `voltz`).
 
 **Comandos (Git Bash).** O estado do shell não persiste entre comandos — defina as variáveis no mesmo comando:
 

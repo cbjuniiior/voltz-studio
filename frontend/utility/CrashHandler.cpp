@@ -21,6 +21,11 @@
 
 #include <nlohmann/json.hpp>
 
+#ifdef VOLTZ_STUDIO
+#include <QDesktopServices>
+#include <QUrl>
+#endif
+
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -286,6 +291,14 @@ void CrashHandler::uploadCrashLogToServer()
 #ifdef VOLTZ_STUDIO
 	/* Voltz: relatórios de falha não são enviados; ficam na pasta crashes */
 	blog(LOG_INFO, "[voltz] envio de relatorio de falha desativado");
+	{
+		char crashesDir[512];
+		if (GetAppConfigPath(crashesDir, sizeof(crashesDir), VOLTZ_CONFIG_DIR "/crashes") > 0) {
+			QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromUtf8(crashesDir)));
+		}
+	}
+	emit crashLogUploadFailed(QStringLiteral(
+		"O envio de relatórios de falha está desativado no Voltz Studio. A pasta de relatórios foi aberta."));
 	return;
 #endif
 	std::string crashLogFileContent = getCrashLogFileContent(lastCrashLogFile_);

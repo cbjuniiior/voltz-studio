@@ -14,8 +14,9 @@ FrontendBridge::FrontendBridge(QObject *parent) : QObject(parent)
 FrontendBridge::~FrontendBridge()
 {
 	/* Após o EXIT a frontend API já foi desligada; remover de novo só gera erro no log */
-	if (registered_)
+	if (registered_) {
 		obs_frontend_remove_event_callback(&FrontendBridge::handleEvent, this);
+	}
 }
 
 QStringList FrontendBridge::sceneNames() const
@@ -39,8 +40,9 @@ QString FrontendBridge::currentSceneName() const
 void FrontendBridge::setCurrentScene(const QString &name)
 {
 	OBSSourceAutoRelease scene = obs_get_source_by_name(name.toUtf8().constData());
-	if (scene)
+	if (scene) {
 		obs_frontend_set_current_scene(scene);
+	}
 }
 
 bool FrontendBridge::isRecording() const

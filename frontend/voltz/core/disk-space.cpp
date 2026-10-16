@@ -47,7 +47,12 @@ std::string formatRate(uint64_t bytesPerMinute, char decimalSeparator)
 		return "~" + std::to_string(tenths / 10) + decimalSeparator + std::to_string(tenths % 10) + " GB/min";
 	}
 	const long long mebibytes = std::llround(static_cast<double>(bytesPerMinute) / (1024.0 * 1024.0));
-	return "~" + std::to_string(mebibytes) + " MB/min";
+	if (mebibytes >= 1) {
+		return "~" + std::to_string(mebibytes) + " MB/min";
+	}
+	/* Abaixo de 0,5 MB/min (ex. tela parada) o arredondamento daria "~0 MB/min". */
+	const long long kibibytes = std::llround(static_cast<double>(bytesPerMinute) / 1024.0);
+	return "~" + std::to_string(kibibytes) + " KB/min";
 }
 
 std::string formatFreeSpace(uint64_t bytes, char decimalSeparator)

@@ -30,7 +30,7 @@ uint64_t estimateBytesPerMinute(const RateInput &input);
 // Medida real: bytes do arquivo / duração líquida. 0 antes de 10 s (medida instável).
 uint64_t measuredBytesPerMinute(uint64_t bytes, int64_t elapsedMs);
 
-// "~111 MB/min" ou "~1,2 GB/min" (base 1024).
+// "~111 MB/min", "~1,2 GB/min" ou, abaixo de 0,5 MB/min, "~300 KB/min" (base 1024).
 std::string formatRate(uint64_t bytesPerMinute, char decimalSeparator);
 
 // "42 GB" (≥ 10 GB), "4,2 GB" (1–10 GB) ou "850 MB"; sempre arredondado para baixo.

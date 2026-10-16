@@ -41,8 +41,12 @@ TEST_CASE("measuredBytesPerMinute só mede depois de 10 s")
 	CHECK(voltz::measuredBytesPerMinute(60000000ULL, 30000) == 120000000ULL);
 }
 
-TEST_CASE("formatRate: MB/min inteiro abaixo de 1 GB, GB/min com uma casa acima")
+TEST_CASE("formatRate: KB/min abaixo de 0,5 MB, MB/min inteiro abaixo de 1 GB, GB/min com uma casa acima")
 {
+	CHECK(voltz::formatRate(0, ',') == "~0 KB/min");
+	CHECK(voltz::formatRate(307200ULL, ',') == "~300 KB/min");
+	CHECK(voltz::formatRate(524287ULL, ',') == "~512 KB/min");
+	CHECK(voltz::formatRate(524288ULL, ',') == "~1 MB/min");
 	CHECK(voltz::formatRate(116294400ULL, ',') == "~111 MB/min");
 	CHECK(voltz::formatRate(50976000ULL, ',') == "~49 MB/min");
 	CHECK(voltz::formatRate(kGiB, ',') == "~1,0 GB/min");

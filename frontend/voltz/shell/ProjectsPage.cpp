@@ -237,9 +237,11 @@ void ProjectsPage::refresh()
 		}
 		item->setText(ColDate, QLocale().toString(entry.date.toLocalTime(), QLocale::ShortFormat));
 		item->setData(ColDate, kSortRole, entry.date.toMSecsSinceEpoch());
-		item->setText(ColDuration, entry.durationMs >= 0 ? QString::fromStdString(formatClock(entry.durationMs))
-								 : QStringLiteral("—"));
-		item->setData(ColDuration, kSortRole, entry.durationMs);
+		/* Formato mais novo: duração e status não são confiáveis para esta versão (mostra "—" nos dois). */
+		const qint64 durationMs = entry.newerFormat ? -1 : entry.durationMs;
+		item->setText(ColDuration,
+			      durationMs >= 0 ? QString::fromStdString(formatClock(durationMs)) : QStringLiteral("—"));
+		item->setData(ColDuration, kSortRole, durationMs);
 		item->setTextAlignment(ColDuration, Qt::AlignRight | Qt::AlignVCenter);
 		item->setText(ColSize, QString::fromStdString(formatFileSize(entry.sizeBytes, separator)));
 		item->setData(ColSize, kSortRole, static_cast<qlonglong>(entry.sizeBytes));
@@ -324,7 +326,10 @@ void ProjectsPage::renameSelected()
 	if (!item || !item->data(ColName, kProjectRole).toBool() || item->data(ColName, kActiveRole).toBool()) {
 		return;
 	}
+	/* O diálogo abre um laço de eventos: se a gravação começar/parar (atalho, websocket), refresh() recria a lista
+	 * e `item` deixa de existir. Tudo o que vem do item é lido antes. */
 	const QString current = item->text(ColName);
+	const QString path = item->data(ColName, kPathRole).toString();
 	bool ok = false;
 	const QString name = QInputDialog::getText(this, QTStr("Voltz.Projects.Rename.Title"),
 						   QTStr("Voltz.Projects.Rename.Label"), QLineEdit::Normal, current,
@@ -333,7 +338,7 @@ void ProjectsPage::renameSelected()
 	if (!ok || name.isEmpty() || name == current) {
 		return;
 	}
-	if (!ProjectLibrary::rename(item->data(ColName, kPathRole).toString(), name)) {
+	if (!ProjectLibrary::rename(path, name)) {
 		QMessageBox::warning(this, QTStr("Voltz.Projects.Rename.Title"), QTStr("Voltz.Projects.RenameFailed"));
 	}
 	refresh();

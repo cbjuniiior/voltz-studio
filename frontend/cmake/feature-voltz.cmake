@@ -26,6 +26,8 @@ target_sources(
     voltz/project/CursorTracker.hpp
     voltz/project/MonitorLocator.cpp
     voltz/project/MonitorLocator.hpp
+    voltz/project/ProjectLibrary.cpp
+    voltz/project/ProjectLibrary.hpp
     voltz/project/ProjectRecorder.cpp
     voltz/project/ProjectRecorder.hpp
     voltz/shell/AudioPanel.cpp

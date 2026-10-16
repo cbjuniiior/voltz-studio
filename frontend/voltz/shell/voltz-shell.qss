@@ -188,7 +188,8 @@
 	font-weight: 600;
 }
 
-#voltzShell QFrame#welcomeBanner {
+#voltzShell QFrame#welcomeBanner,
+#voltzShell QFrame#recoverBanner {
 	background: rgba(212, 245, 60, 20);
 	border: 1px solid rgba(212, 245, 60, 90);
 	border-radius: 8px;

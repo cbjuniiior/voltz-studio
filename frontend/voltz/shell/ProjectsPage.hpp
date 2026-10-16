@@ -2,39 +2,51 @@
 
 #include <QWidget>
 
+class QFrame;
 class QLabel;
 class QPushButton;
 class QTreeWidget;
+class QTreeWidgetItem;
 
 namespace voltz {
 
 class FrontendBridge;
+class ProjectRecorder;
 
-// Tela "Projetos": gravações na pasta de saída atual (mais recentes primeiro), com abrir, mostrar na pasta e
-// mover para a lixeira. Atualiza ao aparecer e ao terminar uma gravação. (No Plano 3 vira lista de projetos.)
+// Tela "Projetos" (spec §4.3): projetos (pastas com projeto.voltz) e vídeos soltos da pasta de gravações, mais
+// recentes primeiro. Abrir, mostrar na pasta, renomear (nome do manifesto), recuperar gravação interrompida e mover
+// para a lixeira (pasta inteira). Atualiza ao aparecer e quando um projeto começa/termina.
 class ProjectsPage : public QWidget {
 	Q_OBJECT
 
 public:
-	explicit ProjectsPage(FrontendBridge *bridge, QWidget *parent = nullptr);
+	explicit ProjectsPage(FrontendBridge *bridge, ProjectRecorder *recorder, QWidget *parent = nullptr);
 
 protected:
 	void showEvent(QShowEvent *event) override;
 
 private:
 	void refresh();
-	QString selectedPath() const;
+	QTreeWidgetItem *selectedItem() const;
 	void updateButtons();
 	void openSelected();
 	void showSelectedInFolder();
+	void renameSelected();
+	void recoverSelected();
+	void recoverAll();
 	void trashSelected();
 
+	ProjectRecorder *recorder_;
 	QString folder_;
 	QLabel *folderLabel_ = nullptr;
 	QLabel *empty_ = nullptr;
+	QFrame *recoverBanner_ = nullptr;
+	QLabel *recoverText_ = nullptr;
 	QTreeWidget *list_ = nullptr;
 	QPushButton *openButton_ = nullptr;
 	QPushButton *showButton_ = nullptr;
+	QPushButton *renameButton_ = nullptr;
+	QPushButton *recoverButton_ = nullptr;
 	QPushButton *trashButton_ = nullptr;
 };
 

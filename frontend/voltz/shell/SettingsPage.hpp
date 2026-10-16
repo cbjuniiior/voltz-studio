@@ -3,6 +3,7 @@
 #include <QList>
 #include <QWidget>
 
+class QCheckBox;
 class QComboBox;
 class QFrame;
 class QLabel;
@@ -48,6 +49,7 @@ private:
 	DeviceSelector *camera_ = nullptr;
 	DeviceSelector *microphone_ = nullptr;
 	QLabel *captureHint_ = nullptr;
+	QCheckBox *hideFromCapture_ = nullptr;
 	// Rótulos dos formulários de todas as seções: recebem a mesma largura para alinhar as colunas dos campos.
 	QList<QLabel *> formLabels_;
 	bool loading_ = false;

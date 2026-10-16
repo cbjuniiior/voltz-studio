@@ -103,6 +103,15 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 		deleteLater();
 	});
 
+	connect(bridge_, &FrontendBridge::recordingStateChanged, this, [this](bool active, bool paused) {
+		setTaskbarState(this, !active  ? TaskbarState::Idle
+				      : paused ? TaskbarState::Paused
+					       : TaskbarState::Recording);
+	});
+	/* Com a casca em outra página, o erro só aparece na faixa da página Gravar (sem balão da bandeja,
+	 * Plano 2C Task 2): leva o usuário até ela. */
+	connect(bridge_, &FrontendBridge::recordingFailed, this, [this](int, const QString &) { showPage(0); });
+
 	applyDarkTitleBar(this);
 
 	blog(LOG_INFO, "[voltz] shell pronta (%s)",
@@ -216,6 +225,8 @@ void VoltzShell::showEvent(QShowEvent *event)
 {
 	QMainWindow::showEvent(event);
 	setPreviewsEnabled(!isMinimized());
+	/* OBSApp::notify já aplicou a afinidade antes de entregar este evento: registra o resultado. */
+	logCaptureAffinity(this);
 }
 
 void VoltzShell::hideEvent(QHideEvent *event)

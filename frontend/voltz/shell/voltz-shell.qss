@@ -272,3 +272,8 @@
 	border: 1px solid #1F1F24;
 	selection-background-color: rgba(212, 245, 60, 40);
 }
+
+#voltzShell QCheckBox {
+	background: transparent;
+	spacing: 8px;
+}

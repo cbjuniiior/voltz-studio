@@ -400,6 +400,10 @@ void OBSApp::InitUserConfigDefaults()
 
 	config_set_default_int(userConfig, "Appearance", "FontScale", 10);
 	config_set_default_int(userConfig, "Appearance", "Density", 1);
+#ifdef VOLTZ_STUDIO
+	/* Voltz Studio: quem grava tutorial da própria tela não quer o app na gravação. */
+	config_set_default_bool(userConfig, "BasicWindow", "HideOBSWindowsFromCapture", true);
+#endif
 }
 
 static bool do_mkdir(const char *path)

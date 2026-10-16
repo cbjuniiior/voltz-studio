@@ -12,4 +12,13 @@ void applyDarkTitleBar(QWidget *window);
 // como o OBSBasic::nativeEvent faz. Chamar de dentro do nativeEvent da janela.
 void forwardDisplayEvents(QWidget *window, void *message);
 
+enum class TaskbarState { Idle, Recording, Paused };
+
+// Ícone de estado sobre o botão da janela na barra de tarefas (mesmos ícones do OBS: active/paused).
+// No-op fora do Windows.
+void setTaskbarState(QWidget *window, TaskbarState state);
+
+// Loga a afinidade de exibição da janela (0x11 = WDA_EXCLUDEFROMCAPTURE: fora da captura de tela).
+void logCaptureAffinity(QWidget *window);
+
 } // namespace voltz

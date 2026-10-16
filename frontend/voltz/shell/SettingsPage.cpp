@@ -9,9 +9,11 @@
 
 #include <OBSApp.hpp>
 #include <widgets/OBSBasic.hpp>
+#include <utility/platform.hpp>
 
 #include <obs.h>
 
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDesktopServices>
 #include <QDir>
@@ -20,10 +22,13 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QGuiApplication>
 #include <QPushButton>
+#include <QSignalBlocker>
 #include <QScrollArea>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <QWindow>
 
 #include <algorithm>
 
@@ -196,6 +201,29 @@ QFrame *SettingsPage::buildCaptureSection()
 	form->addRow(formLabel(QTStr("Voltz.Settings.Microphone"), section), microphone_);
 	body->addLayout(form);
 	body->addWidget(captureHint_);
+
+	hideFromCapture_ = new QCheckBox(QTStr("Voltz.Settings.HideFromCapture"), section);
+	hideFromCapture_->setEnabled(SetDisplayAffinitySupported());
+	auto *hideHint = new QLabel(SetDisplayAffinitySupported() ? QTStr("Voltz.Settings.HideFromCapture.Hint")
+								  : QTStr("Voltz.Settings.HideFromCapture.Unsupported"),
+				    section);
+	hideHint->setObjectName("muted");
+	hideHint->setWordWrap(true);
+	body->addSpacing(4);
+	body->addWidget(hideFromCapture_);
+	body->addWidget(hideHint);
+
+	connect(hideFromCapture_, &QCheckBox::toggled, this, [](bool hide) {
+		/* Mesma chave e mesmo efeito de Configurações → Geral do OBS: grava e reaplica em todas as janelas. */
+		config_set_bool(App()->GetUserConfig(), "BasicWindow", "HideOBSWindowsFromCapture", hide);
+		config_save_safe(App()->GetUserConfig(), "tmp", nullptr);
+		for (QWindow *window : QGuiApplication::allWindows()) {
+			if (window->isVisible()) {
+				OBSBasic::Get()->SetDisplayAffinity(window);
+			}
+		}
+		blog(LOG_INFO, "[voltz] esconder da captura: %s", hide ? "ligado" : "desligado");
+	});
 	return section;
 }
 
@@ -242,6 +270,12 @@ void SettingsPage::showEvent(QShowEvent *event)
 	monitor_->reload();
 	camera_->reload();
 	microphone_->reload();
+	{
+		/* Pode ter mudado pelas Configurações do OBS: relê sem disparar o toggled. */
+		const QSignalBlocker blocker(hideFromCapture_);
+		hideFromCapture_->setChecked(
+			config_get_bool(App()->GetUserConfig(), "BasicWindow", "HideOBSWindowsFromCapture"));
+	}
 	captureHint_->setVisible(!monitor_->isEnabled() || !camera_->isEnabled());
 }
 

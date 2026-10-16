@@ -104,11 +104,13 @@ private:
 			   const std::vector<IsoEncoderAttempt> &attempts);
 	void requestIsoStop();
 	void finishIsoTracks();
-	void onIsoFailed(const std::string &track, int code);
+	void onIsoFailed(uint64_t generation, const std::string &track, int code);
 	void checkIsoLoad();
 
 	bool registered_ = true;
 	bool active_ = false;
+	// Muda a cada projeto (onStarting): falha de ISO enfileirada de um projeto anterior não cai no seguinte.
+	uint64_t generation_ = 0;
 	bool lowDiskStop_ = false;
 	bool manifestWarned_ = false;
 	QString projectDir_;

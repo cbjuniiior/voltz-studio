@@ -280,6 +280,7 @@ void ProjectRecorder::onStarting()
 	outputStartNs_ = 0;
 	outputStopNs_ = 0;
 	lastStopCode_ = 0;
+	generation_++;
 	active_ = true;
 	writeManifest();
 	writeMarkers();
@@ -718,10 +719,12 @@ void ProjectRecorder::startIsoTrack(SharedSource role, const char *trackName, co
 	}
 	auto track = std::make_unique<IsoTrack>(trackName);
 	const std::string name = trackName;
-	track->onFailed = [this, name](int code) {
-		/* thread do libobs: só enfileira */
+	const uint64_t generation = generation_;
+	track->onFailed = [this, generation, name](int code) {
+		/* thread do libobs: só enfileira (com a geração do projeto, conferida na thread da UI) */
 		QMetaObject::invokeMethod(
-			this, [this, name, code]() { onIsoFailed(name, code); }, Qt::QueuedConnection);
+			this, [this, generation, name, code]() { onIsoFailed(generation, name, code); },
+			Qt::QueuedConnection);
 	};
 	IsoFailure failure = IsoFailure::None;
 	const std::string path = nativeUtf8Path(QDir(projectDir_).filePath(QString::fromUtf8(fileName)));
@@ -759,9 +762,11 @@ void ProjectRecorder::startIsoTrack(SharedSource role, const char *trackName, co
 	isoTracks_.push_back(std::move(track));
 }
 
-void ProjectRecorder::onIsoFailed(const std::string &track, int code)
+void ProjectRecorder::onIsoFailed(uint64_t generation, const std::string &track, int code)
 {
-	if (!active_) {
+	if (!active_ || generation != generation_) {
+		blog(LOG_INFO, "[voltz] iso %s: falha de um projeto anterior ignorada (codigo %d)", track.c_str(),
+		     code);
 		return;
 	}
 	blog(LOG_WARNING, "[voltz] iso %s: parou sozinha (codigo %d); o programa continua", track.c_str(), code);

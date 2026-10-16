@@ -133,16 +133,31 @@ bool ProjectLibrary::recover(const QString &projectDir)
 	if (!readManifest(projectDir, manifest, &newer) || newer || manifest.status != ProjectStatus::Recording) {
 		return false;
 	}
-	qint64 fileElapsedMs = 0;
-	const QFileInfo program(QDir(projectDir).filePath(QString::fromStdString(manifest.program.file)));
+	const QDir dir(projectDir);
 	const QDateTime created = QDateTime::fromString(QString::fromStdString(manifest.createdAt), Qt::ISODate);
-	if (manifest.program.present && program.exists() && created.isValid()) {
-		fileElapsedMs = std::max<qint64>(0, created.msecsTo(program.lastModified()));
-	}
+	/* Duração estimada pelo arquivo modificado por último (programa ou ISO): todos crescem até a queda. */
+	qint64 fileElapsedMs = 0;
+	auto elapsedOf = [&dir, &created, &fileElapsedMs](bool present, const std::string &file) {
+		if (!present || file.empty() || !created.isValid()) {
+			return;
+		}
+		const QFileInfo info(dir.filePath(QString::fromStdString(file)));
+		if (info.exists()) {
+			fileElapsedMs = std::max<qint64>(fileElapsedMs, created.msecsTo(info.lastModified()));
+		}
+	};
+	elapsedOf(manifest.program.present, manifest.program.file);
+	elapsedOf(manifest.screen.present, manifest.screen.file);
+	elapsedOf(manifest.camera.present, manifest.camera.file);
+	/* MKV escrito aos poucos sobrevive à queda; ISO sem arquivo (ou vazio) sai do manifesto com iso_falhou. */
+	const int dropped = dropUnusableIsoFiles(manifest, [&dir](const std::string &file) {
+		const QFileInfo info(dir.filePath(QString::fromStdString(file)));
+		return !file.empty() && info.exists() && info.size() > 0;
+	});
 	recoverManifest(manifest, fileElapsedMs);
 	const bool ok = writeFileAtomically(nativeUtf8Path(manifestPath(projectDir)), serializeManifest(manifest));
-	blog(LOG_INFO, "[voltz] recuperar projeto (%s, %lld ms): %s", ok ? "ok" : "falhou",
-	     static_cast<long long>(manifest.durationMs), qUtf8Printable(projectDir));
+	blog(LOG_INFO, "[voltz] recuperar projeto (%s, %lld ms, %d ISO sem arquivo): %s", ok ? "ok" : "falhou",
+	     static_cast<long long>(manifest.durationMs), dropped, qUtf8Printable(projectDir));
 	return ok;
 }
 

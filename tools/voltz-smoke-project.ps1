@@ -5,9 +5,12 @@
   grava ~12 s com troca de cena, 2 marcadores (botao "Marcador" e atalho VoltzStudio.AddMarker) e uma pausa.
   ISO (3B): as fontes de papel Tela/Camera sao trocadas por fontes substitutas de cor solida (2560x1440 e 1280x720,
   numa cena que nunca vai ao programa) via VOLTZ_TEST_ISO_SCREEN/VOLTZ_TEST_ISO_CAMERA - nunca a tela real nem a webcam.
-  Antes de gravar confere por GetInputList que nao ha captura de monitor/janela/jogo nem dshow (aborta se houver).
+  Cursor (3A): "Tela teste" = captura de monitor criada com o item de cena DESATIVADO numa cena que nunca vai ao
+  programa (nao renderiza nada; so deixa o CursorTracker achar o monitor); nunca e fonte de papel do ISO.
+  Antes de gravar confere por GetInputList/GetSceneItemList que nao ha captura de janela/jogo nem dshow e que toda
+  captura de monitor tem todos os itens de cena desativados (GetSceneItemEnabled da "Tela teste"); aborta se nao.
   Fecha o app e valida a pasta do projeto: programa.mp4, projeto.voltz (status ok, pausa, duracoes, tela/camera),
-  marcadores.json, cursor.jsonl (se existir) e, com ffprobe (so metadados), 3 faixas de audio + capitulos no programa e
+  marcadores.json, cursor.jsonl e, com ffprobe (so metadados), 3 faixas de audio + capitulos no programa e
   resolucao, audio e duracao (+ offset) de tela.mkv/camera.mkv. Com -ProgramOnly ("Gravar so a versao montada")
   confere que nao ha ISO.
   Nao move o mouse nem digita. Audio global mutado. Apaga -OutDir no fim (use -Keep para inspecionar metadados).
@@ -67,27 +70,30 @@ $bak = Join-Path $rundir "config.smokeproject-bak"
 if (Test-Path $bak) { Write-Host "FALHOU backup anterior em $bak (restaure ou apague antes de rodar)"; exit 1 }
 if (Test-Path $cfg) { Move-Item $cfg $bak }
 $voltzCfg = Join-Path $cfg "Voltz Studio"
-$wsDir = Join-Path $voltzCfg "plugin_config\obs-websocket"
-New-Item -ItemType Directory -Force $wsDir | Out-Null
-[IO.File]::WriteAllText((Join-Path $wsDir "config.json"), '{"alerts_enabled":false,"auth_required":false,"first_load":false,"server_enabled":true,"server_password":"","server_port":4455}')
-$voltzIni = "[Voltz]`r`nNextProjectName=Smoke projeto`r`n"
-if ($ProgramOnly) { $voltzIni += "ProgramOnly=true`r`n" }
-[IO.File]::WriteAllText((Join-Path $voltzCfg "user.ini"), "[General]`r`nLanguage=pt-BR`r`nConfirmOnExit=false`r`n" + $voltzIni, (New-Object Text.UTF8Encoding $false))
-New-Item -ItemType Directory -Force $OutDir | Out-Null
-
-$ffprobe = (Get-Command ffprobe -ErrorAction SilentlyContinue | Select-Object -First 1).Source
-if (-not $ffprobe) {
-    $ffprobe = Get-ChildItem (Join-Path $root ".deps") -Filter ffprobe.exe -Recurse -ErrorAction SilentlyContinue |
-        Select-Object -First 1 -ExpandProperty FullName
-}
-
 $logCopy = Join-Path $env:TEMP "voltz-smoke-project-log.txt"
-if (Test-Path $logCopy) { Remove-Item -Force $logCopy }
-# ISO: fontes de papel = substitutas de cor solida (criadas abaixo); nunca a tela real nem a webcam
-$env:VOLTZ_TEST_ISO_SCREEN = "Tela substituta"
-$env:VOLTZ_TEST_ISO_CAMERA = "Camera substituta"
-$proc = Start-Process -FilePath $exe -ArgumentList '--portable', '--multi' -WorkingDirectory $bin -PassThru
+$proc = $null
+$completed = $false
+# try/finally desde o backup: qualquer excecao ainda fecha o app lancado aqui (so pelo PID) e restaura a config
 try {
+    $wsDir = Join-Path $voltzCfg "plugin_config\obs-websocket"
+    New-Item -ItemType Directory -Force $wsDir | Out-Null
+    [IO.File]::WriteAllText((Join-Path $wsDir "config.json"), '{"alerts_enabled":false,"auth_required":false,"first_load":false,"server_enabled":true,"server_password":"","server_port":4455}')
+    $voltzIni = "[Voltz]`r`nNextProjectName=Smoke projeto`r`n"
+    if ($ProgramOnly) { $voltzIni += "ProgramOnly=true`r`n" }
+    [IO.File]::WriteAllText((Join-Path $voltzCfg "user.ini"), "[General]`r`nLanguage=pt-BR`r`nConfirmOnExit=false`r`n" + $voltzIni, (New-Object Text.UTF8Encoding $false))
+    New-Item -ItemType Directory -Force $OutDir | Out-Null
+
+    $ffprobe = (Get-Command ffprobe -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+    if (-not $ffprobe) {
+        $ffprobe = Get-ChildItem (Join-Path $root ".deps") -Filter ffprobe.exe -Recurse -ErrorAction SilentlyContinue |
+            Select-Object -First 1 -ExpandProperty FullName
+    }
+
+    if (Test-Path $logCopy) { Remove-Item -Force $logCopy }
+    # ISO: fontes de papel = substitutas de cor solida (criadas abaixo); nunca a tela real nem a webcam
+    $env:VOLTZ_TEST_ISO_SCREEN = "Tela substituta"
+    $env:VOLTZ_TEST_ISO_CAMERA = "Camera substituta"
+    $proc = Start-Process -FilePath $exe -ArgumentList '--portable', '--multi' -WorkingDirectory $bin -PassThru
     Start-Sleep -Seconds 15
     Check "app aberto" (-not $proc.HasExited)
     Check "Pular (padroes Voltz)" (Uia "Pular")
@@ -96,7 +102,8 @@ try {
     $r = Ws ('[{"requestType":"SetProfileParameter","requestData":{"parameterCategory":"SimpleOutput","parameterName":"FilePath","parameterValue":' + (ConvertTo-Json $OutDir) + '}},' +
         '{"requestType":"GetSpecialInputs"},{"requestType":"GetHotkeyList"},' +
         '{"requestType":"CreateScene","requestData":{"sceneName":"Cena B"}},' +
-        '{"requestType":"CreateScene","requestData":{"sceneName":"Fontes de teste"}}]')
+        '{"requestType":"CreateScene","requestData":{"sceneName":"Fontes de teste"}},' +
+        '{"requestType":"CreateInput","requestData":{"sceneName":"Fontes de teste","inputName":"Tela teste","inputKind":"monitor_capture","sceneItemEnabled":false}}]')
     Check "pasta de gravacoes apontada para -OutDir" ($r.Count -ge 1 -and $r[0].ok)
     Check "atalho VoltzStudio.AddMarker registrado" ($r.Count -ge 3 -and (@($r[2].data.hotkeys) -contains "VoltzStudio.AddMarker"))
     $special = $r[1].data
@@ -106,17 +113,48 @@ try {
     }
     if ($mutes.Count -gt 0) { [void](Ws (ConvertTo-Json -InputObject $mutes -Depth 5 -Compress)) }
 
+    # "Tela teste": captura de monitor com o item DESATIVADO numa cena que nunca vai ao programa - so para o cursor
+    $items = (Ws '[{"requestType":"GetInputPropertiesListPropertyItems","requestData":{"inputName":"Tela teste","propertyName":"monitor_id"}}]')[0].data.propertyItems
+    $monitorId = (@($items) | Where-Object { $_.itemEnabled } | Select-Object -First 1).itemValue
+    Check "monitor para a Tela de teste" ([bool]$monitorId)
+    if ($monitorId) { [void](Ws ('[{"requestType":"SetInputSettings","requestData":{"inputName":"Tela teste","inputSettings":{"monitor_id":' + (ConvertTo-Json $monitorId) + '}}}]')) }
+
     # Substitutas do ISO: cor solida numa cena que nunca vai ao programa (trocar de cena nao afeta o ISO)
     $r = Ws ('[{"requestType":"CreateInput","requestData":{"sceneName":"Fontes de teste","inputName":"Tela substituta","inputKind":"color_source_v3","inputSettings":{"color":4278229248,"width":2560,"height":1440}}},' +
         '{"requestType":"CreateInput","requestData":{"sceneName":"Fontes de teste","inputName":"Camera substituta","inputKind":"color_source_v3","inputSettings":{"color":4294901760,"width":1280,"height":720}}}]')
     Check "fontes substitutas do ISO criadas" ($r.Count -eq 2 -and $r[0].ok -and $r[1].ok)
     Start-Sleep -Seconds 2
 
-    # Seguranca: nenhuma captura de monitor/janela/jogo e nenhum dshow - senao aborta sem gravar
+    # Seguranca: nenhuma captura de janela/jogo nem dshow; captura de monitor so com TODOS os itens de cena desativados
+    # (nao renderiza nada) e nunca como fonte de papel do ISO - senao aborta sem gravar
     $inputs = @((Ws '[{"requestType":"GetInputList"}]')[0].data.inputs)
-    $unsafe = @($inputs | Where-Object { $_.inputKind -match 'monitor_capture|window_capture|game_capture|dshow' })
-    Check "seguranca: sem captura de tela/janela/jogo nem dshow ($($unsafe.Count))" ($unsafe.Count -eq 0)
-    if ($unsafe.Count -gt 0) { throw "entrada de captura real presente - abortando antes de gravar: $(($unsafe | ForEach-Object { $_.inputName }) -join ', ')" }
+    $unsafe = @($inputs | Where-Object { $_.inputKind -match 'window_capture|game_capture|dshow' })
+    $monitorInputs = @($inputs | Where-Object { $_.inputKind -match 'monitor_capture' } | ForEach-Object { $_.inputName })
+    $sceneNames = @((Ws '[{"requestType":"GetSceneList"}]')[0].data.scenes | ForEach-Object { $_.sceneName })
+    $groupNames = @((Ws '[{"requestType":"GetGroupList"}]')[0].data.groups)
+    $listReqs = @($sceneNames | ForEach-Object { @{ requestType = "GetSceneItemList"; requestData = @{ sceneName = $_ } } }) +
+        @($groupNames | ForEach-Object { @{ requestType = "GetGroupSceneItemList"; requestData = @{ sceneName = $_ } } })
+    $allItems = @()
+    $listOk = $listReqs.Count -gt 0
+    if ($listOk) {
+        foreach ($resp in (Ws (ConvertTo-Json -InputObject $listReqs -Depth 5 -Compress))) {
+            if (-not $resp.ok) { $listOk = $false; continue }
+            $allItems += @($resp.data.sceneItems)
+        }
+    }
+    $monitorItems = @($allItems | Where-Object { $monitorInputs -contains $_.sourceName })
+    $enabledMonitor = @($monitorItems | Where-Object { $_.sceneItemEnabled })
+    $monitorAsRole = @($monitorInputs | Where-Object { $_ -eq $env:VOLTZ_TEST_ISO_SCREEN -or $_ -eq $env:VOLTZ_TEST_ISO_CAMERA })
+    $telaTesteEnabled = $null
+    $idResp = (Ws '[{"requestType":"GetSceneItemId","requestData":{"sceneName":"Fontes de teste","sourceName":"Tela teste"}}]')[0]
+    if ($idResp.ok) {
+        $enResp = (Ws ('[{"requestType":"GetSceneItemEnabled","requestData":{"sceneName":"Fontes de teste","sceneItemId":' + [int]$idResp.data.sceneItemId + '}}]'))[0]
+        if ($enResp.ok) { $telaTesteEnabled = [bool]$enResp.data.sceneItemEnabled }
+    }
+    $safe = $unsafe.Count -eq 0 -and $listOk -and $enabledMonitor.Count -eq 0 -and $monitorAsRole.Count -eq 0 -and
+        $monitorInputs.Count -eq 1 -and $monitorInputs[0] -eq "Tela teste" -and $monitorItems.Count -eq 1 -and $telaTesteEnabled -eq $false
+    Check "seguranca: sem janela/jogo/dshow ($($unsafe.Count)); monitor so 'Tela teste' com item desativado ($($monitorItems.Count) item(ns), ativado=$telaTesteEnabled)" $safe
+    if (-not $safe) { throw "captura real presente ou ativa - abortando antes de gravar: $((@($unsafe | ForEach-Object { $_.inputName }) + $monitorInputs) -join ', ')" }
 
     $r = Ws '[{"requestType":"StartRecord"}]'
     Check "StartRecord" ($r.Count -eq 1 -and $r[0].ok)
@@ -135,9 +173,10 @@ try {
     $r = Ws '[{"requestType":"StopRecord"}]'
     Check "StopRecord" ($r.Count -eq 1 -and $r[0].ok)
     Start-Sleep -Seconds 4
+    $completed = $true
 } finally {
     $cleanExit = $false
-    if (-not $proc.HasExited) {
+    if ($proc -and -not $proc.HasExited) {
         $proc.Refresh()
         [void]$proc.CloseMainWindow()
         $cleanExit = $proc.WaitForExit(30000)
@@ -151,6 +190,8 @@ try {
     Start-Sleep -Seconds 5
     if (Test-Path $cfg) { Remove-Item -Recurse -Force $cfg }
     if (Test-Path $bak) { Move-Item $bak $cfg }
+    # Abortou no meio: apaga as gravacoes de teste sem abrir (a validacao abaixo nao roda)
+    if (-not $completed -and -not $Keep -and (Test-Path -LiteralPath $OutDir)) { Remove-Item -Recurse -Force -LiteralPath $OutDir; Write-Host "apagado (abortado): $OutDir" }
 }
 
 function LogHas([string]$text) { return [bool]((Test-Path $logCopy) -and (Select-String -LiteralPath $logCopy -SimpleMatch $text -Encoding UTF8 -Quiet)) }
@@ -206,12 +247,7 @@ if ($projects.Count -eq 1) {
             if ($e.e -ne "fora" -and ($e.x -lt 0 -or $e.y -lt 0 -or $e.x -ge $w -or $e.y -ge $h)) { $cursorOk = $false; break }
         }
     }
-    # Sem captura de monitor (proibida nos smokes automaticos) nao ha cursor a registrar; se o arquivo existir, valida-o
-    if ($m.arquivos.cursor -or (Test-Path -LiteralPath $cursorFile)) {
-        Check "cursor.jsonl com >= 1 linha valida dentro da captura ($cursorLines linha(s))" ($cursorOk -and $cursorLines -ge 1)
-    } else {
-        Write-Host "AVISO sem captura de monitor nos smokes: cursor.jsonl nao gerado (nao verificado aqui)"
-    }
+    Check "cursor.jsonl com >= 1 linha valida dentro da captura ($cursorLines linha(s))" ($cursorOk -and $cursorLines -ge 1)
 
     Check "log: capitulos 'Marcador 1' e 'Marcador 2'" ((LogHas 'Adding chapter "Marcador 1"') -and (LogHas 'Adding chapter "Marcador 2"'))
     Check "log: projeto finalizado (ok" (LogHas '[voltz] projeto finalizado (ok')

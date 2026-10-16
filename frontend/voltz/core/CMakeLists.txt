@@ -10,6 +10,8 @@ target_sources(
   voltz-core
   PRIVATE
     atomic-file.cpp
+    cursor-track.cpp
+    disk-space.cpp
     preset-layout.cpp
     preview-fit.cpp
     project-manifest.cpp
@@ -26,6 +28,8 @@ target_sources(
     voltz-version.cpp
   PUBLIC
     atomic-file.hpp
+    cursor-track.hpp
+    disk-space.hpp
     preset-layout.hpp
     preview-fit.hpp
     project-manifest.hpp

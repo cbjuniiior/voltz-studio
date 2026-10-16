@@ -9,6 +9,8 @@ target_sources(
   PRIVATE
     test-main.cpp
     test-atomic-file.cpp
+    test-cursor-track.cpp
+    test-disk-space.cpp
     test-preset-layout.cpp
     test-preview-fit.cpp
     test-project-manifest.cpp

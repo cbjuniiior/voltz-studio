@@ -17,6 +17,11 @@ $bin = Join-Path $rundir "bin\64bit"
 $exe = Join-Path $bin "VoltzStudio.exe"
 if (-not (Test-Path $exe)) { Write-Host "FALHOU executavel nao encontrado: $exe"; exit 1 }
 
+# Plano 3A: a pasta padrao de gravacoes e Videos\Voltz Studio (o app cria). Se esta execucao a criou e ela ficar
+# vazia, e apagada no fim.
+$voltzVideos = Join-Path ([Environment]::GetFolderPath('MyVideos')) "Voltz Studio"
+$hadVoltzVideos = Test-Path -LiteralPath $voltzVideos
+
 $cfg = Join-Path $rundir "config"
 if (Test-Path $cfg) { Remove-Item -Recurse -Force $cfg }
 $voltzCfg = Join-Path $cfg "Voltz Studio"
@@ -62,7 +67,7 @@ $log = Get-ChildItem (Join-Path $voltzCfg "logs") -Filter *.txt -ErrorAction Sil
 # Regex: "Writing ... file '<caminho>'...". Se nao der para extrair, o check falha e nada e apagado.
 $recPath = $null
 if ($log) {
-    $m = Select-String -Path $log.FullName -Pattern "Writing .*?file '(.+)'\.\.\.\s*$" | Select-Object -Last 1
+    $m = Select-String -Path $log.FullName -Pattern "Writing .*?file '(.+)'\.\.\.\s*$" -Encoding UTF8 | Select-Object -Last 1
     if ($m) { $recPath = $m.Matches[0].Groups[1].Value -replace '/', '\' }
 }
 $recFile = $null
@@ -91,8 +96,24 @@ Write-Host "caminho parseado: $recPath"
 if ($log) { Write-Host "log: $($log.FullName)" }
 foreach ($f in $withData) { Write-Host "gravacao: $($f.FullName) ($($f.Length) bytes)" }
 
-# Apaga somente o arquivo exato que o app gravou (caminho vindo do log)
-foreach ($f in $files) { Remove-Item -Force $f.FullName; Write-Host "apagado: $($f.FullName)" }
+# Plano 3A: a gravacao fica numa pasta de projeto (programa.mp4 + projeto.voltz + marcadores.json [+ cursor.jsonl]).
+# Apaga a pasta inteira so se ela tem projeto.voltz e foi criada nesta execucao; senao, so o arquivo exato.
+$projDir = if ($recPath) { Split-Path -Parent $recPath } else { $null }
+$isProject = $projDir -and (Test-Path -LiteralPath (Join-Path $projDir "projeto.voltz")) -and ((Get-Item -LiteralPath $projDir).CreationTime -ge $start)
+if ($isProject) {
+    $manifest = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $projDir "projeto.voltz") | ConvertFrom-Json
+    $closed = $manifest.status -eq "ok" -and @($manifest.eventos | Where-Object { $_.tipo -eq "app_fechado_gravando" }).Count -eq 1
+    if ($closed) { Write-Host "OK     projeto.voltz fechado ao sair gravando (status ok, app_fechado_gravando)" }
+    else { Write-Host "FALHOU projeto.voltz nao foi fechado ao sair gravando (status '$($manifest.status)')"; $failed++ }
+    Remove-Item -Recurse -Force -LiteralPath $projDir
+    Write-Host "apagado: $projDir"
+} else {
+    foreach ($f in $files) { Remove-Item -Force $f.FullName; Write-Host "apagado: $($f.FullName)" }
+}
+if (-not $hadVoltzVideos -and (Test-Path -LiteralPath $voltzVideos) -and -not (Get-ChildItem -Force -LiteralPath $voltzVideos)) {
+    Remove-Item -Force -LiteralPath $voltzVideos
+    Write-Host "apagado (vazio): $voltzVideos"
+}
 
 if ($failed -gt 0) { exit 1 }
 Write-Host "SMOKE GRAVACAO OK"

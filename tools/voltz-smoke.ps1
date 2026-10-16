@@ -17,6 +17,10 @@ $bin = Join-Path $rundir "bin\64bit"
 $exe = Join-Path $bin "VoltzStudio.exe"
 if (-not (Test-Path $exe)) { Write-Host "FALHOU executavel nao encontrado: $exe"; exit 1 }
 
+# Plano 3A: se esta execucao criar Videos\Voltz Studio e ela ficar vazia, e apagada no fim.
+$voltzVideos = Join-Path ([Environment]::GetFolderPath('MyVideos')) "Voltz Studio"
+$hadVoltzVideos = Test-Path -LiteralPath $voltzVideos
+
 $cfg = Join-Path $rundir "config"
 if (Test-Path $cfg) { Remove-Item -Recurse -Force $cfg }
 
@@ -44,6 +48,7 @@ $checks["log gerado"] = [bool]$log
 if (-not $SkipShell) {
     $checks["log contem '[voltz] shell pronta'"] = [bool]($log -and (Select-String -Path $log.FullName -Pattern '\[voltz\] shell pronta' -Quiet))
     $checks["encerrou limpo ao fechar a janela"] = $cleanExit
+    $checks["log contem '[voltz] padroes de projeto aplicados'"] = [bool]($log -and (Select-String -Path $log.FullName -Pattern '\[voltz\] padroes de projeto aplicados' -Quiet))
 }
 
 $failed = 0
@@ -51,5 +56,9 @@ foreach ($k in $checks.Keys) {
     if ($checks[$k]) { Write-Host "OK     $k" } else { Write-Host "FALHOU $k"; $failed++ }
 }
 if ($log) { Write-Host "log: $($log.FullName)" }
+if (-not $hadVoltzVideos -and (Test-Path -LiteralPath $voltzVideos) -and -not (Get-ChildItem -Force -LiteralPath $voltzVideos)) {
+    Remove-Item -Force -LiteralPath $voltzVideos
+    Write-Host "apagado (vazio): $voltzVideos"
+}
 if ($failed -gt 0) { exit 1 }
 Write-Host "SMOKE OK"

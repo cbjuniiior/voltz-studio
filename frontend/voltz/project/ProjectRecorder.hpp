@@ -2,10 +2,12 @@
 
 #include "IsoTrack.hpp"
 
+#include <voltz/core/iso-encoders.hpp>
 #include <voltz/core/project-manifest.hpp>
 #include <voltz/core/project-markers.hpp>
 #include <voltz/core/project-timeline.hpp>
 #include <voltz/shell/RecordingConfig.hpp>
+#include <voltz/shell/SharedSources.hpp>
 
 #include <obs-frontend-api.h>
 #include <obs.hpp>
@@ -19,6 +21,7 @@
 #include <memory>
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace voltz {
@@ -32,8 +35,9 @@ inline std::string nativeUtf8Path(const QString &path)
 }
 
 // Gravação em projeto (spec §5). Toda gravação — pela casca, modo clássico, atalho, obs-websocket ou
-// --startrecording — vira a pasta "<pasta de gravações>/AAAA-MM-DD HHhMM · Nome" com programa.mp4, projeto.voltz e
-// marcadores.json. Não conhece a casca: reage aos eventos do frontend do OBS e emite sinais (thread da UI).
+// --startrecording — vira a pasta "<pasta de gravações>/AAAA-MM-DD HHhMM · Nome" com programa.mp4, projeto.voltz,
+// marcadores.json, cursor.jsonl e, por fonte de papel Tela/Câmera, tela.mkv/camera.mkv (ISO, Plano 3B). Não conhece a
+// casca: reage aos eventos do frontend do OBS e emite sinais (thread da UI).
 class ProjectRecorder : public QObject {
 	Q_OBJECT
 
@@ -53,8 +57,11 @@ public:
 	// gravação pausada (o OBS não aceita capítulo pausado).
 	bool addMarker();
 
-	// Bytes/min medidos no arquivo do programa do projeto atual (0 sem projeto ou antes de 10 s).
+	// Bytes/min medidos nos arquivos do projeto atual (programa + ISO; 0 sem projeto ou antes de 10 s).
 	uint64_t measuredBytesPerMinute() const;
+
+	// Faixas ISO (tela.mkv/camera.mkv) gravando agora.
+	int runningIsoCount() const;
 
 	// Espaço livre da pasta. VOLTZ_FAKE_FREE_BYTES (só para testes) substitui o valor real. Falso se não souber.
 	static bool freeBytes(const QString &folder, quint64 &out);
@@ -65,6 +72,9 @@ signals:
 	void markerAdded(int number, qint64 tMs);
 	void stoppedForLowDisk(quint64 freeBytes);
 	void manifestWriteFailed(const QString &backupPath);
+	// Uma faixa ISO ("tela" | "camera") não iniciou ou parou durante a gravação; `reason` é o "motivo" do evento
+	// iso_falhou ("sem_imagem", "canvas", "sem_codificador", "saida", "erro_saida", "sobrecarga"). O programa segue.
+	void isoFailed(const QString &track, const QString &reason);
 
 private:
 	static void handleEvent(enum obs_frontend_event event, void *data);
@@ -89,10 +99,13 @@ private:
 	void unregisterHotkey();
 	void startCursor();
 	void stopCursor();
-	// Plano 3B, Task 1 (spike, temporário — a Task 5 troca por startIsoTracks): VOLTZ_ISO_SPIKE=1.
-	void startIsoSpike();
+	void startIsoTracks();
+	void startIsoTrack(SharedSource role, const char *trackName, const char *fileName, IsoFile &entry,
+			   const std::vector<IsoEncoderAttempt> &attempts);
 	void requestIsoStop();
 	void finishIsoTracks();
+	void onIsoFailed(const std::string &track, int code);
+	void checkIsoLoad();
 
 	bool registered_ = true;
 	bool active_ = false;
@@ -104,6 +117,9 @@ private:
 	std::vector<Marker> markers_;
 	std::unique_ptr<CursorTracker> cursor_;
 	std::vector<std::unique_ptr<IsoTrack>> isoTracks_;
+	// Falhas de início dos ISO, emitidas (isoFailed) depois do projectStarted.
+	std::vector<std::pair<QString, QString>> pendingIsoFailures_;
+	IsoOverloadMonitor overload_; // exige #include <voltz/core/iso-encoders.hpp> no .hpp
 	ProfileOverride override_;
 	QTimer heartbeat_;
 	obs_hotkey_id markerHotkey_ = OBS_INVALID_HOTKEY_ID;

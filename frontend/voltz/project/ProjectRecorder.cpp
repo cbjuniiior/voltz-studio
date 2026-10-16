@@ -15,6 +15,7 @@
 #include <QDateTime>
 #include <QFileInfo>
 #include <QStorageInfo>
+#include <QStringList>
 
 #include <algorithm>
 #include <cstring>
@@ -27,6 +28,7 @@ namespace {
 
 constexpr const char *kMarkerHotkeyName = "VoltzStudio.AddMarker";
 constexpr int kHeartbeatMs = 5000;
+constexpr int kIsoStopTimeoutMs = 5000;
 
 int64_t nowNs()
 {
@@ -88,6 +90,63 @@ OBSSource findScreenCaptureSource()
 		},
 		&found);
 	return found;
+}
+
+// Fonte de papel de um ISO: a compartilhada do preset (user.ini [Voltz]). Nos testes, VOLTZ_TEST_ISO_SCREEN /
+// VOLTZ_TEST_ISO_CAMERA trocam pela fonte com esse nome — nunca uma captura de tela/janela/jogo.
+OBSSource findIsoSource(SharedSource role)
+{
+	const char *variable = role == SharedSource::Screen ? "VOLTZ_TEST_ISO_SCREEN" : "VOLTZ_TEST_ISO_CAMERA";
+	const QString testName = qEnvironmentVariable(variable);
+	if (testName.isEmpty()) {
+		return findSharedSource(role);
+	}
+	OBSSourceAutoRelease source = obs_get_source_by_name(testName.toUtf8().constData());
+	const char *id = source ? obs_source_get_unversioned_id(source) : "";
+	if (!source || strcmp(id, "monitor_capture") == 0 || strcmp(id, "window_capture") == 0 ||
+	    strcmp(id, "game_capture") == 0) {
+		blog(LOG_WARNING, "[voltz] %s='%s' ignorada (inexistente ou captura de tela)", variable,
+		     qUtf8Printable(testName));
+		return {};
+	}
+	blog(LOG_INFO, "[voltz] iso: fonte de teste '%s' (%s)", qUtf8Printable(testName), variable);
+	return OBSSource(source.Get());
+}
+
+// Cadeia de encoders do núcleo (spec §5.4) convertida para o libobs.
+std::vector<IsoEncoderAttempt> isoAttempts(RecordingQuality quality)
+{
+	std::vector<IsoEncoderAttempt> attempts;
+	const int level = isoQualityLevel(quality);
+	for (const IsoEncoderCandidate &candidate :
+	     isoEncoderChain(RecordingConfig::registeredEncoderIds(), /*allowSoftware=*/false)) {
+		const EncoderSettings values = isoEncoderSettings(candidate, level);
+		OBSDataAutoRelease data = obs_data_create();
+		for (const auto &item : values.strings) {
+			obs_data_set_string(data, item.first.c_str(), item.second.c_str());
+		}
+		for (const auto &item : values.ints) {
+			obs_data_set_int(data, item.first.c_str(), item.second);
+		}
+		attempts.push_back(IsoEncoderAttempt{candidate.id, OBSData(data.Get())});
+	}
+	return attempts;
+}
+
+FrameCounters programFrameCounters()
+{
+	video_t *video = obs_get_video();
+	FrameCounters counters;
+	counters.rendered = obs_get_total_frames();
+	counters.lagged = obs_get_lagged_frames();
+	counters.encoded = video ? video_output_get_total_frames(video) : 0u;
+	counters.skipped = video ? video_output_get_skipped_frames(video) : 0u;
+	/* Só para testes: VOLTZ_TEST_ISO_OVERLOAD soma aos "pulados" 20% dos quadros entregues (excesso fictício do
+	 * codificador) para exercitar a regra de sobrecarga sem forçar a GPU. */
+	if (qEnvironmentVariableIsSet("VOLTZ_TEST_ISO_OVERLOAD")) {
+		counters.skipped += counters.encoded / 5u;
+	}
+	return counters;
 }
 
 } // namespace
@@ -272,12 +331,16 @@ void ProjectRecorder::onStarted()
 		}
 	}
 	startCursor();
-	startIsoSpike();
+	startIsoTracks();
 	writeManifest();
 	heartbeat_.start();
 	blog(LOG_INFO, "[voltz] projeto gravando: %s (%d faixa(s) de audio)", manifest_.program.file.c_str(),
 	     manifest_.program.audioTracks);
 	emit projectStarted(projectDir_, QString::fromStdString(manifest_.name));
+	for (const auto &failure : pendingIsoFailures_) {
+		emit isoFailed(failure.first, failure.second);
+	}
+	pendingIsoFailures_.clear();
 	checkDisk();
 }
 
@@ -365,6 +428,7 @@ void ProjectRecorder::heartbeat()
 	const int64_t now = nowNs();
 	manifest_.durationMs = timeline_.grossMs(now);
 	manifest_.pauses = timeline_.pauses();
+	checkIsoLoad();
 	writeManifest();
 	checkDisk();
 }
@@ -409,8 +473,20 @@ uint64_t ProjectRecorder::measuredBytesPerMinute() const
 	if (!active_ || !timeline_.started()) {
 		return 0;
 	}
-	const QFileInfo program(QDir(projectDir_).filePath(QString::fromStdString(manifest_.program.file)));
-	const qint64 size = program.exists() ? program.size() : 0;
+	const QDir dir(projectDir_);
+	qint64 size = 0;
+	auto add = [&dir, &size](bool present, const std::string &file) {
+		if (!present || file.empty()) {
+			return;
+		}
+		const QFileInfo info(dir.filePath(QString::fromStdString(file)));
+		if (info.exists()) {
+			size += info.size();
+		}
+	};
+	add(manifest_.program.present, manifest_.program.file);
+	add(manifest_.screen.present, manifest_.screen.file);
+	add(manifest_.camera.present, manifest_.camera.file);
 	/* qualificado: a função livre do núcleo tem o mesmo nome deste método */
 	return voltz::measuredBytesPerMinute(static_cast<uint64_t>(size), timeline_.netMs(nowNs()));
 }
@@ -604,52 +680,118 @@ void ProjectRecorder::stopCursor()
 	cursor_.reset();
 }
 
-void ProjectRecorder::startIsoSpike()
+int ProjectRecorder::runningIsoCount() const
 {
-	if (!qEnvironmentVariableIsSet("VOLTZ_ISO_SPIKE")) {
+	int running = 0;
+	for (const auto &track : isoTracks_) {
+		if (track->running()) {
+			running++;
+		}
+	}
+	return running;
+}
+
+void ProjectRecorder::startIsoTracks()
+{
+	finishIsoTracks();
+	pendingIsoFailures_.clear();
+	overload_.reset(programFrameCounters());
+	manifest_.screen = IsoFile{};
+	manifest_.camera = IsoFile{};
+	if (RecordingConfig::programOnly()) {
+		blog(LOG_INFO, "[voltz] iso: desligado (gravar so a versao montada)");
 		return;
 	}
-	struct Role {
-		const char *variable;
-		const char *track;
-		const char *file;
+	const std::vector<IsoEncoderAttempt> attempts = isoAttempts(RecordingConfig::quality());
+	startIsoTrack(SharedSource::Screen, kScreenTrack, kScreenIsoFileName, manifest_.screen, attempts);
+	startIsoTrack(SharedSource::Camera, kCameraTrack, kCameraIsoFileName, manifest_.camera, attempts);
+}
+
+void ProjectRecorder::startIsoTrack(SharedSource role, const char *trackName, const char *fileName, IsoFile &entry,
+				    const std::vector<IsoEncoderAttempt> &attempts)
+{
+	OBSSource source = findIsoSource(role);
+	if (!source) {
+		/* Sem preset (ou sem a fonte): não há papel a gravar. Sem evento — não é falha. */
+		blog(LOG_INFO, "[voltz] iso %s: sem fonte de papel; sem %s", trackName, fileName);
+		return;
+	}
+	auto track = std::make_unique<IsoTrack>(trackName);
+	const std::string name = trackName;
+	track->onFailed = [this, name](int code) {
+		/* thread do libobs: só enfileira */
+		QMetaObject::invokeMethod(
+			this, [this, name, code]() { onIsoFailed(name, code); }, Qt::QueuedConnection);
 	};
-	const Role roles[] = {{"VOLTZ_TEST_ISO_SCREEN", "tela", "tela.mkv"},
-			      {"VOLTZ_TEST_ISO_CAMERA", "camera", "camera.mkv"}};
-	for (const Role &role : roles) {
-		const QString name = qEnvironmentVariable(role.variable);
-		OBSSourceAutoRelease source = name.isEmpty() ? nullptr
-							     : obs_get_source_by_name(name.toUtf8().constData());
-		if (!source) {
-			blog(LOG_WARNING, "[voltz] iso-spike %s: fonte '%s' nao encontrada", role.track,
-			     qUtf8Printable(name));
-			continue;
+	IsoFailure failure = IsoFailure::None;
+	const std::string path = nativeUtf8Path(QDir(projectDir_).filePath(QString::fromUtf8(fileName)));
+	if (!track->start(source, path, attempts, failure)) {
+		const char *reason = isoFailureCode(failure);
+		manifest_.events.push_back(
+			ManifestEvent{timeline_.relativeMs(nowNs()), "iso_falhou", trackName, 0, reason});
+		pendingIsoFailures_.emplace_back(QString::fromUtf8(trackName), QString::fromUtf8(reason));
+		return;
+	}
+	entry.present = true;
+	entry.file = fileName;
+	entry.width = static_cast<int>(track->width());
+	entry.height = static_cast<int>(track->height());
+	entry.fps = track->fps();
+	entry.offsetMs = track->startNs() ? timeline_.relativeMs(static_cast<int64_t>(track->startNs())) : 0;
+	entry.encoder = track->encoderId();
+	if (role == SharedSource::Screen && strcmp(obs_source_get_unversioned_id(source), "monitor_capture") == 0) {
+		OBSDataAutoRelease settings = obs_source_get_settings(source);
+		const std::string monitorId = obs_data_get_string(settings, "monitor_id");
+		const MonitorDescription monitor = findMonitor(monitorId);
+		if (monitor.found) {
+			entry.hasOrigin = true;
+			entry.origin.type = "monitor";
+			entry.origin.id = monitorId;
+			entry.origin.rect[0] = monitor.rect.left;
+			entry.origin.rect[1] = monitor.rect.top;
+			entry.origin.rect[2] = monitor.rect.width;
+			entry.origin.rect[3] = monitor.rect.height;
+			entry.origin.scale = monitor.scale;
 		}
-		std::vector<IsoEncoderAttempt> attempts;
-		for (const char *id : {"h265_texture_amf", "h264_texture_amf"}) {
-			OBSDataAutoRelease settings = obs_data_create();
-			obs_data_set_string(settings, "rate_control", "CQP");
-			obs_data_set_int(settings, "cqp", 14);
-			obs_data_set_string(settings, "preset", "quality");
-			obs_data_set_int(settings, "keyint_sec", 2);
-			attempts.push_back(IsoEncoderAttempt{id, OBSData(settings.Get())});
+	}
+	blog(LOG_INFO, "[voltz] iso %s: %dx%d @ %.3f fps, %s, offset %lld ms", trackName, entry.width, entry.height,
+	     entry.fps, entry.encoder.c_str(), static_cast<long long>(entry.offsetMs));
+	isoTracks_.push_back(std::move(track));
+}
+
+void ProjectRecorder::onIsoFailed(const std::string &track, int code)
+{
+	if (!active_) {
+		return;
+	}
+	blog(LOG_WARNING, "[voltz] iso %s: parou sozinha (codigo %d); o programa continua", track.c_str(), code);
+	manifest_.events.push_back(
+		ManifestEvent{timeline_.relativeMs(nowNs()), "iso_falhou", track, code, "erro_saida"});
+	writeManifest();
+	emit isoFailed(QString::fromStdString(track), QStringLiteral("erro_saida"));
+}
+
+void ProjectRecorder::checkIsoLoad()
+{
+	if (runningIsoCount() == 0) {
+		return;
+	}
+	/* A primeira janela só calibra; sobrecarga = duas janelas ruins seguidas (ver IsoOverloadMonitor). */
+	if (!overload_.feed(programFrameCounters())) {
+		return;
+	}
+	blog(LOG_WARNING, "[voltz] iso: o programa esta perdendo quadros; desligando as faixas separadas");
+	const int64_t tMs = timeline_.relativeMs(nowNs());
+	QStringList stopped;
+	for (const auto &track : isoTracks_) {
+		if (track->running()) {
+			manifest_.events.push_back(ManifestEvent{tMs, "iso_falhou", track->track(), 0, "sobrecarga"});
+			stopped.append(QString::fromStdString(track->track()));
 		}
-		auto track = std::make_unique<IsoTrack>(role.track);
-		const std::string trackName = role.track;
-		track->onFailed = [trackName](int code) {
-			blog(LOG_WARNING, "[voltz] iso-spike %s: parou sozinha (codigo %d)", trackName.c_str(), code);
-		};
-		IsoFailure failure = IsoFailure::None;
-		const std::string path = nativeUtf8Path(QDir(projectDir_).filePath(QString::fromUtf8(role.file)));
-		if (!track->start(source, path, attempts, failure)) {
-			blog(LOG_WARNING, "[voltz] iso-spike %s: nao iniciou (%s)", role.track,
-			     isoFailureCode(failure));
-			continue;
-		}
-		blog(LOG_INFO, "[voltz] iso-spike %s: offset %lld ms, %ux%u @ %.3f fps, %s", role.track,
-		     static_cast<long long>(timeline_.relativeMs(static_cast<int64_t>(track->startNs()))),
-		     track->width(), track->height(), track->fps(), track->encoderId().c_str());
-		isoTracks_.push_back(std::move(track));
+	}
+	finishIsoTracks();
+	for (const QString &track : stopped) {
+		emit isoFailed(track, QStringLiteral("sobrecarga"));
 	}
 }
 
@@ -664,7 +806,7 @@ void ProjectRecorder::finishIsoTracks()
 {
 	requestIsoStop();
 	for (const auto &track : isoTracks_) {
-		track->finish(5000);
+		track->finish(kIsoStopTimeoutMs);
 	}
 	isoTracks_.clear();
 }

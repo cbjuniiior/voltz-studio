@@ -105,6 +105,7 @@ ProjectRecorder::ProjectRecorder(QObject *parent) : QObject(parent)
 ProjectRecorder::~ProjectRecorder()
 {
 	stopCursor();
+	finishIsoTracks();
 	if (registered_) {
 		obs_frontend_remove_event_callback(&ProjectRecorder::handleEvent, this);
 	}
@@ -141,6 +142,9 @@ void ProjectRecorder::dispatch(enum obs_frontend_event event)
 		break;
 	case OBS_FRONTEND_EVENT_RECORDING_STARTED:
 		onStarted();
+		break;
+	case OBS_FRONTEND_EVENT_RECORDING_STOPPING:
+		requestIsoStop();
 		break;
 	case OBS_FRONTEND_EVENT_RECORDING_PAUSED:
 		onPaused(true);
@@ -268,6 +272,7 @@ void ProjectRecorder::onStarted()
 		}
 	}
 	startCursor();
+	startIsoSpike();
 	writeManifest();
 	heartbeat_.start();
 	blog(LOG_INFO, "[voltz] projeto gravando: %s (%d faixa(s) de audio)", manifest_.program.file.c_str(),
@@ -280,6 +285,9 @@ void ProjectRecorder::onPaused(bool paused)
 {
 	if (!active_ || !timeline_.started()) {
 		return;
+	}
+	for (const auto &track : isoTracks_) {
+		track->setPaused(paused);
 	}
 	const int64_t now = nowNs();
 	if (paused) {
@@ -336,6 +344,7 @@ void ProjectRecorder::finish(ProjectStatus status, const char *eventType, int co
 	manifest_.status = status;
 	heartbeat_.stop();
 	stopCursor();
+	finishIsoTracks();
 	writeManifest();
 	startSignal_.Disconnect();
 	stoppingSignal_.Disconnect();
@@ -593,6 +602,71 @@ void ProjectRecorder::stopCursor()
 	     static_cast<unsigned long long>(cursor_->linesWritten()),
 	     static_cast<unsigned long long>(cursor_->droppedEvents()));
 	cursor_.reset();
+}
+
+void ProjectRecorder::startIsoSpike()
+{
+	if (!qEnvironmentVariableIsSet("VOLTZ_ISO_SPIKE")) {
+		return;
+	}
+	struct Role {
+		const char *variable;
+		const char *track;
+		const char *file;
+	};
+	const Role roles[] = {{"VOLTZ_TEST_ISO_SCREEN", "tela", "tela.mkv"},
+			      {"VOLTZ_TEST_ISO_CAMERA", "camera", "camera.mkv"}};
+	for (const Role &role : roles) {
+		const QString name = qEnvironmentVariable(role.variable);
+		OBSSourceAutoRelease source = name.isEmpty() ? nullptr
+							     : obs_get_source_by_name(name.toUtf8().constData());
+		if (!source) {
+			blog(LOG_WARNING, "[voltz] iso-spike %s: fonte '%s' nao encontrada", role.track,
+			     qUtf8Printable(name));
+			continue;
+		}
+		std::vector<IsoEncoderAttempt> attempts;
+		for (const char *id : {"h265_texture_amf", "h264_texture_amf"}) {
+			OBSDataAutoRelease settings = obs_data_create();
+			obs_data_set_string(settings, "rate_control", "CQP");
+			obs_data_set_int(settings, "cqp", 14);
+			obs_data_set_string(settings, "preset", "quality");
+			obs_data_set_int(settings, "keyint_sec", 2);
+			attempts.push_back(IsoEncoderAttempt{id, OBSData(settings.Get())});
+		}
+		auto track = std::make_unique<IsoTrack>(role.track);
+		const std::string trackName = role.track;
+		track->onFailed = [trackName](int code) {
+			blog(LOG_WARNING, "[voltz] iso-spike %s: parou sozinha (codigo %d)", trackName.c_str(), code);
+		};
+		IsoFailure failure = IsoFailure::None;
+		const std::string path = nativeUtf8Path(QDir(projectDir_).filePath(QString::fromUtf8(role.file)));
+		if (!track->start(source, path, attempts, failure)) {
+			blog(LOG_WARNING, "[voltz] iso-spike %s: nao iniciou (%s)", role.track,
+			     isoFailureCode(failure));
+			continue;
+		}
+		blog(LOG_INFO, "[voltz] iso-spike %s: offset %lld ms, %ux%u @ %.3f fps, %s", role.track,
+		     static_cast<long long>(timeline_.relativeMs(static_cast<int64_t>(track->startNs()))),
+		     track->width(), track->height(), track->fps(), track->encoderId().c_str());
+		isoTracks_.push_back(std::move(track));
+	}
+}
+
+void ProjectRecorder::requestIsoStop()
+{
+	for (const auto &track : isoTracks_) {
+		track->requestStop();
+	}
+}
+
+void ProjectRecorder::finishIsoTracks()
+{
+	requestIsoStop();
+	for (const auto &track : isoTracks_) {
+		track->finish(5000);
+	}
+	isoTracks_.clear();
 }
 
 } // namespace voltz

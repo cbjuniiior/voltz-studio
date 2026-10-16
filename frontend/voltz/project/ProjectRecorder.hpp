@@ -1,5 +1,7 @@
 #pragma once
 
+#include "IsoTrack.hpp"
+
 #include <voltz/core/project-manifest.hpp>
 #include <voltz/core/project-markers.hpp>
 #include <voltz/core/project-timeline.hpp>
@@ -87,6 +89,10 @@ private:
 	void unregisterHotkey();
 	void startCursor();
 	void stopCursor();
+	// Plano 3B, Task 1 (spike, temporário — a Task 5 troca por startIsoTracks): VOLTZ_ISO_SPIKE=1.
+	void startIsoSpike();
+	void requestIsoStop();
+	void finishIsoTracks();
 
 	bool registered_ = true;
 	bool active_ = false;
@@ -97,6 +103,7 @@ private:
 	ProjectTimeline timeline_;
 	std::vector<Marker> markers_;
 	std::unique_ptr<CursorTracker> cursor_;
+	std::vector<std::unique_ptr<IsoTrack>> isoTracks_;
 	ProfileOverride override_;
 	QTimer heartbeat_;
 	obs_hotkey_id markerHotkey_ = OBS_INVALID_HOTKEY_ID;

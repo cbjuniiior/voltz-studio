@@ -24,6 +24,8 @@ target_sources(
   PRIVATE
     voltz/project/CursorTracker.cpp
     voltz/project/CursorTracker.hpp
+    voltz/project/IsoTrack.cpp
+    voltz/project/IsoTrack.hpp
     voltz/project/MonitorLocator.cpp
     voltz/project/MonitorLocator.hpp
     voltz/project/ProjectLibrary.cpp

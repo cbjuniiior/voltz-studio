@@ -18,6 +18,7 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileDialog>
+#include <QFontMetrics>
 #include <QGridLayout>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -95,6 +96,50 @@ private:
 
 } // namespace
 
+// Rótulo de uma linha que corta o texto no meio ("C:\Users\…\Gravações") conforme a largura disponível.
+// Guarda o texto completo (também na dica) e refaz o corte a cada redimensionamento.
+class ElidedLabel : public QLabel {
+public:
+	explicit ElidedLabel(QWidget *parent) : QLabel(parent)
+	{
+		// Caminho longo não pode alargar a página (gerava rolagem horizontal): o rótulo encolhe.
+		setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+	}
+
+	void setFullText(const QString &text)
+	{
+		fullText_ = text;
+		setToolTip(text);
+		updateElided();
+	}
+
+protected:
+	void resizeEvent(QResizeEvent *event) override
+	{
+		QLabel::resizeEvent(event);
+		updateElided();
+	}
+
+	void changeEvent(QEvent *event) override
+	{
+		QLabel::changeEvent(event);
+		if (event->type() == QEvent::FontChange || event->type() == QEvent::StyleChange) {
+			updateElided();
+		}
+	}
+
+private:
+	void updateElided()
+	{
+		const QString elided = fontMetrics().elidedText(fullText_, Qt::ElideMiddle, contentsRect().width());
+		if (elided != text()) {
+			setText(elided);
+		}
+	}
+
+	QString fullText_;
+};
+
 SettingsPage::SettingsPage(FrontendBridge *bridge, QWidget *parent) : QWidget(parent), bridge_(bridge)
 {
 	auto *heading = new QLabel(QTStr("Voltz.Settings.Title"), this);
@@ -169,12 +214,10 @@ QFrame *SettingsPage::buildRecordingSection()
 	recordingNotice_->hide();
 	body->addWidget(recordingNotice_);
 
-	folder_ = new QLabel(recording_);
-	folder_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-	// Caminho longo não pode alargar a página (gerava rolagem horizontal): o rótulo encolhe.
-	folder_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+	folder_ = new ElidedLabel(recording_);
 	changeFolder_ = new QPushButton(QTStr("Voltz.Settings.ChangeFolder"), recording_);
 	auto *folderRow = new QHBoxLayout();
+	folderRow->setSpacing(12); // respiro entre o caminho e o botão "Alterar…"
 	folderRow->addWidget(folder_, 1);
 	folderRow->addWidget(changeFolder_);
 
@@ -325,7 +368,7 @@ void SettingsPage::showEvent(QShowEvent *event)
 void SettingsPage::loadRecording()
 {
 	loading_ = true;
-	folder_->setText(QDir::toNativeSeparators(RecordingConfig::folder()));
+	folder_->setFullText(QDir::toNativeSeparators(RecordingConfig::folder()));
 	format_->setCurrentIndex(format_->findData(int(RecordingConfig::format())));
 	quality_->setCurrentIndex(quality_->findData(int(RecordingConfig::quality())));
 	encoder_->setText(encoderLabel());

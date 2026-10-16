@@ -13,6 +13,7 @@ class QVBoxLayout;
 namespace voltz {
 
 class DeviceSelector;
+class ElidedLabel;
 class FrontendBridge;
 
 // Tela "Ajustes": Gravação (pasta, formato, qualidade, codificador automático), Captura (Task 7) e Sobre.
@@ -40,7 +41,7 @@ private:
 	QVBoxLayout *sections_ = nullptr;
 	QFrame *recording_ = nullptr;
 	QLabel *recordingNotice_ = nullptr;
-	QLabel *folder_ = nullptr;
+	ElidedLabel *folder_ = nullptr;
 	QPushButton *changeFolder_ = nullptr;
 	QComboBox *format_ = nullptr;
 	QComboBox *quality_ = nullptr;

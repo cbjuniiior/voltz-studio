@@ -9,6 +9,10 @@ set(VOLTZ_VERSION "${VOLTZ_VERSION_MAJOR}.${VOLTZ_VERSION_MINOR}.${VOLTZ_VERSION
 
 add_subdirectory(voltz/core)
 
+# Plugin das fontes Voltz (Voltz Mouse). Usa o voltz-core, por isso entra aqui (depois dele) e não em
+# plugins/CMakeLists.txt: nenhum arquivo do OBS muda.
+add_subdirectory("${CMAKE_SOURCE_DIR}/plugins/voltz-sources" "${CMAKE_BINARY_DIR}/plugins/voltz-sources")
+
 if(ENABLE_VOLTZ_TESTS)
   add_subdirectory(voltz/tests)
 endif()

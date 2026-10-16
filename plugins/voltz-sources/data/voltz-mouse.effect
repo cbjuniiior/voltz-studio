@@ -1,0 +1,60 @@
+// Voltz Mouse (plugin voltz-sources): circulo/anel suavizado e holofote. Unidades em pixels do sprite desenhado.
+uniform float4x4 ViewProj;
+uniform float4 color;
+uniform float2 size_px;
+uniform float inner_px;
+uniform float2 center_px;
+uniform float radius_px;
+uniform float feather_px;
+
+struct VertInOut {
+	float4 pos : POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+VertInOut VSDefault(VertInOut vert_in)
+{
+	VertInOut vert_out;
+	vert_out.pos = mul(float4(vert_in.pos.xyz, 1.0), ViewProj);
+	vert_out.uv  = vert_in.uv;
+	return vert_out;
+}
+
+// Disco (inner_px = 0) ou anel (inner_px > 0) inscrito no sprite; borda suavizada em ~1 px.
+float4 PSCircle(VertInOut vert_in) : TARGET
+{
+	float2 p = (vert_in.uv - float2(0.5, 0.5)) * size_px;
+	float r = length(p);
+	float outer = size_px.x * 0.5;
+	float coverage = saturate(outer - r + 0.5);
+	float ring = saturate(r - inner_px + 0.5);
+	coverage = coverage * lerp(1.0, ring, step(0.001, inner_px));
+	return float4(color.rgb, color.a * coverage);
+}
+
+// Escurece tudo fora do circulo (center_px, radius_px), com borda suave de feather_px centrada no raio.
+float4 PSSpotlight(VertInOut vert_in) : TARGET
+{
+	float2 p = vert_in.uv * size_px - center_px;
+	float r = length(p);
+	float coverage = saturate((r - radius_px) / max(feather_px, 1.0) + 0.5);
+	return float4(color.rgb, color.a * coverage);
+}
+
+technique Circle
+{
+	pass
+	{
+		vertex_shader = VSDefault(vert_in);
+		pixel_shader  = PSCircle(vert_in);
+	}
+}
+
+technique Spotlight
+{
+	pass
+	{
+		vertex_shader = VSDefault(vert_in);
+		pixel_shader  = PSSpotlight(vert_in);
+	}
+}

@@ -78,6 +78,7 @@ ProjectsPage::ProjectsPage(FrontendBridge *bridge, QWidget *parent) : QWidget(pa
 	list_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
 	list_->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
 	list_->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+	list_->headerItem()->setTextAlignment(2, Qt::AlignRight | Qt::AlignVCenter);
 
 	empty_ = new QLabel(QTStr("Voltz.Projects.Empty"), this);
 	empty_->setObjectName("muted");

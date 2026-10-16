@@ -46,6 +46,8 @@ target_sources(
     voltz/shell/ScenesPanel.hpp
     voltz/shell/SharedSources.cpp
     voltz/shell/SharedSources.hpp
+    voltz/shell/SettingsPage.cpp
+    voltz/shell/SettingsPage.hpp
     voltz/shell/ShellLocale.cpp
     voltz/shell/ShellLocale.hpp
     voltz/shell/SourcesPanel.cpp

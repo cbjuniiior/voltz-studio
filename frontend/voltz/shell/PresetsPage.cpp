@@ -45,6 +45,7 @@ PresetsPage::PresetsPage(QWidget *parent) : QWidget(parent)
 	welcomeLayout->addWidget(skip);
 	welcome_->setVisible(isFirstRun());
 	connect(skip, &QPushButton::clicked, this, [this]() {
+		RecordingConfig::applyVoltzDefaults();
 		markFirstRunDone();
 		emit firstRunDismissed();
 	});

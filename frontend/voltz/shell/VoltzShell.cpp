@@ -5,6 +5,7 @@
 #include "PresetsPage.hpp"
 #include "ProjectsPage.hpp"
 #include "RecordPage.hpp"
+#include "SettingsPage.hpp"
 #include "ShellLocale.hpp"
 #include "WindowChrome.hpp"
 
@@ -66,7 +67,7 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 	pages_->addWidget(new ProjectsPage(bridge_, pages_));
 	auto *presets = new PresetsPage(pages_);
 	pages_->addWidget(presets);
-	pages_->addWidget(buildSettingsPage());
+	pages_->addWidget(new SettingsPage(bridge_, pages_));
 
 	auto *central = new QWidget(this);
 	auto *layout = new QHBoxLayout(central);
@@ -128,45 +129,6 @@ QWidget *VoltzShell::buildSideNav()
 	connect(navGroup_, &QButtonGroup::idClicked, this, &VoltzShell::selectPage);
 	navGroup_->button(0)->setChecked(true);
 	return nav;
-}
-
-QWidget *VoltzShell::buildPlaceholderPage(const QString &title, const QString &text)
-{
-	auto *page = new QWidget(this);
-	auto *layout = new QVBoxLayout(page);
-	layout->setContentsMargins(32, 28, 32, 28);
-	layout->setSpacing(8);
-
-	auto *heading = new QLabel(title, page);
-	heading->setObjectName("pageTitle");
-	auto *body = new QLabel(text, page);
-	body->setObjectName("muted");
-	body->setWordWrap(true);
-
-	layout->addWidget(heading);
-	layout->addWidget(body);
-	layout->addStretch(1);
-	return page;
-}
-
-QWidget *VoltzShell::buildSettingsPage()
-{
-	QWidget *page = buildPlaceholderPage(
-		QTStr("Voltz.Settings.Title"),
-		QString::fromStdString(aboutLine(currentVersion(), QTStr("Voltz.About.BasedOn").toStdString())));
-
-	auto *classic = new QPushButton(QTStr("Voltz.Settings.OpenClassic"), page);
-	connect(classic, &QPushButton::clicked, this, []() {
-		/* SetShowing é slot privado do OBSBasic: religa a prévia e o texto da bandeja junto com o show */
-		OBSBasic *main = OBSBasic::Get();
-		QMetaObject::invokeMethod(main, "SetShowing", Q_ARG(bool, true));
-		main->raise();
-		main->activateWindow();
-	});
-
-	auto *layout = static_cast<QVBoxLayout *>(page->layout());
-	layout->insertWidget(2, classic, 0, Qt::AlignLeft);
-	return page;
 }
 
 void VoltzShell::selectPage(int index)

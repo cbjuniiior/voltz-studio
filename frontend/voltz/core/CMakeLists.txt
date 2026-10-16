@@ -13,6 +13,7 @@ target_sources(
     cursor-track.cpp
     disk-space.cpp
     iso-encoders.cpp
+    mouse-style.cpp
     preset-layout.cpp
     preview-fit.cpp
     project-manifest.cpp
@@ -32,6 +33,7 @@ target_sources(
     cursor-track.hpp
     disk-space.hpp
     iso-encoders.hpp
+    mouse-style.hpp
     preset-layout.hpp
     preview-fit.hpp
     project-manifest.hpp

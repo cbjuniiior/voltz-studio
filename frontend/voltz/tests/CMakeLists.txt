@@ -12,6 +12,7 @@ target_sources(
     test-cursor-track.cpp
     test-disk-space.cpp
     test-iso-encoders.cpp
+    test-mouse-style.cpp
     test-preset-layout.cpp
     test-preview-fit.cpp
     test-project-manifest.cpp

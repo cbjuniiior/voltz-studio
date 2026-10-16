@@ -191,6 +191,13 @@ void OBSBasic::RecordingStop(int code, QString last_error)
 
 	blog(LOG_INFO, RECORDING_STOP);
 
+#ifdef VOLTZ_STUDIO
+	/* Voltz: com a casca visível, o erro já aparece na faixa vermelha dela (FrontendBridge::recordingFailed);
+	 * não repetir no balão da bandeja. Casca oculta/minimizada: segue o fluxo do OBS (balão). */
+	if (code != OBS_OUTPUT_SUCCESS && !isVisible() && App()->IsVoltzShellVisible()) {
+		blog(LOG_INFO, "[voltz] erro de gravacao (codigo %d) mostrado pela casca; sem balao da bandeja", code);
+	} else
+#endif
 	if (code == OBS_OUTPUT_UNSUPPORTED && isVisible()) {
 		OBSMessageBox::critical(this, QTStr("Output.RecordFail.Title"), QTStr("Output.RecordFail.Unsupported"));
 

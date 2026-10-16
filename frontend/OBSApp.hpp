@@ -166,6 +166,10 @@ public:
 	inline QMainWindow *GetMainWindow() const { return mainWindow.data(); }
 #ifdef VOLTZ_STUDIO
 	inline bool HasVoltzShell() const { return !voltzShell.isNull(); }
+	// Casca existe, está visível e não está minimizada.
+	bool IsVoltzShellVisible() const;
+	// Bandeja: alterna a casca (visível → esconde; oculta/minimizada → mostra e ativa).
+	void ToggleVoltzShell();
 #endif
 
 	inline config_t *GetAppConfig() const { return appConfig; }

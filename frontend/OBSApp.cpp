@@ -78,6 +78,9 @@ extern bool opt_disable_updater;
 extern bool opt_disable_missing_files_check;
 extern string opt_starting_collection;
 extern string opt_starting_profile;
+#ifdef VOLTZ_STUDIO
+extern bool opt_minimize_tray;
+#endif
 
 // GPU hint exports for AMD/NVIDIA laptops
 #ifdef _MSC_VER
@@ -1314,11 +1317,23 @@ bool OBSApp::OBSInit()
 
 	mainWindow->setAttribute(Qt::WA_DeleteOnClose, true);
 
+#ifdef VOLTZ_STUDIO
+	/* --minimize-to-tray: o OBSBasic::SystemTray zera a flag durante o OBSInit; guardar antes. */
+	const bool voltzMinimizeTrayFlag = opt_minimize_tray;
+#endif
+
 	mainWindow->OBSInit();
 
 #ifdef VOLTZ_STUDIO
 	voltzShell = new voltz::VoltzShell();
-	voltzShell->show();
+	/* "Iniciar minimizado na bandeja" do OBS vale para a casca (a OBSBasic já nasce oculta). */
+	const bool voltzStartInTray = QSystemTrayIcon::isSystemTrayAvailable() &&
+				      config_get_bool(userConfig, "BasicWindow", "SysTrayEnabled") &&
+				      (voltzMinimizeTrayFlag ||
+				       config_get_bool(userConfig, "BasicWindow", "SysTrayWhenStarted"));
+	if (!voltzStartInTray) {
+		voltzShell->show();
+	}
 #endif
 
 	connect(OBSBasic::Get(), &OBSBasic::mainWindowClosed, crashHandler_.get(),
@@ -1429,6 +1444,20 @@ void OBSApp::openCrashLogDirectory() const
 	QDesktopServices::openUrl(crashLogDirectoryURL);
 }
 
+#ifdef VOLTZ_STUDIO
+bool OBSApp::IsVoltzShellVisible() const
+{
+	return !voltzShell.isNull() && voltzShell->isVisible() && !voltzShell->isMinimized();
+}
+
+void OBSApp::ToggleVoltzShell()
+{
+	if (!voltzShell.isNull()) {
+		voltzShell->toggleFromTray();
+	}
+}
+
+#endif
 void OBSApp::uploadLastAppLog() const
 {
 	OBSBasic *basicWindow = static_cast<OBSBasic *>(GetMainWindow());

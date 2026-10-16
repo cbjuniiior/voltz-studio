@@ -30,7 +30,11 @@ void OBSBasic::SystemTrayInit()
 	QIcon trayIconFile = QIcon(":/res/images/obs.png");
 #endif
 	trayIcon = new QSystemTrayIcon(QIcon::fromTheme("obs-tray", trayIconFile), this);
+#ifdef VOLTZ_STUDIO
+	trayIcon->setToolTip("Voltz Studio");
+#else
 	trayIcon->setToolTip("OBS Studio");
+#endif
 
 	trayMenu = new QMenu(this);
 
@@ -76,7 +80,25 @@ void OBSBasic::SystemTrayInit()
 	}
 
 	connect(trayIcon.data(), &QSystemTrayIcon::activated, this, &OBSBasic::IconActivated);
+#ifdef VOLTZ_STUDIO
+	/* Voltz: com a casca, "Mostrar/Ocultar" alterna a casca (a clássica abre por Ajustes → modo clássico).
+	 * A casca nasce depois do SystemTrayInit: a decisão é feita no clique. */
+	connect(showHide, &QAction::triggered, this, [this]() {
+		if (App()->HasVoltzShell()) {
+			App()->ToggleVoltzShell();
+		} else {
+			ToggleShowHide();
+		}
+	});
+	connect(trayMenu.data(), &QMenu::aboutToShow, this, [this]() {
+		if (App()->HasVoltzShell() && showHide) {
+			showHide->setText(App()->IsVoltzShellVisible() ? QTStr("Basic.SystemTray.Hide")
+								     : QTStr("Basic.SystemTray.Show"));
+		}
+	});
+#else
 	connect(showHide, &QAction::triggered, this, &OBSBasic::ToggleShowHide);
+#endif
 	connect(sysTrayStream, &QAction::triggered, this, &OBSBasic::StreamActionTriggered);
 	connect(sysTrayRecord, &QAction::triggered, this, &OBSBasic::RecordActionTriggered);
 	connect(sysTrayReplayBuffer.data(), &QAction::triggered, this, &OBSBasic::ReplayBufferActionTriggered);
@@ -92,6 +114,12 @@ void OBSBasic::IconActivated(QSystemTrayIcon::ActivationReason reason)
 	UNUSED_PARAMETER(reason);
 #else
 	if (reason == QSystemTrayIcon::Trigger) {
+#ifdef VOLTZ_STUDIO
+		if (App()->HasVoltzShell()) {
+			App()->ToggleVoltzShell();
+			return;
+		}
+#endif
 		EnablePreviewDisplay(previewEnabled && !isVisible());
 		ToggleShowHide();
 	}
@@ -102,7 +130,11 @@ void OBSBasic::SysTrayNotify(const QString &text, QSystemTrayIcon::MessageIcon n
 {
 	if (trayIcon && trayIcon->isVisible() && QSystemTrayIcon::supportsMessages()) {
 		QSystemTrayIcon::MessageIcon icon = QSystemTrayIcon::MessageIcon(n);
+#ifdef VOLTZ_STUDIO
+		trayIcon->showMessage("Voltz Studio", text, icon, 10000);
+#else
 		trayIcon->showMessage("OBS Studio", text, icon, 10000);
+#endif
 	}
 }
 

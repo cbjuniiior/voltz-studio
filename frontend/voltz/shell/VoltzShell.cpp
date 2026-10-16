@@ -11,19 +11,25 @@
 
 #include <OBSApp.hpp>
 #include <widgets/OBSBasic.hpp>
+#include <widgets/OBSQTDisplay.hpp>
 #include <voltz/core/voltz-version.hpp>
 
 #include <obs.h>
 
+#include <QApplication>
 #include <QButtonGroup>
 #include <QCloseEvent>
 #include <QEvent>
 #include <QFile>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QHideEvent>
 #include <QLabel>
 #include <QPushButton>
+#include <QShowEvent>
 #include <QStackedWidget>
+#include <QSystemTrayIcon>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -45,6 +51,14 @@ QString loadStyleSheet()
 		return QString();
 	}
 	return QString::fromUtf8(file.readAll());
+}
+
+// "Minimizar para a bandeja" do OBS (Configurações → Geral → Bandeja), que também vale para a casca.
+bool minimizeToTrayEnabled()
+{
+	config_t *config = App()->GetUserConfig();
+	return QSystemTrayIcon::isSystemTrayAvailable() && config_get_bool(config, "BasicWindow", "SysTrayEnabled") &&
+	       config_get_bool(config, "BasicWindow", "SysTrayMinimizeToTray");
 }
 
 } // namespace
@@ -154,7 +168,69 @@ void VoltzShell::changeEvent(QEvent *event)
 	if (event->type() == QEvent::ThemeChange || event->type() == QEvent::PaletteChange) {
 		applyDarkTitleBar(this);
 	}
+	if (event->type() == QEvent::WindowStateChange) {
+		if (isMinimized()) {
+			setPreviewsEnabled(false);
+			/* Como o OBSBasic::changeEvent/ToggleShowHide: minimizar com "minimizar para a bandeja" esconde a
+			 * janela (volta pelo ícone), exceto com diálogo modal aberto. Adiado: esconder dentro da própria
+			 * mudança de estado confunde o gerenciador de janelas. */
+			if (minimizeToTrayEnabled() && !QApplication::activeModalWidget()) {
+				QTimer::singleShot(0, this, [this]() {
+					if (isMinimized()) {
+						hide();
+					}
+				});
+			}
+		} else if (isVisible()) {
+			setPreviewsEnabled(true);
+		}
+	}
 	QMainWindow::changeEvent(event);
+}
+
+void VoltzShell::toggleFromTray()
+{
+	if (isVisible() && !isMinimized()) {
+		/* Como o OBSBasic::ToggleShowHide: com diálogo modal aberto não esconde (ficaria sem janela visível
+		 * por trás); só traz o diálogo para a frente. */
+		if (QWidget *modal = QApplication::activeModalWidget()) {
+			modal->raise();
+			modal->activateWindow();
+			return;
+		}
+		hide();
+	} else {
+		showFromTray();
+	}
+}
+
+void VoltzShell::showFromTray()
+{
+	show();
+	setWindowState((windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
+	raise();
+	activateWindow();
+}
+
+void VoltzShell::showEvent(QShowEvent *event)
+{
+	QMainWindow::showEvent(event);
+	setPreviewsEnabled(!isMinimized());
+}
+
+void VoltzShell::hideEvent(QHideEvent *event)
+{
+	QMainWindow::hideEvent(event);
+	setPreviewsEnabled(false);
+}
+
+void VoltzShell::setPreviewsEnabled(bool enabled)
+{
+	for (OBSQTDisplay *display : findChildren<OBSQTDisplay *>()) {
+		if (obs_display_t *handle = display->GetDisplay()) {
+			obs_display_set_enabled(handle, enabled);
+		}
+	}
 }
 
 void VoltzShell::closeEvent(QCloseEvent *event)

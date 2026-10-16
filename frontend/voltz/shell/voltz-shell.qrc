@@ -68,5 +68,13 @@
     <file>icons/regular/warning-circle.svg</file>
     <file>icons/regular/webcam.svg</file>
     <file>icons/regular/x.svg</file>
+    <file>icons/qss/caret-down-accent.svg</file>
+    <file>icons/qss/caret-down-muted.svg</file>
+    <file>icons/qss/caret-up-accent.svg</file>
+    <file>icons/qss/headphones-accent.svg</file>
+    <file>icons/qss/headphones-muted.svg</file>
+    <file>icons/qss/speaker-high-text.svg</file>
+    <file>icons/qss/speaker-slash-rec.svg</file>
+    <file>icons/qss/warning-circle-warn.svg</file>
   </qresource>
 </RCC>

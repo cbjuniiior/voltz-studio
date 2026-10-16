@@ -7,6 +7,8 @@
 
 #include <QLabel>
 #include <QLayoutItem>
+#include <QPushButton>
+#include <QStringList>
 #include <QVBoxLayout>
 
 #include "moc_AudioPanel.cpp"
@@ -42,6 +44,15 @@ void applyFriendlyName(obs_source_t *source, const char *obsDefaultKey, const ch
 	}
 	obs_source_set_name(source, targetUtf8.constData());
 	blog(LOG_INFO, "[voltz] fonte de audio renomeada: '%s' -> '%s'", qUtf8Printable(name), targetUtf8.constData());
+}
+
+// Classes de estilo do OBS ficam na propriedade dinâmica "class" (Idian::Utils::addClass).
+bool hasStyleClass(const QWidget *widget, const char *styleClass)
+{
+	return widget->property("class")
+		.toString()
+		.split(QLatin1Char(' '), Qt::SkipEmptyParts)
+		.contains(QLatin1String(styleClass));
 }
 
 } // namespace
@@ -117,6 +128,19 @@ void AudioPanel::addChannel(uint32_t channel)
 	control->setMeterDecayRate(config_get_double(config, "Audio", "MeterDecayRate"));
 	control->setPeakMeterType(config_get_uint(config, "Audio", "PeakMeterType") == 1 ? TRUE_PEAK_METER
 											 : SAMPLE_PEAK_METER);
+	/* O rótulo de categoria do mixer ("Global"/"Ativo") não informa nada na casca. */
+	for (QLabel *label : control->findChildren<QLabel *>()) {
+		if (hasStyleClass(label, "mixer-category")) {
+			label->hide();
+		}
+	}
+	/* O OBS nomeia só o botão de mudo (VolControl.Mute); o de monitor fica sem nome para leitores de tela. */
+	const QString name = QString::fromUtf8(obs_source_get_name(source));
+	for (QPushButton *button : control->findChildren<QPushButton *>()) {
+		if (hasStyleClass(button, "btn-monitor")) {
+			button->setAccessibleName(QTStr("Voltz.Audio.Monitor") + QStringLiteral(" — ") + name);
+		}
+	}
 	controls_->addWidget(control);
 }
 

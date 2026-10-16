@@ -293,3 +293,117 @@
 #voltzShell QPushButton#dangerButton:hover {
 	background: #FF6666;
 }
+
+/* --- Painel de Áudio: VolumeControl do OBS dentro da casca --- */
+#voltzShell VolumeControl {
+	background: transparent;
+}
+
+#voltzShell VolumeName {
+	background: transparent;
+	border: none;
+	padding: 2px 0;
+}
+
+#voltzShell VolumeName QLabel {
+	font-size: 12px;
+	font-weight: 600;
+	color: #F2F2F3;
+}
+
+#voltzShell VolumeName::down-arrow {
+	image: url(:/voltz/icons/qss/caret-down-muted.svg);
+	width: 10px;
+	height: 10px;
+}
+
+#voltzShell VolumeControl QLabel#volLabel {
+	color: #82828C;
+	font-size: 11px;
+	min-width: 48px;
+}
+
+#voltzShell VolumeMeter {
+	font-size: 8px;
+	color: #82828C;
+	qproperty-majorTickColor: #82828C;
+	qproperty-minorTickColor: #3A3A42;
+	qproperty-backgroundNominalColor: #2F3712;
+	qproperty-backgroundWarningColor: #4A4013;
+	qproperty-backgroundErrorColor: #4A1A1A;
+	qproperty-foregroundNominalColor: #D4F53C;
+	qproperty-foregroundWarningColor: #F5C83C;
+	qproperty-foregroundErrorColor: #FF4D4D;
+	qproperty-backgroundNominalColorDisabled: #2C2C34;
+	qproperty-backgroundWarningColorDisabled: #34343C;
+	qproperty-backgroundErrorColorDisabled: #26262D;
+	qproperty-foregroundNominalColorDisabled: #82828C;
+	qproperty-foregroundWarningColorDisabled: #9A9AA3;
+	qproperty-foregroundErrorColorDisabled: #6A6A73;
+}
+
+#voltzShell VolumeControl QSlider::groove:horizontal {
+	background: #1F1F24;
+	height: 4px;
+	border: none;
+	border-radius: 2px;
+}
+
+#voltzShell VolumeControl QSlider::sub-page:horizontal {
+	background: #D4F53C;
+	border-radius: 2px;
+}
+
+#voltzShell VolumeControl QSlider::sub-page:horizontal:disabled {
+	background: #3A3A42;
+}
+
+#voltzShell VolumeControl QSlider::handle:horizontal {
+	background: #F2F2F3;
+	width: 12px;
+	height: 12px;
+	margin: -4px 0;
+	border-radius: 6px;
+}
+
+#voltzShell VolumeControl QSlider::handle:horizontal:hover {
+	background: #FFFFFF;
+}
+
+#voltzShell VolumeControl QPushButton.btn-mute,
+#voltzShell VolumeControl QPushButton.btn-monitor {
+	background: transparent;
+	border: none;
+	border-radius: 6px;
+	padding: 4px;
+	margin: 0 2px;
+	min-height: 0;
+	icon-size: 16px;
+}
+
+#voltzShell VolumeControl QPushButton.btn-mute:hover,
+#voltzShell VolumeControl QPushButton.btn-monitor:hover {
+	background: #18181C;
+}
+
+#voltzShell VolumeControl QPushButton.btn-mute {
+	qproperty-icon: url(:/voltz/icons/qss/speaker-high-text.svg);
+}
+
+#voltzShell VolumeControl QPushButton.btn-mute.checked {
+	qproperty-icon: url(:/voltz/icons/qss/speaker-slash-rec.svg);
+}
+
+#voltzShell VolumeControl QPushButton.btn-monitor {
+	qproperty-icon: url(:/voltz/icons/qss/headphones-muted.svg);
+}
+
+#voltzShell VolumeControl QPushButton.btn-monitor.checked {
+	background: rgba(212, 245, 60, 26);
+	qproperty-icon: url(:/voltz/icons/qss/headphones-accent.svg);
+}
+
+/* por último: aviso (fonte sem trilha ou só monitor) vence o estado de mudo */
+#voltzShell VolumeControl QPushButton.btn-mute.mute-warning {
+	qproperty-icon: url(:/voltz/icons/qss/warning-circle-warn.svg);
+}

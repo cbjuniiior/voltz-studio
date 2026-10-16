@@ -61,6 +61,83 @@ Json fpsValue(double fps)
 	return Json(rounded);
 }
 
+Json originJson(const CaptureOrigin &origin)
+{
+	Json json = Json::object();
+	json["tipo"] = origin.type;
+	json["id"] = origin.id;
+	json["retangulo"] = Json::array({origin.rect[0], origin.rect[1], origin.rect[2], origin.rect[3]});
+	json["escala"] = origin.scale;
+	return json;
+}
+
+void readOrigin(const Json &json, CaptureOrigin &origin)
+{
+	origin.type = getString(json, "tipo");
+	origin.id = getString(json, "id");
+	origin.scale = getDouble(json, "escala", 1.0);
+	if (const Json *rect = getChild(json, "retangulo", true)) {
+		for (size_t i = 0; i < 4 && i < rect->size(); i++) {
+			if ((*rect)[i].is_number()) {
+				origin.rect[i] = static_cast<int>((*rect)[i].get<int64_t>());
+			}
+		}
+	}
+}
+
+// Objeto `key` dentro de "arquivos", mantendo os campos que esta versão não conhece; cria se ausente/de outro tipo.
+Json &fileEntry(Json &files, const char *key)
+{
+	Json &entry = files[key];
+	if (!entry.is_object()) {
+		entry = Json::object();
+	}
+	return entry;
+}
+
+void writeIso(Json &files, const char *key, const IsoFile &iso)
+{
+	if (!iso.present) {
+		files.erase(std::string(key));
+		return;
+	}
+	Json &entry = fileEntry(files, key);
+	entry["arquivo"] = iso.file;
+	entry["largura"] = iso.width;
+	entry["altura"] = iso.height;
+	entry["fps"] = fpsValue(iso.fps);
+	entry["offset_ms"] = iso.offsetMs;
+	if (iso.encoder.empty()) {
+		entry.erase(std::string("codificador"));
+	} else {
+		entry["codificador"] = iso.encoder;
+	}
+	if (iso.hasOrigin) {
+		entry["origem"] = originJson(iso.origin);
+	} else {
+		entry.erase(std::string("origem"));
+	}
+}
+
+void readIso(const Json &files, const char *key, IsoFile &iso)
+{
+	const Json *entry = getChild(files, key, false);
+	if (!entry) {
+		return;
+	}
+	iso.present = true;
+	iso.file = getString(*entry, "arquivo");
+	iso.width = static_cast<int>(getInt(*entry, "largura", 0));
+	iso.height = static_cast<int>(getInt(*entry, "altura", 0));
+	iso.fps = getDouble(*entry, "fps", 0.0);
+	iso.offsetMs = getInt(*entry, "offset_ms", 0);
+	iso.encoder = getString(*entry, "codificador");
+	if (const Json *origin = getChild(*entry, "origem", false)) {
+		iso.hasOrigin = true;
+		readOrigin(*origin, iso.origin);
+	}
+}
+
 } // namespace
 
 const char *statusToString(ProjectStatus status)
@@ -132,28 +209,26 @@ std::string serializeManifest(const ProjectManifest &m)
 	}
 	Json &files = root["arquivos"];
 	if (m.program.present) {
-		Json program = Json::object();
+		Json &program = fileEntry(files, "programa");
 		program["arquivo"] = m.program.file;
 		program["largura"] = m.program.width;
 		program["altura"] = m.program.height;
 		program["fps"] = fpsValue(m.program.fps);
 		program["offset_ms"] = m.program.offsetMs;
 		program["faixas_audio"] = m.program.audioTracks;
-		files["programa"] = std::move(program);
+	} else {
+		files.erase(std::string("programa"));
 	}
+	writeIso(files, kScreenTrack, m.screen);
+	writeIso(files, kCameraTrack, m.camera);
 	if (m.cursor.present) {
-		Json origin = Json::object();
-		origin["tipo"] = m.cursor.origin.type;
-		origin["id"] = m.cursor.origin.id;
-		origin["retangulo"] = Json::array({m.cursor.origin.rect[0], m.cursor.origin.rect[1],
-						   m.cursor.origin.rect[2], m.cursor.origin.rect[3]});
-		origin["escala"] = m.cursor.origin.scale;
-		Json cursor = Json::object();
+		Json &cursor = fileEntry(files, "cursor");
 		cursor["arquivo"] = m.cursor.file;
 		cursor["largura"] = m.cursor.width;
 		cursor["altura"] = m.cursor.height;
-		cursor["origem"] = std::move(origin);
-		files["cursor"] = std::move(cursor);
+		cursor["origem"] = originJson(m.cursor.origin);
+	} else {
+		files.erase(std::string("cursor"));
 	}
 
 	Json events = Json::array();
@@ -166,6 +241,9 @@ std::string serializeManifest(const ProjectManifest &m)
 		}
 		if (event.code != 0) {
 			item["codigo"] = event.code;
+		}
+		if (!event.reason.empty()) {
+			item["motivo"] = event.reason;
 		}
 		events.push_back(std::move(item));
 	}
@@ -223,19 +301,11 @@ ManifestParse parseManifest(const std::string &text)
 			m.cursor.width = static_cast<int>(getInt(*cursor, "largura", 0));
 			m.cursor.height = static_cast<int>(getInt(*cursor, "altura", 0));
 			if (const Json *origin = getChild(*cursor, "origem", false)) {
-				m.cursor.origin.type = getString(*origin, "tipo");
-				m.cursor.origin.id = getString(*origin, "id");
-				m.cursor.origin.scale = getDouble(*origin, "escala", 1.0);
-				if (const Json *rect = getChild(*origin, "retangulo", true)) {
-					for (size_t i = 0; i < 4 && i < rect->size(); i++) {
-						if ((*rect)[i].is_number()) {
-							m.cursor.origin.rect[i] =
-								static_cast<int>((*rect)[i].get<int64_t>());
-						}
-					}
-				}
+				readOrigin(*origin, m.cursor.origin);
 			}
 		}
+		readIso(*files, kScreenTrack, m.screen);
+		readIso(*files, kCameraTrack, m.camera);
 	}
 
 	if (const Json *events = getChild(root, "eventos", true)) {
@@ -243,9 +313,9 @@ ManifestParse parseManifest(const std::string &text)
 			if (!item.is_object()) {
 				continue;
 			}
-			m.events.push_back(ManifestEvent{getInt(item, "t_ms", 0), getString(item, "tipo"),
-							 getString(item, "faixa"),
-							 static_cast<int>(getInt(item, "codigo", 0))});
+			m.events.push_back(ManifestEvent{
+				getInt(item, "t_ms", 0), getString(item, "tipo"), getString(item, "faixa"),
+				static_cast<int>(getInt(item, "codigo", 0)), getString(item, "motivo")});
 		}
 	}
 
@@ -265,6 +335,23 @@ void recoverManifest(ProjectManifest &manifest, int64_t fileElapsedMs)
 	}
 	manifest.status = ProjectStatus::Recovered;
 	manifest.events.push_back(ManifestEvent{gross, "recuperado", "", 0});
+}
+
+int dropUnusableIsoFiles(ProjectManifest &manifest, const std::function<bool(const std::string &file)> &usable)
+{
+	int dropped = 0;
+	const std::pair<IsoFile *, const char *> entries[] = {{&manifest.screen, kScreenTrack},
+							      {&manifest.camera, kCameraTrack}};
+	for (const auto &entry : entries) {
+		IsoFile &iso = *entry.first;
+		if (!iso.present || usable(iso.file)) {
+			continue;
+		}
+		iso = IsoFile{};
+		manifest.events.push_back(ManifestEvent{0, "iso_falhou", entry.second, 0, "arquivo_ausente"});
+		dropped++;
+	}
+	return dropped;
 }
 
 } // namespace voltz

@@ -4,6 +4,7 @@
 
 #include <string>
 
+using voltz::IsoFile;
 using voltz::ManifestEvent;
 using voltz::PauseSpan;
 using voltz::ProjectManifest;
@@ -46,6 +47,43 @@ ProjectManifest sample()
 bool contains(const std::string &text, const std::string &part)
 {
 	return text.find(part) != std::string::npos;
+}
+
+size_t count(const std::string &text, const std::string &part)
+{
+	size_t found = 0;
+	for (size_t pos = text.find(part); pos != std::string::npos; pos = text.find(part, pos + part.size())) {
+		found++;
+	}
+	return found;
+}
+
+ProjectManifest withIso()
+{
+	ProjectManifest m = sample();
+	m.screen.present = true;
+	m.screen.file = "tela.mkv";
+	m.screen.width = 2560;
+	m.screen.height = 1440;
+	m.screen.fps = 60;
+	m.screen.offsetMs = 3;
+	m.screen.encoder = "h265_texture_amf";
+	m.screen.hasOrigin = true;
+	m.screen.origin.type = "monitor";
+	m.screen.origin.id = "\\\\.\\DISPLAY1";
+	m.screen.origin.rect[0] = 0;
+	m.screen.origin.rect[1] = 0;
+	m.screen.origin.rect[2] = 2560;
+	m.screen.origin.rect[3] = 1440;
+	m.screen.origin.scale = 1.25;
+	m.camera.present = true;
+	m.camera.file = "camera.mkv";
+	m.camera.width = 1920;
+	m.camera.height = 1080;
+	m.camera.fps = 60;
+	m.camera.offsetMs = 5;
+	m.camera.encoder = "h265_texture_amf";
+	return m;
 }
 
 } // namespace
@@ -195,4 +233,92 @@ TEST_CASE("recoverManifest usa o maior entre pulsação e arquivo e fecha a paus
 	heartbeatOnly.durationMs = 5000;
 	voltz::recoverManifest(heartbeatOnly, -10);
 	CHECK(heartbeatOnly.durationMs == 5000);
+}
+
+TEST_CASE("tela e câmera saem com arquivo, tamanho, fps, offset, codificador e origem só na tela")
+{
+	const std::string json = voltz::serializeManifest(withIso());
+	CHECK(contains(json, "\"arquivo\": \"tela.mkv\""));
+	CHECK(contains(json, "\"arquivo\": \"camera.mkv\""));
+	CHECK(contains(json, "\"offset_ms\": 3"));
+	CHECK(contains(json, "\"offset_ms\": 5"));
+	CHECK(contains(json, "\"codificador\": \"h265_texture_amf\""));
+	CHECK(count(json, "\"origem\"") == 2); // tela + cursor; a câmera não tem
+	CHECK(json.find("\"programa\"") < json.find("\"tela\""));
+	CHECK(json.find("\"tela\"") < json.find("\"camera\""));
+	CHECK(json.find("\"camera\"") < json.find("\"cursor\""));
+}
+
+TEST_CASE("parseManifest lê tela e câmera de volta")
+{
+	const voltz::ManifestParse parsed = voltz::parseManifest(voltz::serializeManifest(withIso()));
+	REQUIRE(parsed.ok);
+	const IsoFile &screen = parsed.manifest.screen;
+	CHECK(screen.present);
+	CHECK(screen.file == "tela.mkv");
+	CHECK(screen.width == 2560);
+	CHECK(screen.height == 1440);
+	CHECK(screen.fps == doctest::Approx(60.0));
+	CHECK(screen.offsetMs == 3);
+	CHECK(screen.encoder == "h265_texture_amf");
+	CHECK(screen.hasOrigin);
+	CHECK(screen.origin.type == "monitor");
+	CHECK(screen.origin.id == "\\\\.\\DISPLAY1");
+	CHECK(screen.origin.rect[2] == 2560);
+	CHECK(screen.origin.scale == doctest::Approx(1.25));
+	const IsoFile &camera = parsed.manifest.camera;
+	CHECK(camera.present);
+	CHECK(camera.offsetMs == 5);
+	CHECK_FALSE(camera.hasOrigin);
+}
+
+TEST_CASE("evento com motivo vai e volta; sem motivo não escreve a chave")
+{
+	ProjectManifest m = sample();
+	m.events.push_back(ManifestEvent{0, "iso_falhou", "camera", 0, "sem_imagem"});
+	const std::string json = voltz::serializeManifest(m);
+	CHECK(contains(json, "\"faixa\": \"camera\""));
+	CHECK(contains(json, "\"motivo\": \"sem_imagem\""));
+	CHECK(count(json, "\"motivo\"") == 1);
+	const voltz::ManifestParse parsed = voltz::parseManifest(json);
+	REQUIRE(parsed.ok);
+	REQUIRE(parsed.manifest.events.size() == 3);
+	CHECK(parsed.manifest.events[2].track == "camera");
+	CHECK(parsed.manifest.events[2].reason == "sem_imagem");
+	CHECK(parsed.manifest.events[0].reason.empty());
+}
+
+TEST_CASE("campos desconhecidos dentro de arquivos.* sobrevivem; arquivo que saiu do modelo some do JSON")
+{
+	voltz::ManifestParse parsed = voltz::parseManifest(R"({"formato":"voltz-projeto","versao":1,"nome":"X",
+		"status":"ok","arquivos":{"programa":{"arquivo":"programa.mp4","hdr":true},
+		"tela":{"arquivo":"tela.mkv","largura":2560,"nota":"x"},"camera":{"arquivo":"camera.mkv"}}})");
+	REQUIRE(parsed.ok);
+	CHECK(parsed.manifest.screen.present);
+	CHECK(parsed.manifest.camera.present);
+	parsed.manifest.name = "Y";
+	parsed.manifest.camera.present = false;
+	const std::string rewritten = voltz::serializeManifest(parsed.manifest);
+	CHECK(contains(rewritten, "\"nome\": \"Y\""));
+	CHECK(contains(rewritten, "\"hdr\": true"));
+	CHECK(contains(rewritten, "\"nota\": \"x\""));
+	CHECK(contains(rewritten, "\"tela.mkv\""));
+	CHECK_FALSE(contains(rewritten, "camera.mkv"));
+}
+
+TEST_CASE("dropUnusableIsoFiles tira o ISO sem arquivo e registra iso_falhou com motivo")
+{
+	ProjectManifest m = withIso();
+	m.events.clear();
+	const int dropped =
+		voltz::dropUnusableIsoFiles(m, [](const std::string &file) { return file == "camera.mkv"; });
+	CHECK(dropped == 1);
+	CHECK_FALSE(m.screen.present);
+	CHECK(m.camera.present);
+	REQUIRE(m.events.size() == 1);
+	CHECK(m.events[0].type == "iso_falhou");
+	CHECK(m.events[0].track == "tela");
+	CHECK(m.events[0].reason == "arquivo_ausente");
+	CHECK(m.events[0].tMs == 0);
+	CHECK(voltz::dropUnusableIsoFiles(m, [](const std::string &) { return true; }) == 0);
 }

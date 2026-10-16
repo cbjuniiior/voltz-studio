@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QList>
 #include <QWidget>
 
 class QComboBox;
@@ -29,6 +30,8 @@ private:
 	QFrame *buildCaptureSection();
 	QFrame *buildAboutSection();
 	QFrame *makeSection(const QString &title, QVBoxLayout **body);
+	QLabel *formLabel(const QString &text, QWidget *parent);
+	void alignFormLabels();
 	void loadRecording();
 	void setRecordingLocked(bool locked);
 
@@ -45,6 +48,8 @@ private:
 	DeviceSelector *camera_ = nullptr;
 	DeviceSelector *microphone_ = nullptr;
 	QLabel *captureHint_ = nullptr;
+	// Rótulos dos formulários de todas as seções: recebem a mesma largura para alinhar as colunas dos campos.
+	QList<QLabel *> formLabels_;
 	bool loading_ = false;
 };
 

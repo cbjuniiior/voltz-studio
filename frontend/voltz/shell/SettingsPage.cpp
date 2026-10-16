@@ -25,6 +25,8 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 #include "moc_SettingsPage.cpp"
 
 namespace voltz {
@@ -83,6 +85,27 @@ QFrame *SettingsPage::makeSection(const QString &title, QVBoxLayout **body)
 	return section;
 }
 
+QLabel *SettingsPage::formLabel(const QString &text, QWidget *parent)
+{
+	auto *label = new QLabel(text, parent);
+	formLabels_.append(label);
+	return label;
+}
+
+// Cada seção tem seu QFormLayout; sem isto a coluna dos campos começa em x diferente em cada uma.
+// Roda no showEvent porque a fonte do rótulo vem do QSS da casca, aplicado só depois de entrar na hierarquia.
+void SettingsPage::alignFormLabels()
+{
+	int width = 0;
+	for (QLabel *label : formLabels_) {
+		label->ensurePolished();
+		width = std::max(width, label->sizeHint().width());
+	}
+	for (QLabel *label : formLabels_) {
+		label->setMinimumWidth(width);
+	}
+}
+
 QFrame *SettingsPage::buildRecordingSection()
 {
 	QVBoxLayout *body = nullptr;
@@ -114,13 +137,13 @@ QFrame *SettingsPage::buildRecordingSection()
 	encoder_->setObjectName("muted");
 
 	auto *form = new QFormLayout();
-	form->setLabelAlignment(Qt::AlignLeft);
+	form->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 	form->setHorizontalSpacing(16);
 	form->setVerticalSpacing(10);
-	form->addRow(QTStr("Voltz.Settings.Folder"), folderRow);
-	form->addRow(QTStr("Voltz.Settings.Format"), format_);
-	form->addRow(QTStr("Voltz.Settings.Quality"), quality_);
-	form->addRow(QTStr("Voltz.Settings.Encoder"), encoder_);
+	form->addRow(formLabel(QTStr("Voltz.Settings.Folder"), recording_), folderRow);
+	form->addRow(formLabel(QTStr("Voltz.Settings.Format"), recording_), format_);
+	form->addRow(formLabel(QTStr("Voltz.Settings.Quality"), recording_), quality_);
+	form->addRow(formLabel(QTStr("Voltz.Settings.Encoder"), recording_), encoder_);
 	body->addLayout(form);
 
 	connect(changeFolder_, &QPushButton::clicked, this, [this]() {
@@ -165,11 +188,12 @@ QFrame *SettingsPage::buildCaptureSection()
 	captureHint_->setWordWrap(true);
 
 	auto *form = new QFormLayout();
+	form->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 	form->setHorizontalSpacing(16);
 	form->setVerticalSpacing(10);
-	form->addRow(QTStr("Voltz.Settings.Monitor"), monitor_);
-	form->addRow(QTStr("Voltz.Settings.Camera"), camera_);
-	form->addRow(QTStr("Voltz.Settings.Microphone"), microphone_);
+	form->addRow(formLabel(QTStr("Voltz.Settings.Monitor"), section), monitor_);
+	form->addRow(formLabel(QTStr("Voltz.Settings.Camera"), section), camera_);
+	form->addRow(formLabel(QTStr("Voltz.Settings.Microphone"), section), microphone_);
 	body->addLayout(form);
 	body->addWidget(captureHint_);
 	return section;
@@ -213,6 +237,7 @@ QFrame *SettingsPage::buildAboutSection()
 void SettingsPage::showEvent(QShowEvent *event)
 {
 	QWidget::showEvent(event);
+	alignFormLabels();
 	loadRecording();
 	monitor_->reload();
 	camera_->reload();

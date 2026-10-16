@@ -27,6 +27,7 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
   - Testes: `ctest --test-dir build_x64/frontend/voltz/tests -C RelWithDebInfo --output-on-failure`
   - Smoke: `powershell -ExecutionPolicy Bypass -File tools/voltz-smoke.ps1`; gravação real:
     `tools/voltz-smoke-record.ps1` (grava ~15 s em Vídeos e apaga o arquivo de teste)
+  - Automação da casca: `tools/voltz-uia.ps1` (UI Automation; `-List`; nav = CheckBox) e `tools/voltz-ws.ps1` (obs-websocket).
   - Executável: `build_x64/rundir/RelWithDebInfo/bin/64bit/VoltzStudio.exe`.
     Testar com `--portable --multi` para não tocar config do OBS instalado.
 - Ferramentas instaladas: Inno Setup 6 (`%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`).
@@ -37,6 +38,8 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
   sobre `OBSBasic` oculta. Patches no OBS listados em `docs/voltz/upstream-patches.md`.
 - Plano 2A concluído: tela Gravar completa (cenas por UUID, fontes, áudio, erros de gravação visíveis), textos
   pt-BR/en-US (`frontend/data/locale/voltz-*.ini`), ícones Phosphor, DM Sans, barra de título escura.
+- Plano 2B concluído: Presets (4, com primeira execução/Pular), Projetos (abrir/mostrar/lixeira), Ajustes de
+  gravação (pasta/formato/qualidade) e captura (monitor/câmera/microfone); padrões HQ + codificador automático + MP4 híbrido.
 
 ## Decisões
 - **Casca Qt nova** + `OBSBasic` oculta como motor (modo clássico = saída de emergência); não reformar `OBSBasic.ui`.
@@ -51,6 +54,9 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
 - Instalador **Inno Setup** (repo do OBS não tem script de instalador; só gera ZIP).
 - Fontes de áudio globais com o nome padrão do OBS ('Desktop Audio'/'Mic/Aux' ou equivalente traduzido) são renomeadas para 'Som do sistema'/'Microfone' (fica na coleção de cenas; nunca sobrescreve nome personalizado).
 - Logo: obturador de 3 lâminas lima inclinado sobre squircle preto; bolinha REC só ao gravar.
+- Presets: fontes compartilhadas (Tela/Câmera/Fundo) por UUID em user.ini [Voltz]; câmera redonda = grupo 'Câmera redonda'
+  + mask_filter_v2 com `data/voltz/mask-circle.png`; grupo 'Tela Voltz' adiado para o Plano 4. Ajustes de gravação só no
+  modo de saída Simples (Avançado → modo clássico).
 
 ## Armadilhas
 - Preset upstream `windows-x64` exige **VS 2026**; usar o preset versionado `voltz-windows-x64` (VS 2022). Código só exige SDK ≥ 10.0.20348.
@@ -68,7 +74,11 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
 - Sinais do libobs (cena, saída, `channel_change`, `source_rename`) chegam fora da thread da UI: repassar com `Qt::QueuedConnection`.
 - `OBSBasic::AddSourceDialog` só abre se chamado por QAction → disparar `actionAddSource` com `trigger()`.
 - A saída de gravação é recriada ao mudar configurações: reconectar o sinal `stop` a cada `RECORDING_STARTING`.
+- Especificidade QSS: `#voltzShell QFrame#x QWidget {}` vence `#voltzShell QPushButton#id` — estilo de botão dentro de
+  painel precisa de seletor tão específico quanto.
 
 ## Próximos passos
-1. Escrever e executar o Plano 2B (Presets, Projetos, Ajustes, tema `.ovt` do clássico, bandeja, diálogos de saída/falha) a partir de `docs/voltz/backlog-plano-2.md`.
+1. Escrever e executar o Plano 2C (tema `.ovt` do clássico, bandeja, confirmação de saída própria, diálogo de falha,
+   acabamento visual do Áudio/Projetos/combos, grupos no painel de Fontes, acessibilidade dos botões só-ícone) a partir
+   de `docs/voltz/backlog-plano-2.md`.
 2. Depois: Plano 3 (gravação em projeto), 4 (anotações + mouse), 5 (marca visual + instalador + CI).

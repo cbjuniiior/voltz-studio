@@ -1,8 +1,11 @@
 #include "ProjectRecorder.hpp"
+#include "CursorTracker.hpp"
+#include "MonitorLocator.hpp"
 
 #include <voltz/core/atomic-file.hpp>
 #include <voltz/core/disk-space.hpp>
 #include <voltz/core/project-naming.hpp>
+#include <voltz/shell/SharedSources.hpp>
 
 #include <OBSApp.hpp> // QTStr, App(), GetAppConfigPath
 
@@ -66,6 +69,27 @@ void applyVoltzAudioRouting()
 	}
 }
 
+// Tela do cursor: a "Tela" compartilhada se for captura de monitor; senão a primeira captura de monitor da coleção.
+OBSSource findScreenCaptureSource()
+{
+	OBSSource shared = findSharedSource(SharedSource::Screen);
+	if (shared && strcmp(obs_source_get_unversioned_id(shared), "monitor_capture") == 0) {
+		return shared;
+	}
+	OBSSource found;
+	obs_enum_sources(
+		[](void *param, obs_source_t *source) {
+			const char *id = obs_source_get_unversioned_id(source);
+			if (!id || strcmp(id, "monitor_capture") != 0) {
+				return true;
+			}
+			*static_cast<OBSSource *>(param) = source;
+			return false;
+		},
+		&found);
+	return found;
+}
+
 } // namespace
 
 ProjectRecorder::ProjectRecorder(QObject *parent) : QObject(parent)
@@ -80,6 +104,7 @@ ProjectRecorder::ProjectRecorder(QObject *parent) : QObject(parent)
 
 ProjectRecorder::~ProjectRecorder()
 {
+	stopCursor();
 	if (registered_) {
 		obs_frontend_remove_event_callback(&ProjectRecorder::handleEvent, this);
 	}
@@ -242,6 +267,7 @@ void ProjectRecorder::onStarted()
 			     qUtf8Printable(file.filePath()));
 		}
 	}
+	startCursor();
 	writeManifest();
 	heartbeat_.start();
 	blog(LOG_INFO, "[voltz] projeto gravando: %s (%d faixa(s) de audio)", manifest_.program.file.c_str(),
@@ -309,6 +335,7 @@ void ProjectRecorder::finish(ProjectStatus status, const char *eventType, int co
 	}
 	manifest_.status = status;
 	heartbeat_.stop();
+	stopCursor();
 	writeManifest();
 	startSignal_.Disconnect();
 	stoppingSignal_.Disconnect();
@@ -513,6 +540,59 @@ void ProjectRecorder::handleOutputStop(void *data, calldata_t *params)
 	if (self->outputStopNs_.load() == 0) {
 		self->outputStopNs_.store(os_gettime_ns());
 	}
+}
+
+void ProjectRecorder::startCursor()
+{
+	stopCursor();
+	OBSSource screen = findScreenCaptureSource();
+	std::string monitorId;
+	MonitorDescription monitor;
+	if (screen) {
+		OBSDataAutoRelease settings = obs_source_get_settings(screen);
+		monitorId = obs_data_get_string(settings, "monitor_id");
+		monitor = findMonitor(monitorId);
+	}
+	if (!monitor.found) {
+		/* Sem captura de monitor (ex. só captura de janela, fora do 3A): projeto sem cursor.jsonl. */
+		blog(LOG_INFO, "[voltz] cursor: nenhuma captura de monitor encontrada; sem cursor.jsonl");
+		manifest_.events.push_back(ManifestEvent{0, "cursor_indisponivel", "", 0});
+		return;
+	}
+	const CaptureMapping mapping{monitor.rect, monitor.rect.width, monitor.rect.height};
+	auto tracker = std::make_unique<CursorTracker>();
+	const QString path = QDir(projectDir_).filePath(QString::fromUtf8(kCursorFileName));
+	if (!tracker->start(nativeUtf8Path(path), mapping, timeline_.t0Ns())) {
+		blog(LOG_WARNING, "[voltz] cursor: nao foi possivel iniciar o gancho do mouse");
+		manifest_.events.push_back(ManifestEvent{0, "cursor_indisponivel", "", 0});
+		return;
+	}
+	cursor_ = std::move(tracker);
+	manifest_.cursor.present = true;
+	manifest_.cursor.file = kCursorFileName;
+	manifest_.cursor.width = monitor.rect.width;
+	manifest_.cursor.height = monitor.rect.height;
+	manifest_.cursor.origin.type = "monitor";
+	manifest_.cursor.origin.id = monitorId;
+	manifest_.cursor.origin.rect[0] = monitor.rect.left;
+	manifest_.cursor.origin.rect[1] = monitor.rect.top;
+	manifest_.cursor.origin.rect[2] = monitor.rect.width;
+	manifest_.cursor.origin.rect[3] = monitor.rect.height;
+	manifest_.cursor.origin.scale = monitor.scale;
+	blog(LOG_INFO, "[voltz] cursor: monitor (%d,%d %dx%d) escala %d%%", monitor.rect.left, monitor.rect.top,
+	     monitor.rect.width, monitor.rect.height, static_cast<int>(monitor.scale * 100.0 + 0.5));
+}
+
+void ProjectRecorder::stopCursor()
+{
+	if (!cursor_) {
+		return;
+	}
+	cursor_->stop();
+	blog(LOG_INFO, "[voltz] cursor: %llu linha(s), %llu evento(s) descartado(s)",
+	     static_cast<unsigned long long>(cursor_->linesWritten()),
+	     static_cast<unsigned long long>(cursor_->droppedEvents()));
+	cursor_.reset();
 }
 
 } // namespace voltz

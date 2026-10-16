@@ -22,6 +22,10 @@ target_compile_definitions(
 target_sources(
   obs-studio
   PRIVATE
+    voltz/project/CursorTracker.cpp
+    voltz/project/CursorTracker.hpp
+    voltz/project/MonitorLocator.cpp
+    voltz/project/MonitorLocator.hpp
     voltz/project/ProjectRecorder.cpp
     voltz/project/ProjectRecorder.hpp
     voltz/shell/AudioPanel.cpp
@@ -68,5 +72,5 @@ target_sources(
 )
 
 if(OS_WINDOWS)
-  target_link_libraries(obs-studio PRIVATE dwmapi)
+  target_link_libraries(obs-studio PRIVATE dwmapi shcore)
 endif()

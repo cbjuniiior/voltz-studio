@@ -14,11 +14,14 @@
 #include <QTimer>
 
 #include <atomic>
+#include <memory>
 #include <cstdint>
 #include <string>
 #include <vector>
 
 namespace voltz {
+
+class CursorTracker;
 
 // Caminho de pasta/arquivo do Qt → UTF-8 com separadores do Windows, para as funções do núcleo.
 inline std::string nativeUtf8Path(const QString &path)
@@ -82,6 +85,8 @@ private:
 	void registerHotkey();
 	void loadHotkeyBinding();
 	void unregisterHotkey();
+	void startCursor();
+	void stopCursor();
 
 	bool registered_ = true;
 	bool active_ = false;
@@ -91,6 +96,7 @@ private:
 	ProjectManifest manifest_;
 	ProjectTimeline timeline_;
 	std::vector<Marker> markers_;
+	std::unique_ptr<CursorTracker> cursor_;
 	ProfileOverride override_;
 	QTimer heartbeat_;
 	obs_hotkey_id markerHotkey_ = OBS_INVALID_HOTKEY_ID;

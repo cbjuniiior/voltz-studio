@@ -10,6 +10,7 @@ class QVBoxLayout;
 
 namespace voltz {
 
+class DeviceSelector;
 class FrontendBridge;
 
 // Tela "Ajustes": Gravação (pasta, formato, qualidade, codificador automático), Captura (Task 7) e Sobre.
@@ -25,6 +26,7 @@ protected:
 
 private:
 	QFrame *buildRecordingSection();
+	QFrame *buildCaptureSection();
 	QFrame *buildAboutSection();
 	QFrame *makeSection(const QString &title, QVBoxLayout **body);
 	void loadRecording();
@@ -39,6 +41,10 @@ private:
 	QComboBox *format_ = nullptr;
 	QComboBox *quality_ = nullptr;
 	QLabel *encoder_ = nullptr;
+	DeviceSelector *monitor_ = nullptr;
+	DeviceSelector *camera_ = nullptr;
+	DeviceSelector *microphone_ = nullptr;
+	QLabel *captureHint_ = nullptr;
 	bool loading_ = false;
 };
 

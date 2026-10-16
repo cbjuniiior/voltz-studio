@@ -1,7 +1,9 @@
 #include "SettingsPage.hpp"
 
+#include "DeviceSelector.hpp"
 #include "FrontendBridge.hpp"
 #include "RecordingConfig.hpp"
+#include "SharedSources.hpp"
 
 #include <voltz/core/voltz-version.hpp>
 
@@ -50,6 +52,7 @@ SettingsPage::SettingsPage(FrontendBridge *bridge, QWidget *parent) : QWidget(pa
 	sections_->setSpacing(16);
 	sections_->addWidget(heading);
 	sections_->addWidget(buildRecordingSection());
+	sections_->addWidget(buildCaptureSection());
 	sections_->addWidget(buildAboutSection());
 	sections_->addStretch(1);
 
@@ -142,6 +145,36 @@ QFrame *SettingsPage::buildRecordingSection()
 	return recording_;
 }
 
+QFrame *SettingsPage::buildCaptureSection()
+{
+	QVBoxLayout *body = nullptr;
+	QFrame *section = makeSection(QTStr("Voltz.Settings.Capture"), &body);
+
+	monitor_ = new DeviceSelector([]() { return findSharedSource(SharedSource::Screen); }, "monitor_id", section);
+	camera_ =
+		new DeviceSelector([]() { return findSharedSource(SharedSource::Camera); }, "video_device_id", section);
+	microphone_ = new DeviceSelector(
+		[]() {
+			OBSSourceAutoRelease mic = obs_get_output_source(3);
+			return OBSSource(mic.Get());
+		},
+		"device_id", section);
+
+	captureHint_ = new QLabel(QTStr("Voltz.Settings.NoSource"), section);
+	captureHint_->setObjectName("muted");
+	captureHint_->setWordWrap(true);
+
+	auto *form = new QFormLayout();
+	form->setHorizontalSpacing(16);
+	form->setVerticalSpacing(10);
+	form->addRow(QTStr("Voltz.Settings.Monitor"), monitor_);
+	form->addRow(QTStr("Voltz.Settings.Camera"), camera_);
+	form->addRow(QTStr("Voltz.Settings.Microphone"), microphone_);
+	body->addLayout(form);
+	body->addWidget(captureHint_);
+	return section;
+}
+
 QFrame *SettingsPage::buildAboutSection()
 {
 	QVBoxLayout *body = nullptr;
@@ -181,22 +214,21 @@ void SettingsPage::showEvent(QShowEvent *event)
 {
 	QWidget::showEvent(event);
 	loadRecording();
+	monitor_->reload();
+	camera_->reload();
+	microphone_->reload();
+	captureHint_->setVisible(!monitor_->isEnabled() || !camera_->isEnabled());
 }
 
 void SettingsPage::loadRecording()
 {
 	loading_ = true;
-	const bool simple = RecordingConfig::isSimpleMode();
 	folder_->setText(QDir::toNativeSeparators(RecordingConfig::folder()));
 	format_->setCurrentIndex(format_->findData(int(RecordingConfig::format())));
 	quality_->setCurrentIndex(quality_->findData(int(RecordingConfig::quality())));
 	encoder_->setText(encoderLabel(RecordingConfig::currentEncoder()));
 	loading_ = false;
 
-	if (!simple) {
-		recordingNotice_->setText(QTStr("Voltz.Settings.AdvancedMode"));
-		recordingNotice_->show();
-	}
 	setRecordingLocked(bridge_->isRecording());
 }
 
@@ -209,7 +241,10 @@ void SettingsPage::setRecordingLocked(bool locked)
 	if (locked) {
 		recordingNotice_->setText(QTStr("Voltz.Settings.LockedWhileRecording"));
 		recordingNotice_->show();
-	} else if (RecordingConfig::isSimpleMode()) {
+	} else if (!RecordingConfig::isSimpleMode()) {
+		recordingNotice_->setText(QTStr("Voltz.Settings.AdvancedMode"));
+		recordingNotice_->show();
+	} else {
 		recordingNotice_->hide();
 	}
 }

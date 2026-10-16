@@ -19,6 +19,9 @@ public:
 	// RecEncoder escolhido automaticamente (AMD → NVIDIA → Intel → x264) entre os encoders registrados.
 	static std::string automaticEncoder();
 	static std::string currentEncoder();
+	// RecQuality "Stream" (padrão do OBS): a gravação reusa o codificador da transmissão (StreamEncoder).
+	static bool recordsWithStreamEncoder();
+	static std::string streamEncoder();
 
 	// Primeira execução/preset: se RecQuality ainda for o padrão do OBS ("Stream"), passa a "HQ" com o
 	// codificador automático e formato MP4 híbrido. Não sobrescreve escolhas já feitas.

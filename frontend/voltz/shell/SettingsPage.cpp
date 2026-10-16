@@ -18,7 +18,7 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileDialog>
-#include <QFormLayout>
+#include <QGridLayout>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -38,13 +38,60 @@ namespace voltz {
 
 namespace {
 
-QString encoderLabel(const std::string &encoder)
+QString encoderName(const std::string &encoder)
 {
 	const std::string key = "Voltz.Settings.Encoder." + encoder;
 	const QString name = QTStr(key.c_str());
-	return QTStr("Voltz.Settings.Encoder.Auto")
-		.arg(name == QString::fromStdString(key) ? QString::fromStdString(encoder) : name);
+	return name == QString::fromStdString(key) ? QString::fromStdString(encoder) : name;
 }
+
+// "(automático)" só quando o codificador é o que o Voltz escolheria; x264 pode ser só o padrão do OBS.
+// Com qualidade "Stream" o OBS grava com o codificador da transmissão (SimpleOutput::LoadRecordingPreset),
+// então o nome mostrado vem de SimpleOutput/StreamEncoder.
+QString encoderLabel()
+{
+	if (RecordingConfig::recordsWithStreamEncoder()) {
+		return encoderName(RecordingConfig::streamEncoder());
+	}
+	const std::string current = RecordingConfig::currentEncoder();
+	if (current == RecordingConfig::automaticEncoder()) {
+		return QTStr("Voltz.Settings.Encoder.Auto").arg(encoderName(current));
+	}
+	return encoderName(current);
+}
+
+// Grade "rótulo | campo" com o rótulo centrado na altura do campo. O QFormLayout deixava o rótulo no topo da
+// linha (~5 px acima do centro dos combos).
+class FormGrid {
+public:
+	FormGrid() : grid_(new QGridLayout())
+	{
+		grid_->setContentsMargins(0, 0, 0, 0);
+		grid_->setHorizontalSpacing(16);
+		grid_->setVerticalSpacing(10);
+		grid_->setColumnStretch(1, 1);
+	}
+
+	void addRow(QLabel *label, QWidget *field)
+	{
+		grid_->addWidget(label, rows_, 0, Qt::AlignLeft | Qt::AlignVCenter);
+		grid_->addWidget(field, rows_, 1, Qt::AlignVCenter);
+		rows_++;
+	}
+
+	void addRow(QLabel *label, QLayout *field)
+	{
+		grid_->addWidget(label, rows_, 0, Qt::AlignLeft | Qt::AlignVCenter);
+		grid_->addLayout(field, rows_, 1);
+		rows_++;
+	}
+
+	QGridLayout *layout() const { return grid_; }
+
+private:
+	QGridLayout *grid_;
+	int rows_ = 0;
+};
 
 } // namespace
 
@@ -124,6 +171,8 @@ QFrame *SettingsPage::buildRecordingSection()
 
 	folder_ = new QLabel(recording_);
 	folder_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+	// Caminho longo não pode alargar a página (gerava rolagem horizontal): o rótulo encolhe.
+	folder_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 	changeFolder_ = new QPushButton(QTStr("Voltz.Settings.ChangeFolder"), recording_);
 	auto *folderRow = new QHBoxLayout();
 	folderRow->addWidget(folder_, 1);
@@ -141,15 +190,12 @@ QFrame *SettingsPage::buildRecordingSection()
 	encoder_ = new QLabel(recording_);
 	encoder_->setObjectName("muted");
 
-	auto *form = new QFormLayout();
-	form->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-	form->setHorizontalSpacing(16);
-	form->setVerticalSpacing(10);
-	form->addRow(formLabel(QTStr("Voltz.Settings.Folder"), recording_), folderRow);
-	form->addRow(formLabel(QTStr("Voltz.Settings.Format"), recording_), format_);
-	form->addRow(formLabel(QTStr("Voltz.Settings.Quality"), recording_), quality_);
-	form->addRow(formLabel(QTStr("Voltz.Settings.Encoder"), recording_), encoder_);
-	body->addLayout(form);
+	FormGrid form;
+	form.addRow(formLabel(QTStr("Voltz.Settings.Folder"), recording_), folderRow);
+	form.addRow(formLabel(QTStr("Voltz.Settings.Format"), recording_), format_);
+	form.addRow(formLabel(QTStr("Voltz.Settings.Quality"), recording_), quality_);
+	form.addRow(formLabel(QTStr("Voltz.Settings.Encoder"), recording_), encoder_);
+	body->addLayout(form.layout());
 
 	connect(changeFolder_, &QPushButton::clicked, this, [this]() {
 		const QString chosen = QFileDialog::getExistingDirectory(this, QTStr("Voltz.Settings.Folder"),
@@ -192,14 +238,11 @@ QFrame *SettingsPage::buildCaptureSection()
 	captureHint_->setObjectName("muted");
 	captureHint_->setWordWrap(true);
 
-	auto *form = new QFormLayout();
-	form->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-	form->setHorizontalSpacing(16);
-	form->setVerticalSpacing(10);
-	form->addRow(formLabel(QTStr("Voltz.Settings.Monitor"), section), monitor_);
-	form->addRow(formLabel(QTStr("Voltz.Settings.Camera"), section), camera_);
-	form->addRow(formLabel(QTStr("Voltz.Settings.Microphone"), section), microphone_);
-	body->addLayout(form);
+	FormGrid form;
+	form.addRow(formLabel(QTStr("Voltz.Settings.Monitor"), section), monitor_);
+	form.addRow(formLabel(QTStr("Voltz.Settings.Camera"), section), camera_);
+	form.addRow(formLabel(QTStr("Voltz.Settings.Microphone"), section), microphone_);
+	body->addLayout(form.layout());
 	body->addWidget(captureHint_);
 
 	hideFromCapture_ = new QCheckBox(QTStr("Voltz.Settings.HideFromCapture"), section);
@@ -285,7 +328,7 @@ void SettingsPage::loadRecording()
 	folder_->setText(QDir::toNativeSeparators(RecordingConfig::folder()));
 	format_->setCurrentIndex(format_->findData(int(RecordingConfig::format())));
 	quality_->setCurrentIndex(quality_->findData(int(RecordingConfig::quality())));
-	encoder_->setText(encoderLabel(RecordingConfig::currentEncoder()));
+	encoder_->setText(encoderLabel());
 	loading_ = false;
 
 	setRecordingLocked(bridge_->isRecording());

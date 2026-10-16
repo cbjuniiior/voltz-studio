@@ -20,5 +20,6 @@ speaker-slash regular rec #FF4D4D
 warning-circle regular warn #F5C83C
 headphones regular muted #82828C
 headphones fill accent #D4F53C
+check regular dark #09090B
 EOT
 ls "$DEST"

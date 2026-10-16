@@ -82,6 +82,16 @@ std::string RecordingConfig::currentEncoder()
 	return getString("SimpleOutput", "RecEncoder");
 }
 
+bool RecordingConfig::recordsWithStreamEncoder()
+{
+	return getString("SimpleOutput", "RecQuality") == "Stream";
+}
+
+std::string RecordingConfig::streamEncoder()
+{
+	return getString("SimpleOutput", "StreamEncoder");
+}
+
 void RecordingConfig::applyVoltzDefaults()
 {
 	if (!isSimpleMode() || getString("SimpleOutput", "RecQuality") != "Stream") {

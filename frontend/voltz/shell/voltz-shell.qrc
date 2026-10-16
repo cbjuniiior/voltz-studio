@@ -38,6 +38,7 @@
     <file>icons/fill/x-fill.svg</file>
     <file>icons/regular/app-window.svg</file>
     <file>icons/regular/caret-down.svg</file>
+    <file>icons/regular/check.svg</file>
     <file>icons/regular/caret-right.svg</file>
     <file>icons/regular/caret-up.svg</file>
     <file>icons/regular/eye-slash.svg</file>
@@ -71,6 +72,7 @@
     <file>icons/qss/caret-down-accent.svg</file>
     <file>icons/qss/caret-down-muted.svg</file>
     <file>icons/qss/caret-up-accent.svg</file>
+    <file>icons/qss/check-dark.svg</file>
     <file>icons/qss/headphones-accent.svg</file>
     <file>icons/qss/headphones-muted.svg</file>
     <file>icons/qss/speaker-high-text.svg</file>

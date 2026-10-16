@@ -37,6 +37,10 @@ OBSAbout::OBSAbout(QWidget *parent) : QDialog(parent), ui(new Ui::OBSAbout)
 #ifdef VOLTZ_STUDIO
 	ui->name->setText(QStringLiteral("Voltz Studio"));
 	ui->version->setText(QStringLiteral(VOLTZ_VERSION) + bitness);
+	/* Sem "Apoie o OBS Project"/"Fazer uma contribuição"/"Participar" (links do obsproject.com) */
+	ui->contribute->hide();
+	ui->donate->hide();
+	ui->getInvolved->hide();
 #endif
 
 	ui->contribute->setText(QTStr("About.Contribute"));

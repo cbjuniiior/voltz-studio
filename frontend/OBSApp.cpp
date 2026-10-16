@@ -28,6 +28,7 @@
 #endif
 #include <widgets/OBSBasic.hpp>
 #ifdef VOLTZ_STUDIO
+#include <voltz/shell/ExitDialog.hpp>
 #include <voltz/shell/ShellLocale.hpp>
 #include <voltz/shell/VoltzShell.hpp>
 #endif
@@ -44,6 +45,9 @@
 #include <QDesktopServices>
 #if defined(_WIN32) || defined(ENABLE_SPARKLE_UPDATER)
 #include <QFile>
+#endif
+#ifdef VOLTZ_STUDIO
+#include <QPushButton>
 #endif
 
 #include <QSessionManager>
@@ -100,6 +104,10 @@ UncleanLaunchAction handleUncleanShutdown(bool enableCrashUpload)
 	UncleanLaunchAction launchAction;
 
 	blog(LOG_WARNING, "Crash or unclean shutdown detected");
+#ifdef VOLTZ_STUDIO
+	/* Voltz Studio: não envia relatórios de falha — sem aviso de privacidade do OBS nem "Enviar relatório". */
+	enableCrashUpload = false;
+#endif
 
 	QMessageBox crashWarning;
 
@@ -107,8 +115,13 @@ UncleanLaunchAction handleUncleanShutdown(bool enableCrashUpload)
 #if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
 	crashWarning.setOption(QMessageBox::Option::DontUseNativeDialog);
 #endif
+#ifdef VOLTZ_STUDIO
+	crashWarning.setWindowTitle(QTStr("Voltz.Crash.Title"));
+	crashWarning.setText(QTStr("Voltz.Crash.Text"));
+#else
 	crashWarning.setWindowTitle(QTStr("CrashHandling.Dialog.Title"));
 	crashWarning.setText(QTStr("CrashHandling.Labels.Text"));
+#endif
 
 	if (enableCrashUpload) {
 		crashWarning.setInformativeText(QTStr("CrashHandling.Labels.PrivacyNotice"));
@@ -122,9 +135,25 @@ UncleanLaunchAction handleUncleanShutdown(bool enableCrashUpload)
 	QPushButton *launchNormalButton =
 		crashWarning.addButton(QTStr("CrashHandling.Buttons.LaunchNormal"), QMessageBox::RejectRole);
 
+#ifdef VOLTZ_STUDIO
+	QPushButton *openLogsButton = crashWarning.addButton(QTStr("Voltz.Crash.OpenLogs"), QMessageBox::ActionRole);
+	QObject::connect(openLogsButton, &QPushButton::clicked, &crashWarning, []() {
+		char logsPath[512];
+		if (GetAppConfigPath(logsPath, sizeof(logsPath), VOLTZ_CONFIG_DIR "/logs") > 0) {
+			QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromUtf8(logsPath)));
+		}
+	});
+	voltz::applyShellStyle(&crashWarning, launchNormalButton);
+#endif
 	crashWarning.setDefaultButton(launchNormalButton);
 
 	crashWarning.exec();
+#ifdef VOLTZ_STUDIO
+	/* "Abrir pasta de logs" não escolhe o modo de abertura: se ele fechou a caixa, pergunta de novo. */
+	while (crashWarning.clickedButton() == openLogsButton) {
+		crashWarning.exec();
+	}
+#endif
 
 	bool useSafeMode = crashWarning.clickedButton() == launchSafeButton;
 

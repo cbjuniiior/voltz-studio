@@ -46,6 +46,9 @@
 #endif
 #include <widgets/AudioMixer.hpp>
 #include <widgets/OBSProjector.hpp>
+#ifdef VOLTZ_STUDIO
+#include <voltz/shell/ExitDialog.hpp>
+#endif
 
 #include <OBSStudioAPI.hpp>
 #ifdef BROWSER_AVAILABLE
@@ -1369,6 +1372,16 @@ void OBSBasic::OBSInit()
 	}
 #endif
 
+#ifdef VOLTZ_STUDIO
+	/* Voltz: sem atualizador do OBS — esconde os itens em vez de mostrá-los desativados. */
+	if (ui->actionCheckForUpdates) {
+		ui->actionCheckForUpdates->setVisible(false);
+	}
+	if (ui->actionRepair) {
+		ui->actionRepair->setVisible(false);
+	}
+#endif
+
 #ifndef WHATSNEW_ENABLED
 	delete ui->actionShowWhatsNew;
 	ui->actionShowWhatsNew = nullptr;
@@ -1976,18 +1989,17 @@ bool OBSBasic::promptToClose()
 	isClosePromptOpen_ = true;
 
 #ifdef VOLTZ_STUDIO
-	/* Voltz: com a casca, não reabrir o modo clássico só para perguntar; a pergunta sai sobre a janela ativa */
-	QWidget *promptParent = this;
+	/* Voltz: com a casca, a pergunta é o diálogo dela (sem reabrir o modo clássico) */
+	QMessageBox::StandardButton button = QMessageBox::Cancel;
 	if (App()->HasVoltzShell()) {
-		if (QWidget *active = App()->activeWindow()) {
-			promptParent = active;
-		}
+		QWidget *promptParent = App()->activeWindow() ? App()->activeWindow() : this;
+		button = voltz::confirmExitWhileActive(promptParent, RecordingActive()) ? QMessageBox::Ok
+											: QMessageBox::Cancel;
 	} else {
 		SetShowing(true);
+		button = OBSMessageBox::question(this, QTStr("ConfirmExit.Title"), QTStr("ConfirmExit.Text"),
+						 QMessageBox::StandardButtons(QMessageBox::Ok | QMessageBox::Cancel));
 	}
-	QMessageBox::StandardButton button =
-		OBSMessageBox::question(promptParent, QTStr("ConfirmExit.Title"), QTStr("ConfirmExit.Text"),
-					QMessageBox::StandardButtons(QMessageBox::Ok | QMessageBox::Cancel));
 #else
 	SetShowing(true);
 	QMessageBox::StandardButton button =

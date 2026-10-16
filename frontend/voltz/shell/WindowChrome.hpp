@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QString>
+
 class QWidget;
 
 namespace voltz {
@@ -20,5 +22,8 @@ void setTaskbarState(QWidget *window, TaskbarState state);
 
 // Loga a afinidade de exibição da janela (0x11 = WDA_EXCLUDEFROMCAPTURE: fora da captura de tela).
 void logCaptureAffinity(QWidget *window);
+
+// QSS da casca (":/voltz/voltz-shell.qss"). Diálogos próprios (ex. confirmação de saída) usam o mesmo estilo.
+QString shellStyleSheet();
 
 } // namespace voltz

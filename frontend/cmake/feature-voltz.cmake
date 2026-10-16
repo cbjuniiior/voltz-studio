@@ -26,6 +26,8 @@ target_sources(
     voltz/shell/AudioPanel.hpp
     voltz/shell/ErrorBanner.cpp
     voltz/shell/ErrorBanner.hpp
+    voltz/shell/ExitDialog.cpp
+    voltz/shell/ExitDialog.hpp
     voltz/shell/FrontendBridge.cpp
     voltz/shell/FrontendBridge.hpp
     voltz/shell/Icons.cpp

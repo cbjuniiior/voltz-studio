@@ -20,7 +20,6 @@
 #include <QButtonGroup>
 #include <QCloseEvent>
 #include <QEvent>
-#include <QFile>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QHideEvent>
@@ -44,15 +43,6 @@ VersionInfo currentVersion()
 	return VersionInfo{"Voltz Studio", VOLTZ_VERSION, obs_get_version_string()};
 }
 
-QString loadStyleSheet()
-{
-	QFile file(QStringLiteral(":/voltz/voltz-shell.qss"));
-	if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-		return QString();
-	}
-	return QString::fromUtf8(file.readAll());
-}
-
 // "Minimizar para a bandeja" do OBS (Configurações → Geral → Bandeja), que também vale para a casca.
 bool minimizeToTrayEnabled()
 {
@@ -72,7 +62,7 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 	setWindowTitle(QString::fromStdString(voltz::windowTitle(currentVersion(), "")));
 	setMinimumSize(1024, 640);
 	resize(1280, 800);
-	setStyleSheet(loadStyleSheet());
+	setStyleSheet(shellStyleSheet());
 
 	bridge_ = new FrontendBridge(this);
 

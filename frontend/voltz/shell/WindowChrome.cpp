@@ -4,6 +4,7 @@
 
 #include <util/base.h>
 
+#include <QFile>
 #include <QIcon>
 #include <QImage>
 #include <QPixmap>
@@ -96,6 +97,15 @@ void logCaptureAffinity(QWidget *window)
 #else
 	(void)window;
 #endif
+}
+
+QString shellStyleSheet()
+{
+	QFile file(QStringLiteral(":/voltz/voltz-shell.qss"));
+	if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+		return QString();
+	}
+	return QString::fromUtf8(file.readAll());
 }
 
 } // namespace voltz

@@ -8,6 +8,8 @@ class QStackedWidget;
 namespace voltz {
 
 class FrontendBridge;
+class LiveMouse;
+class MouseStyleStore;
 class ProjectRecorder;
 
 // Janela principal do Voltz Studio. A janela do OBS (OBSBasic) fica oculta como motor
@@ -39,6 +41,8 @@ private:
 
 	FrontendBridge *bridge_ = nullptr;
 	ProjectRecorder *recorder_ = nullptr;
+	MouseStyleStore *mouseStyles_ = nullptr;
+	LiveMouse *liveMouse_ = nullptr;
 	QStackedWidget *pages_ = nullptr;
 	QButtonGroup *navGroup_ = nullptr;
 	bool exiting_ = false;

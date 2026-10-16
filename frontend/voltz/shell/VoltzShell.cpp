@@ -2,6 +2,7 @@
 
 #include "FrontendBridge.hpp"
 #include "Icons.hpp"
+#include "MouseStyleStore.hpp"
 #include "PresetsPage.hpp"
 #include "ProjectsPage.hpp"
 #include "RecordPage.hpp"
@@ -14,6 +15,7 @@
 #include <widgets/OBSQTDisplay.hpp>
 #include <voltz/core/voltz-version.hpp>
 #include <voltz/project/ProjectRecorder.hpp>
+#include <voltz/project/LiveMouse.hpp>
 
 #include <obs.h>
 
@@ -69,6 +71,8 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 	/* Criado depois da ponte: os callbacks do frontend rodam do último registrado para o primeiro
 	 * (OBSStudioAPI::on_event), então o projeto já está atualizado quando a ponte avisa a casca. */
 	recorder_ = new ProjectRecorder(this);
+	mouseStyles_ = new MouseStyleStore(this);
+	liveMouse_ = new LiveMouse(mouseStyles_, this);
 
 	pages_ = new QStackedWidget(this);
 	pages_->addWidget(new RecordPage(bridge_, recorder_, pages_));
@@ -92,6 +96,8 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 	}
 
 	connect(bridge_, &FrontendBridge::exiting, this, [this]() {
+		/* antes de o libobs descarregar o plugin: nada de chamar os procedimentos dele depois daqui */
+		liveMouse_->shutdown();
 		exiting_ = true;
 		hide();
 		deleteLater();

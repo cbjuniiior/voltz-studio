@@ -30,6 +30,8 @@ target_sources(
     voltz/project/CursorTracker.hpp
     voltz/project/IsoTrack.cpp
     voltz/project/IsoTrack.hpp
+    voltz/project/LiveMouse.cpp
+    voltz/project/LiveMouse.hpp
     voltz/project/MonitorLocator.cpp
     voltz/project/MonitorLocator.hpp
     voltz/project/ProjectLibrary.cpp
@@ -46,6 +48,8 @@ target_sources(
     voltz/shell/FrontendBridge.hpp
     voltz/shell/Icons.cpp
     voltz/shell/Icons.hpp
+    voltz/shell/MouseStyleStore.cpp
+    voltz/shell/MouseStyleStore.hpp
     voltz/shell/PresetBuilder.cpp
     voltz/shell/PresetBuilder.hpp
     voltz/shell/PresetsPage.cpp

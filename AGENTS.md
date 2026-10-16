@@ -34,12 +34,12 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
 - Ferramentas instaladas: Inno Setup 6 (`%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`).
 
 ## Estado atual
-- Planos 1–2 concluídos: `VoltzStudio.exe` 1.0.0 (config em `%APPDATA%\Voltz Studio`, sem phone-home), casca
-  `VoltzShell` sobre `OBSBasic` oculta com Gravar/Projetos/Presets/Ajustes, tema Voltz, bandeja. Relato em
-  `docs/HISTORICO.md`; pendências em `docs/voltz/backlog-plano-2.md`; patches no OBS em `docs/voltz/upstream-patches.md`.
-- Plano 3A concluído: toda gravação vira pasta de projeto (programa.mp4 com 3 faixas e capítulos, projeto.voltz v1,
-  marcadores.json, cursor.jsonl), Projetos lista/recupera, barra inferior com nome do projeto, Marcador, espaço e
-  avisos de disco. Testes: 91 casos + `tools/voltz-smoke-project.ps1`. Pendências em `docs/voltz/backlog-plano-3.md`.
+- Planos 1–3A concluídos (fundação, casca completa, presets, tema, gravação em projeto com programa.mp4/manifesto/
+  marcadores/cursor/Projetos/avisos de disco); relato em `docs/HISTORICO.md`, pendências do 2 em `docs/voltz/backlog-plano-2.md`. Patches no OBS:
+  `docs/voltz/upstream-patches.md`.
+- Plano 3B concluído: ISO tela.mkv/camera.mkv por canvas privado (fonte de papel do preset, resolução nativa, HEVC/H.264
+  AMF→NVENC→QSV em CQP, áudio-guia), offset_ms, iso_falhou com motivo, desligamento por sobrecarga, "Gravar só a versão
+  montada". Testes: 107 casos + smoke de projeto com ISO. Pendências: `docs/voltz/backlog-plano-3.md`.
 
 ## Decisões
 - **Casca Qt nova** + `OBSBasic` oculta como motor (modo clássico = saída de emergência); não reformar `OBSBasic.ui`.
@@ -63,9 +63,11 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
   QSS não passa pelo `PhosphorIconEngine`; no código, sempre `phosphorIcon()`.
 - Gravação em projeto sem patch no OBS: no RECORDING_STARTING o ProjectRecorder troca temporariamente a pasta e
   Output/FilenameFormatting=programa (ProfileOverride) e desfaz no próximo giro do laço; 3 faixas no modo Simples
-  (RecTracks=7 + mixers das fontes globais, só se ainda padrão). Núcleo do projeto em JSON com nlohmann (ordered_json,
-  preserva campos desconhecidos). Padrões de projeto (pasta `Vídeos\Voltz Studio`, RecTracks) uma vez por perfil
-  (`[Voltz] ProjectDefaults=true`).
+  (RecTracks=7 + mixers das fontes globais, só se ainda padrão). Manifesto em nlohmann `ordered_json` (preserva campos
+  desconhecidos). Padrões de projeto uma vez por perfil (`[Voltz] ProjectDefaults=true`).
+- ISO sem patch: IsoTrack = obs_canvas_create_private (EPHEMERAL, canal 0 = fonte compartilhada do preset) → encoder
+  próprio + AAC da faixa 1 → ffmpeg_muxer; fps = do programa; programa segue em H.264, ISO em HEVC; testes só com
+  fontes substitutas via VOLTZ_TEST_ISO_SCREEN/CAMERA.
 
 ## Armadilhas
 - Preset upstream `windows-x64` exige **VS 2026**; usar o preset versionado `voltz-windows-x64` (VS 2022). Código só exige SDK ≥ 10.0.20348.
@@ -78,7 +80,8 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
 - Interceptar só fechamentos `event->spontaneous()` no OBSBasic; `close()` programático (Sair, reiniciar) precisa seguir, senão o app relança depois.
 - O fechamento da casca deve chamar `OBSBasic::close()` via `Qt::QueuedConnection` (síncrono destrói a casca dentro do próprio closeEvent).
 - Build x86 auxiliar às vezes falha com MSB4018 "Touch"/ZERO_CHECK (race) — rodar de novo.
-- Smoke de gravação usa `--startrecording` + `ConfirmOnExit=false` no user.ini portátil; sem coleção de cenas em disco o OBS ignora `--startrecording` (por isso o script abre o app uma vez antes). Fechar gravando não loga `==== Recording Stop` (comportamento do upstream; o arquivo é finalizado).
+- Sem coleção de cenas em disco o OBS ignora `--startrecording` (o smoke de gravação abre o app uma vez antes). Fechar
+  gravando não loga `==== Recording Stop` (upstream; o arquivo é finalizado).
 - Regras da casca no QSS precisam do prefixo `#voltzShell` (o tema do OBS é global e tem `QPushButton { max-height }`).
 - Sinais do libobs (cena, saída, `channel_change`, `source_rename`) chegam fora da thread da UI: repassar com `Qt::QueuedConnection`.
 - `OBSBasic::AddSourceDialog` só abre se chamado por QAction → disparar `actionAddSource` com `trigger()`.
@@ -107,8 +110,17 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
 - UIA: "Gravar" é o nome da nav **e** do botão de gravar — `voltz-uia.ps1 -Name "Gravar"` pode iniciar uma gravação.
 - O OBS cria sozinho o capítulo "Iniciar" em 0 s: `programa.mp4` tem N marcadores + 1 capítulos.
 - `QInputDialog`/`QMessageBox` abrem laço de eventos: um `refresh()` pode recriar a lista — ler tudo do item antes.
+- `ffmpeg_muxer`/`mp4_output` são `OBS_OUTPUT_AV`: saída só de vídeo não inicia (o ISO leva um AAC). Mix/canvas
+  auxiliar herda o fps do canvas principal.
+- ISO: liberar saída → encoders → canvas, nessa ordem (destruir o canvas privado libera o mix na hora); nunca
+  `obs_canvas_remove` em canvas privado (o `OBSBasic` enfileira `RemoveCanvas` com uma ref).
+- `obs_output_start` que falha (ex. sessão de GPU esgotada) é síncrono e não emite `stop`: tentar o próximo encoder ali.
+- Os "skipped frames" do vídeo incluem o atraso de render (`lagged`): excesso do codificador = pulados − atrasados.
+- Sinal de saída enfileirado para a UI pode chegar depois de outro projeto começar: conferir a geração do projeto.
+- Testes de ISO nunca com `monitor_capture`/webcam real; a "Tela teste" do cursor é captura de monitor com o item de
+  cena desativado (conferido antes de gravar).
 
 ## Próximos passos
-1. Escrever e executar o Plano 3B (ISO tela.mkv/camera.mkv via obs_canvas, encoders p/ 3 sessões, offset_ms, iso_falhou)
-   a partir de `docs/voltz/backlog-plano-3.md` e spec §5.3–5.5.
-2. Depois: Plano 4 (anotações + mouse), 5 (marca visual + instalador + CI).
+1. Escrever e executar o Plano 4 (anotações + destaque do mouse; o grupo 'Tela Voltz' não pode mudar a fonte do ISO) a
+   partir da spec §6 e de `docs/voltz/backlog-plano-3.md`.
+2. Depois: Plano 5 (marca visual + instalador + CI).

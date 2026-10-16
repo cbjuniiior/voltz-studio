@@ -1,5 +1,6 @@
 #pragma once
 
+#include "mouse-style.hpp"
 #include "project-timeline.hpp"
 
 #include <cstdint>
@@ -67,13 +68,15 @@ struct IsoFile {
 	CaptureOrigin origin;   // mesmo formato de arquivos.cursor.origem
 };
 
-// eventos[]: { "t_ms", "tipo", "faixa"?, "codigo"?, "motivo"? }
+// eventos[]: { "t_ms", "tipo", "faixa"?, "codigo"?, "motivo"? } + campos que esta versão não conhece (extraJson, objeto
+// JSON compacto), devolvidos ao reescrever.
 struct ManifestEvent {
 	int64_t tMs = 0;
 	std::string type;
 	std::string track;
 	int code = 0;
 	std::string reason;
+	std::string extraJson;
 };
 
 struct ProjectManifest {
@@ -91,8 +94,14 @@ struct ProjectManifest {
 	IsoFile camera;
 	CursorFile cursor;
 	std::vector<ManifestEvent> events;
-	// JSON lido do disco. Ao reescrever, os campos que esta versão não conhece (no nível de cima e dentro de cada
-	// arquivos.*) voltam intactos; arquivo ausente no modelo sai de "arquivos".
+	// "mouse" (spec §5.2): estilo do destaque do mouse no início do projeto. hasMouse falso = bloco ausente.
+	bool hasMouse = false;
+	MouseStyle mouse;
+	// Campos desconhecidos de cada pausas[i] (objeto JSON compacto ou vazio), na ordem de `pauses`.
+	std::vector<std::string> pauseExtras;
+	// JSON lido do disco. Ao reescrever, os campos que esta versão não conhece (no nível de cima, dentro de cada
+	// arquivos.*, de "mouse", de cada pausa e de cada evento) voltam intactos; arquivo ausente no modelo sai de
+	// "arquivos".
 	std::string preservedJson;
 };
 

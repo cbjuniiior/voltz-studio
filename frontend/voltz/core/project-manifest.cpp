@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <initializer_list>
 #include <utility>
 
 namespace voltz {
@@ -93,6 +94,50 @@ Json &fileEntry(Json &files, const char *key)
 		entry = Json::object();
 	}
 	return entry;
+}
+
+// Campos de `item` fora de `known`, como objeto JSON compacto ("" se não houver).
+std::string extrasOf(const Json &item, std::initializer_list<const char *> known)
+{
+	Json extra = Json::object();
+	for (auto it = item.begin(); it != item.end(); ++it) {
+		const bool isKnown =
+			std::any_of(known.begin(), known.end(), [&it](const char *key) { return it.key() == key; });
+		if (!isKnown) {
+			extra[it.key()] = it.value();
+		}
+	}
+	return extra.empty() ? std::string() : extra.dump(-1, ' ', false, Json::error_handler_t::replace);
+}
+
+// Devolve ao item os campos guardados por extrasOf, sem sobrescrever os que o modelo escreveu.
+void appendExtras(Json &item, const std::string &extras)
+{
+	if (extras.empty()) {
+		return;
+	}
+	const Json extra = Json::parse(extras, nullptr, false);
+	if (!extra.is_object()) {
+		return;
+	}
+	for (auto it = extra.begin(); it != extra.end(); ++it) {
+		if (!item.contains(it.key())) {
+			item[it.key()] = it.value();
+		}
+	}
+}
+
+// Funde `fresh` em `target`: objeto com objeto desce um nível; o resto é sobrescrito. Chaves só de `target` ficam.
+void mergeInto(Json &target, const Json &fresh)
+{
+	for (auto it = fresh.begin(); it != fresh.end(); ++it) {
+		const auto existing = target.find(it.key());
+		if (it->is_object() && existing != target.end() && existing->is_object()) {
+			mergeInto(*existing, *it);
+		} else {
+			target[it.key()] = it.value();
+		}
+	}
 }
 
 void writeIso(Json &files, const char *key, const IsoFile &iso)
@@ -196,10 +241,12 @@ std::string serializeManifest(const ProjectManifest &m)
 	root["duracao_liquida_ms"] = manifestNetDurationMs(m);
 
 	Json pauses = Json::array();
-	for (const PauseSpan &pause : m.pauses) {
+	for (size_t i = 0; i < m.pauses.size(); i++) {
+		const PauseSpan &pause = m.pauses[i];
 		Json item = Json::object();
 		item["inicio_ms"] = pause.startMs;
 		item["fim_ms"] = pause.endMs < 0 ? Json(nullptr) : Json(pause.endMs);
+		appendExtras(item, i < m.pauseExtras.size() ? m.pauseExtras[i] : std::string());
 		pauses.push_back(std::move(item));
 	}
 	root["pausas"] = std::move(pauses);
@@ -231,6 +278,15 @@ std::string serializeManifest(const ProjectManifest &m)
 		files.erase(std::string("cursor"));
 	}
 
+	if (m.hasMouse) {
+		const Json fresh = Json::parse(mouseStyleToJson(m.mouse), nullptr, false);
+		Json &mouse = root["mouse"];
+		if (!mouse.is_object()) {
+			mouse = Json::object();
+		}
+		mergeInto(mouse, fresh);
+	}
+
 	Json events = Json::array();
 	for (const ManifestEvent &event : m.events) {
 		Json item = Json::object();
@@ -245,6 +301,7 @@ std::string serializeManifest(const ProjectManifest &m)
 		if (!event.reason.empty()) {
 			item["motivo"] = event.reason;
 		}
+		appendExtras(item, event.extraJson);
 		events.push_back(std::move(item));
 	}
 	root["eventos"] = std::move(events);
@@ -282,6 +339,7 @@ ManifestParse parseManifest(const std::string &text)
 				continue;
 			}
 			m.pauses.push_back(PauseSpan{getInt(item, "inicio_ms", 0), getInt(item, "fim_ms", -1)});
+			m.pauseExtras.push_back(extrasOf(item, {"inicio_ms", "fim_ms"}));
 		}
 	}
 
@@ -315,8 +373,13 @@ ManifestParse parseManifest(const std::string &text)
 			}
 			m.events.push_back(ManifestEvent{
 				getInt(item, "t_ms", 0), getString(item, "tipo"), getString(item, "faixa"),
-				static_cast<int>(getInt(item, "codigo", 0)), getString(item, "motivo")});
+				static_cast<int>(getInt(item, "codigo", 0)), getString(item, "motivo"),
+				extrasOf(item, {"t_ms", "tipo", "faixa", "codigo", "motivo"})});
 		}
+	}
+
+	if (const Json *mouse = getChild(root, "mouse", false)) {
+		m.hasMouse = mouseStyleFromJson(mouse->dump(), m.mouse);
 	}
 
 	m.preservedJson = text;

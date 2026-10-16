@@ -322,3 +322,69 @@ TEST_CASE("dropUnusableIsoFiles tira o ISO sem arquivo e registra iso_falhou com
 	CHECK(m.events[0].tMs == 0);
 	CHECK(voltz::dropUnusableIsoFiles(m, [](const std::string &) { return true; }) == 0);
 }
+
+TEST_CASE("manifesto grava o bloco mouse da spec entre arquivos e eventos")
+{
+	ProjectManifest m = sample();
+	m.hasMouse = true;
+	const std::string json = voltz::serializeManifest(m);
+	CHECK(contains(json, "\"mouse\": {"));
+	CHECK(contains(json, "\"tamanho\": 46"));
+	CHECK(contains(json, "\"forma\": \"cheio\""));
+	CHECK(contains(json, "\"cor_direito\": \"#4DA3FF\""));
+	CHECK(contains(json, "\"escurecer\": 0.55"));
+	CHECK(json.find("\"arquivos\"") < json.find("\"mouse\""));
+	CHECK(json.find("\"mouse\"") < json.find("\"eventos\""));
+}
+
+TEST_CASE("mouse volta do disco e campos desconhecidos dentro dele sobrevivem")
+{
+	const std::string text = R"({"formato":"voltz-projeto","versao":1,"nome":"X","status":"ok",
+		"mouse":{"halo":{"ativo":false,"tamanho":80,"brilho":2},"zoom":{"nivel":1.5}}})";
+	voltz::ManifestParse parsed = voltz::parseManifest(text);
+	REQUIRE(parsed.ok);
+	CHECK(parsed.manifest.hasMouse);
+	CHECK_FALSE(parsed.manifest.mouse.halo.active);
+	CHECK(parsed.manifest.mouse.halo.size == 80);
+	CHECK(parsed.manifest.mouse.click.active);
+	parsed.manifest.mouse.spotlight.active = true;
+	const std::string rewritten = voltz::serializeManifest(parsed.manifest);
+	CHECK(contains(rewritten, "\"brilho\": 2"));
+	CHECK(contains(rewritten, "\"zoom\""));
+	CHECK(contains(rewritten, "\"tamanho\": 80"));
+	CHECK(contains(rewritten, "\"raio\": 220"));
+	const voltz::ManifestParse again = voltz::parseManifest(rewritten);
+	REQUIRE(again.ok);
+	CHECK(again.manifest.mouse.spotlight.active);
+}
+
+TEST_CASE("manifesto sem mouse continua sem mouse ao reescrever")
+{
+	const std::string json = voltz::serializeManifest(sample());
+	CHECK_FALSE(contains(json, "\"mouse\""));
+	const voltz::ManifestParse parsed = voltz::parseManifest(json);
+	REQUIRE(parsed.ok);
+	CHECK_FALSE(parsed.manifest.hasMouse);
+	CHECK_FALSE(contains(voltz::serializeManifest(parsed.manifest), "\"mouse\""));
+}
+
+TEST_CASE("campos desconhecidos dentro de pausas[] e eventos[] sobrevivem à reescrita")
+{
+	const std::string text =
+		R"({"formato":"voltz-projeto","versao":1,"nome":"X","status":"gravando","duracao_ms":5000,
+		"pausas":[{"inicio_ms":1000,"fim_ms":null,"origem_pausa":"atalho"}],
+		"eventos":[{"t_ms":10,"tipo":"novo_evento","detalhe":{"a":1}},
+		           {"t_ms":20,"tipo":"iso_falhou","faixa":"tela","motivo":"canvas","tentativas":3}]})";
+	voltz::ManifestParse parsed = voltz::parseManifest(text);
+	REQUIRE(parsed.ok);
+	REQUIRE(parsed.manifest.events.size() == 2);
+	CHECK(parsed.manifest.events[1].reason == "canvas");
+	voltz::recoverManifest(parsed.manifest, 8000);
+	const std::string rewritten = voltz::serializeManifest(parsed.manifest);
+	CHECK(contains(rewritten, "\"origem_pausa\": \"atalho\""));
+	CHECK(contains(rewritten, "\"fim_ms\": 8000"));
+	CHECK(contains(rewritten, "\"detalhe\""));
+	CHECK(contains(rewritten, "\"tentativas\": 3"));
+	CHECK(contains(rewritten, "\"tipo\": \"recuperado\""));
+	CHECK(count(rewritten, "\"tentativas\"") == 1);
+}

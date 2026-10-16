@@ -1,0 +1,112 @@
+@OBSThemeMeta {
+    name: 'Voltz';
+    id: 'com.voltzpixel.Voltz';
+    extends: 'com.obsproject.Yami';
+    author: 'VoltzPixel';
+    dark: 'true';
+}
+
+@OBSThemeVars {
+    /* Paleta Voltz (spec 4.1) */
+    --voltz_bg: #09090B;
+    --voltz_panel: #111114;
+    --voltz_line: #1F1F24;
+    --voltz_text: #F2F2F3;
+    --voltz_muted: #82828C;
+    --voltz_accent: #D4F53C;
+    --voltz_rec: #FF4D4D;
+
+    /* Cinzas do Yami: 1 = mais claro, 8 = mais escuro */
+    --grey1: #4A4A52;
+    --grey2: #3A3A42;
+    --grey3: #2C2C34;
+    --grey4: #232329;
+    --grey5: #1F1F24;
+    --grey6: #111114;
+    --grey7: #09090B;
+    --grey8: #050506;
+
+    --bg_window: var(--grey7);
+    --bg_base: var(--grey6);
+    --bg_preview: var(--grey8);
+
+    --primary: #444C1E;
+    --primary_light: #556122;
+    --primary_lighter: var(--voltz_accent);
+    --primary_dark: #343A1B;
+    --primary_darker: #282C19;
+
+    --danger: var(--voltz_rec);
+
+    --text: var(--voltz_text);
+    --text_light: #FFFFFF;
+    --text_muted: var(--voltz_muted);
+    --text_disabled: #5A5A63;
+    --text_inactive: var(--voltz_text);
+
+    --border_color: var(--voltz_line);
+    --border_radius: 6px;
+    --border_radius_small: 4px;
+    --border_radius_large: 8px;
+
+    --input_bg: #18181C;
+    --input_bg_hover: #1D1D22;
+    --input_bg_focus: #111114;
+    --input_border: #2C2C34;
+    --input_border_hover: #3A3A42;
+    --input_border_focus: var(--voltz_accent);
+
+    --list_item_bg_selected: var(--primary);
+    --list_item_bg_hover: #1A1A1F;
+
+    --button_bg: #18181C;
+    --button_bg_hover: #222228;
+    --button_bg_down: #0E0E11;
+    --button_bg_disabled: #111114;
+    --button_border: var(--voltz_line);
+    --button_border_hover: #3A3A42;
+    --button_border_focus: var(--voltz_accent);
+
+    --scrollbar_handle: #2C2C34;
+    --scrollbar_bg: #111114;
+    --scrollbar_hover: #3A3A42;
+    --scrollbar_down: #4A4A52;
+    --scrollbar_border: var(--voltz_line);
+
+    --palette_link: var(--voltz_accent);
+    --palette_linkVisited: var(--voltz_accent);
+}
+
+/* Sliders: o Yami usa --blue2 direto */
+QSlider::sub-page:horizontal {
+    background-color: var(--voltz_accent);
+}
+
+QSlider::add-page:vertical {
+    background-color: var(--voltz_accent);
+}
+
+QSlider::handle {
+    background-color: var(--voltz_text);
+}
+
+/* Medidores de áudio do mixer clássico na paleta Voltz */
+VolumeMeter {
+    qproperty-backgroundNominalColor: #2F3712;
+    qproperty-backgroundWarningColor: #4A4013;
+    qproperty-backgroundErrorColor: #4A1A1A;
+    qproperty-foregroundNominalColor: var(--voltz_accent);
+    qproperty-foregroundWarningColor: #F5C83C;
+    qproperty-foregroundErrorColor: var(--voltz_rec);
+    qproperty-majorTickColor: var(--voltz_muted);
+    qproperty-minorTickColor: #3A3A42;
+}
+
+.btn-monitor.checked {
+    background: var(--primary);
+}
+
+.btn-monitor.checked:hover {
+    background: var(--primary_light);
+    border-color: var(--voltz_accent);
+}

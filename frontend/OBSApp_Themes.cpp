@@ -1083,6 +1083,20 @@ bool OBSApp::InitTheme()
 	}
 
 	QString themeName = config_get_string(userConfig, "Appearance", "Theme");
+#ifdef VOLTZ_STUDIO
+	/* Voltz Studio: enquanto o usuário não escolher um tema, usa o "Voltz" (data/themes/Voltz.ovt).
+	 * Com alto contraste do Windows, segue o upstream (tema do sistema). */
+	if (themeName.isEmpty() && GetTheme("com.voltzpixel.Voltz")) {
+		bool highContrast = false;
+#ifdef _WIN32
+		highContrast = HighContrastEnabled();
+#endif
+		if (!highContrast) {
+			themeName = "com.voltzpixel.Voltz";
+			blog(LOG_INFO, "[voltz] tema padrao: com.voltzpixel.Voltz");
+		}
+	}
+#endif
 
 	if (themeName.isEmpty() || !GetTheme(themeName)) {
 		if (!themeName.isEmpty()) {

@@ -27,3 +27,5 @@ Para listar tudo: `git diff ba2f32bdf..HEAD --stat` (base = tag 32.2.2).
 | `plugins/win-dshow/shared-memory-queue.c`, `shared/obs-shared-memory-queue/shared-memory-queue.c` | `VoltzVirtualCamVideo` | não colidir com a câmera do OBS |
 | `frontend/data/locale/voltz-*.ini` (novos) | textos `Voltz.*` em pt-BR e en-US, copiados para a pasta de dados do OBS | arquivos novos; não alteram os `.ini` do OBS |
 | `.gitignore` | `!AGENTS.md`, `!CLAUDE.md`, `!installer`, `!tools` | versionar arquivos do Voltz na raiz |
+| `frontend/OBSApp_Themes.cpp` | `InitTheme`: sem tema escolhido pelo usuário (e sem alto contraste do Windows), usa `com.voltzpixel.Voltz` | janelas do OBS com a paleta Voltz |
+| `frontend/data/themes/Voltz.ovt` (novo) | variante "Voltz" do Yami (paleta da spec §4.1) | arquivo novo; não altera os temas do OBS |

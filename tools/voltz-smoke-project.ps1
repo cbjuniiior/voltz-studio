@@ -1,17 +1,23 @@
 <#
-  Teste de integracao da gravacao em projeto (Plano 3A).
+  Teste de integracao da gravacao em projeto (Planos 3A e 3B).
   Abre o Voltz Studio em modo portatil com config limpa (a config portatil existente e guardada e restaurada),
   aplica os padroes Voltz ("Pular"), aponta a pasta de gravacoes para -OutDir e, via obs-websocket + UI Automation,
   grava ~12 s com troca de cena, 2 marcadores (botao "Marcador" e atalho VoltzStudio.AddMarker) e uma pausa.
-  Fecha o app e valida a pasta do projeto: programa.mp4, projeto.voltz (status ok, pausa, duracoes), marcadores.json,
-  cursor.jsonl (linhas validas dentro da captura) e, com ffprobe (PATH ou .deps), 3 faixas de audio + 2 capitulos.
-  Nao move o mouse nem digita. Audio global mutado. Apaga -OutDir no fim (use -Keep para inspecionar).
-  Uso: powershell -ExecutionPolicy Bypass -File tools/voltz-smoke-project.ps1 [-OutDir <pasta>] [-Keep]
+  ISO (3B): as fontes de papel Tela/Camera sao trocadas por fontes substitutas de cor solida (2560x1440 e 1280x720,
+  numa cena que nunca vai ao programa) via VOLTZ_TEST_ISO_SCREEN/VOLTZ_TEST_ISO_CAMERA - nunca a tela real nem a webcam.
+  Antes de gravar confere por GetInputList que nao ha captura de monitor/janela/jogo nem dshow (aborta se houver).
+  Fecha o app e valida a pasta do projeto: programa.mp4, projeto.voltz (status ok, pausa, duracoes, tela/camera),
+  marcadores.json, cursor.jsonl (se existir) e, com ffprobe (so metadados), 3 faixas de audio + capitulos no programa e
+  resolucao, audio e duracao (+ offset) de tela.mkv/camera.mkv. Com -ProgramOnly ("Gravar so a versao montada")
+  confere que nao ha ISO.
+  Nao move o mouse nem digita. Audio global mutado. Apaga -OutDir no fim (use -Keep para inspecionar metadados).
+  Uso: powershell -ExecutionPolicy Bypass -File tools/voltz-smoke-project.ps1 [-OutDir <pasta>] [-Keep] [-ProgramOnly]
 #>
 param(
     [string]$Config = "RelWithDebInfo",
     [string]$OutDir = (Join-Path $env:TEMP "voltz-smoke-project"),
-    [switch]$Keep
+    [switch]$Keep,
+    [switch]$ProgramOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -64,7 +70,9 @@ $voltzCfg = Join-Path $cfg "Voltz Studio"
 $wsDir = Join-Path $voltzCfg "plugin_config\obs-websocket"
 New-Item -ItemType Directory -Force $wsDir | Out-Null
 [IO.File]::WriteAllText((Join-Path $wsDir "config.json"), '{"alerts_enabled":false,"auth_required":false,"first_load":false,"server_enabled":true,"server_password":"","server_port":4455}')
-[IO.File]::WriteAllText((Join-Path $voltzCfg "user.ini"), "[General]`r`nLanguage=pt-BR`r`nConfirmOnExit=false`r`n[Voltz]`r`nNextProjectName=Smoke projeto`r`n", (New-Object Text.UTF8Encoding $false))
+$voltzIni = "[Voltz]`r`nNextProjectName=Smoke projeto`r`n"
+if ($ProgramOnly) { $voltzIni += "ProgramOnly=true`r`n" }
+[IO.File]::WriteAllText((Join-Path $voltzCfg "user.ini"), "[General]`r`nLanguage=pt-BR`r`nConfirmOnExit=false`r`n" + $voltzIni, (New-Object Text.UTF8Encoding $false))
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 
 $ffprobe = (Get-Command ffprobe -ErrorAction SilentlyContinue | Select-Object -First 1).Source
@@ -75,6 +83,9 @@ if (-not $ffprobe) {
 
 $logCopy = Join-Path $env:TEMP "voltz-smoke-project-log.txt"
 if (Test-Path $logCopy) { Remove-Item -Force $logCopy }
+# ISO: fontes de papel = substitutas de cor solida (criadas abaixo); nunca a tela real nem a webcam
+$env:VOLTZ_TEST_ISO_SCREEN = "Tela substituta"
+$env:VOLTZ_TEST_ISO_CAMERA = "Camera substituta"
 $proc = Start-Process -FilePath $exe -ArgumentList '--portable', '--multi' -WorkingDirectory $bin -PassThru
 try {
     Start-Sleep -Seconds 15
@@ -85,8 +96,7 @@ try {
     $r = Ws ('[{"requestType":"SetProfileParameter","requestData":{"parameterCategory":"SimpleOutput","parameterName":"FilePath","parameterValue":' + (ConvertTo-Json $OutDir) + '}},' +
         '{"requestType":"GetSpecialInputs"},{"requestType":"GetHotkeyList"},' +
         '{"requestType":"CreateScene","requestData":{"sceneName":"Cena B"}},' +
-        '{"requestType":"CreateScene","requestData":{"sceneName":"Fontes de teste"}},' +
-        '{"requestType":"CreateInput","requestData":{"sceneName":"Fontes de teste","inputName":"Tela teste","inputKind":"monitor_capture","sceneItemEnabled":false}}]')
+        '{"requestType":"CreateScene","requestData":{"sceneName":"Fontes de teste"}}]')
     Check "pasta de gravacoes apontada para -OutDir" ($r.Count -ge 1 -and $r[0].ok)
     Check "atalho VoltzStudio.AddMarker registrado" ($r.Count -ge 3 -and (@($r[2].data.hotkeys) -contains "VoltzStudio.AddMarker"))
     $special = $r[1].data
@@ -96,11 +106,17 @@ try {
     }
     if ($mutes.Count -gt 0) { [void](Ws (ConvertTo-Json -InputObject $mutes -Depth 5 -Compress)) }
 
-    # "Tela teste": captura de monitor numa cena que nunca vai ao programa (item desativado) - so para o cursor
-    $items = (Ws '[{"requestType":"GetInputPropertiesListPropertyItems","requestData":{"inputName":"Tela teste","propertyName":"monitor_id"}}]')[0].data.propertyItems
-    $monitorId = (@($items) | Where-Object { $_.itemEnabled } | Select-Object -First 1).itemValue
-    Check "monitor para a Tela de teste" ([bool]$monitorId)
-    if ($monitorId) { [void](Ws ('[{"requestType":"SetInputSettings","requestData":{"inputName":"Tela teste","inputSettings":{"monitor_id":' + (ConvertTo-Json $monitorId) + '}}}]')) }
+    # Substitutas do ISO: cor solida numa cena que nunca vai ao programa (trocar de cena nao afeta o ISO)
+    $r = Ws ('[{"requestType":"CreateInput","requestData":{"sceneName":"Fontes de teste","inputName":"Tela substituta","inputKind":"color_source_v3","inputSettings":{"color":4278229248,"width":2560,"height":1440}}},' +
+        '{"requestType":"CreateInput","requestData":{"sceneName":"Fontes de teste","inputName":"Camera substituta","inputKind":"color_source_v3","inputSettings":{"color":4294901760,"width":1280,"height":720}}}]')
+    Check "fontes substitutas do ISO criadas" ($r.Count -eq 2 -and $r[0].ok -and $r[1].ok)
+    Start-Sleep -Seconds 2
+
+    # Seguranca: nenhuma captura de monitor/janela/jogo e nenhum dshow - senao aborta sem gravar
+    $inputs = @((Ws '[{"requestType":"GetInputList"}]')[0].data.inputs)
+    $unsafe = @($inputs | Where-Object { $_.inputKind -match 'monitor_capture|window_capture|game_capture|dshow' })
+    Check "seguranca: sem captura de tela/janela/jogo nem dshow ($($unsafe.Count))" ($unsafe.Count -eq 0)
+    if ($unsafe.Count -gt 0) { throw "entrada de captura real presente - abortando antes de gravar: $(($unsafe | ForEach-Object { $_.inputName }) -join ', ')" }
 
     $r = Ws '[{"requestType":"StartRecord"}]'
     Check "StartRecord" ($r.Count -eq 1 -and $r[0].ok)
@@ -128,9 +144,11 @@ try {
         if (-not $cleanExit) { Stop-Process -Id $proc.Id -Force }
     }
     Check "encerrou limpo ao fechar a janela" $cleanExit
+    Remove-Item Env:VOLTZ_TEST_ISO_SCREEN, Env:VOLTZ_TEST_ISO_CAMERA -ErrorAction SilentlyContinue
     $log = Get-ChildItem (Join-Path $voltzCfg "logs") -Filter *.txt -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime | Select-Object -Last 1
     if ($log) { Copy-Item $log.FullName $logCopy -Force }
+    Start-Sleep -Seconds 5
     if (Test-Path $cfg) { Remove-Item -Recurse -Force $cfg }
     if (Test-Path $bak) { Move-Item $bak $cfg }
 }
@@ -156,7 +174,18 @@ if ($projects.Count -eq 1) {
     $prog = Join-Path $dir ([string]$m.arquivos.programa.arquivo)
     Check "programa.mp4 existe e > 0" ($m.arquivos.programa.arquivo -eq "programa.mp4" -and (Test-Path -LiteralPath $prog) -and (Get-Item -LiteralPath $prog).Length -gt 0)
     Check "manifesto declara 3 faixas de audio" ($m.arquivos.programa.faixas_audio -eq 3)
-    Check "manifesto sem tela/camera (ficam para o 3B)" (-not $m.arquivos.tela -and -not $m.arquivos.camera)
+    $tela = $m.arquivos.tela
+    $camera = $m.arquivos.camera
+    if ($ProgramOnly) {
+        Check "so a versao montada: manifesto sem tela/camera" (-not $tela -and -not $camera)
+        Check "so a versao montada: sem tela.mkv/camera.mkv" (-not (Test-Path -LiteralPath (Join-Path $dir "tela.mkv")) -and -not (Test-Path -LiteralPath (Join-Path $dir "camera.mkv")))
+    } else {
+        Check "manifesto: tela.mkv 2560x1440 no fps do programa" ($tela -and $tela.arquivo -eq "tela.mkv" -and $tela.largura -eq 2560 -and $tela.altura -eq 1440 -and $tela.fps -eq $m.arquivos.programa.fps)
+        Check "manifesto: camera.mkv 1280x720" ($camera -and $camera.arquivo -eq "camera.mkv" -and $camera.largura -eq 1280 -and $camera.altura -eq 720)
+        Check "manifesto: offset_ms dos ISO entre 0 e 1000 ($($tela.offset_ms) / $($camera.offset_ms))" ($tela -and $camera -and $tela.offset_ms -ge 0 -and $tela.offset_ms -le 1000 -and $camera.offset_ms -ge 0 -and $camera.offset_ms -le 1000)
+        Check "manifesto: codificador dos ISO ($($tela.codificador))" ($tela -and $camera -and [bool]$tela.codificador -and [bool]$camera.codificador)
+        Check "manifesto: nenhum iso_falhou" (@(@($m.eventos) | Where-Object { $_.tipo -eq "iso_falhou" }).Count -eq 0)
+    }
     Check "nenhum arquivo .tmp sobrando" (@(Get-ChildItem -LiteralPath $dir -Filter *.tmp).Count -eq 0)
 
     $markers = @(Read-JsonFile (Join-Path $dir "marcadores.json"))
@@ -177,11 +206,22 @@ if ($projects.Count -eq 1) {
             if ($e.e -ne "fora" -and ($e.x -lt 0 -or $e.y -lt 0 -or $e.x -ge $w -or $e.y -ge $h)) { $cursorOk = $false; break }
         }
     }
-    Check "cursor.jsonl com >= 1 linha valida dentro da captura ($cursorLines linha(s))" ($cursorOk -and $cursorLines -ge 1)
+    # Sem captura de monitor (proibida nos smokes automaticos) nao ha cursor a registrar; se o arquivo existir, valida-o
+    if ($m.arquivos.cursor -or (Test-Path -LiteralPath $cursorFile)) {
+        Check "cursor.jsonl com >= 1 linha valida dentro da captura ($cursorLines linha(s))" ($cursorOk -and $cursorLines -ge 1)
+    } else {
+        Write-Host "AVISO sem captura de monitor nos smokes: cursor.jsonl nao gerado (nao verificado aqui)"
+    }
 
     Check "log: capitulos 'Marcador 1' e 'Marcador 2'" ((LogHas 'Adding chapter "Marcador 1"') -and (LogHas 'Adding chapter "Marcador 2"'))
     Check "log: projeto finalizado (ok" (LogHas '[voltz] projeto finalizado (ok')
     Check "log: sem 'a gravacao nao iniciou'" (-not (LogHas '[voltz] a gravacao nao iniciou'))
+    if ($ProgramOnly) {
+        Check "log: iso desligado" (LogHas '[voltz] iso: desligado')
+    } else {
+        Check "log: ISO pausados e retomados com o programa" ((LogHas 'output voltz-iso-tela paused') -and (LogHas 'output voltz-iso-tela unpaused') -and (LogHas 'output voltz-iso-camera paused') -and (LogHas 'output voltz-iso-camera unpaused'))
+        Check "log: fontes de teste do ISO usadas" (LogHas "[voltz] iso: fonte de teste 'Tela substituta'")
+    }
 
     if ($ffprobe) {
         $probe = (& $ffprobe -v error -show_entries "stream=codec_type:format=duration" -show_chapters -of json $prog) | Out-String | ConvertFrom-Json
@@ -197,6 +237,22 @@ if ($projects.Count -eq 1) {
             Check "ffprobe: capitulo 'Marcador 1' ~ marcador 1 +-700 ms" ([math]::Abs([double]$ch1.start_time * 1000 - $markers[0].t_ms) -le 700)
         } else {
             Check "ffprobe: capitulo 'Marcador 1' encontrado" $false
+        }
+        if (-not $ProgramOnly) {
+            $progDur = [double]$probe.format.duration
+            foreach ($iso in @(@{ f = "tela.mkv"; w = 2560; h = 1440; e = $tela }, @{ f = "camera.mkv"; w = 1280; h = 720; e = $camera })) {
+                $isoPath = Join-Path $dir $iso.f
+                if (-not (Test-Path -LiteralPath $isoPath) -or -not $iso.e) { Check "ffprobe: $($iso.f) existe" $false; continue }
+                # so metadados (nunca quadros)
+                $ip = (& $ffprobe -v error -show_entries "stream=codec_type,codec_name,width,height:format=duration" -of json $isoPath) | Out-String | ConvertFrom-Json
+                $v = @($ip.streams | Where-Object { $_.codec_type -eq "video" })
+                $a = @($ip.streams | Where-Object { $_.codec_type -eq "audio" })
+                Check "ffprobe: $($iso.f) 1 video $($iso.w)x$($iso.h) hevc/h264 + 1 audio aac" ($v.Count -eq 1 -and $v[0].width -eq $iso.w -and $v[0].height -eq $iso.h -and @("hevc", "h264") -contains $v[0].codec_name -and $a.Count -eq 1 -and $a[0].codec_name -eq "aac")
+                $isoDur = [double]$ip.format.duration
+                $gap = [math]::Abs($isoDur + [double]$iso.e.offset_ms / 1000.0 - $progDur)
+                Write-Host ("ffprobe $($iso.f): $($v[0].codec_name) $($v[0].width)x$($v[0].height) dur=$([math]::Round($isoDur, 3)) offset=$($iso.e.offset_ms) ms prog=$([math]::Round($progDur, 3)) diff=$([math]::Round($gap, 3)) s")
+                Check "ffprobe: $($iso.f) duracao + offset ~ programa +-0,5 s ($([math]::Round($isoDur, 2)) s + $($iso.e.offset_ms) ms x $([math]::Round($progDur, 2)) s)" ($gap -le 0.5)
+            }
         }
     } else {
         Write-Host "AVISO ffprobe nao encontrado: faixas/capitulos/duracao nao conferidos pelo ffprobe (use o log)"

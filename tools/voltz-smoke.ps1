@@ -22,7 +22,10 @@ $voltzVideos = Join-Path ([Environment]::GetFolderPath('MyVideos')) "Voltz Studi
 $hadVoltzVideos = Test-Path -LiteralPath $voltzVideos
 
 $cfg = Join-Path $rundir "config"
-if (Test-Path $cfg) { Remove-Item -Recurse -Force $cfg }
+# A config portatil existente e guardada e restaurada no fim (nunca apagada)
+$bak = Join-Path $rundir "config.smoke-bak"
+if (Test-Path $bak) { Write-Host "FALHOU backup anterior em $bak (restaure ou apague antes de rodar)"; exit 1 }
+if (Test-Path $cfg) { Move-Item $cfg $bak }
 
 $proc = Start-Process -FilePath $exe -ArgumentList '--portable', '--multi' -WorkingDirectory $bin -PassThru
 Start-Sleep -Seconds $Seconds
@@ -60,5 +63,10 @@ if (-not $hadVoltzVideos -and (Test-Path -LiteralPath $voltzVideos) -and -not (G
     Remove-Item -Force -LiteralPath $voltzVideos
     Write-Host "apagado (vazio): $voltzVideos"
 }
+# Restaura a config portatil original
+Start-Sleep -Seconds 5
+if (Test-Path $cfg) { Remove-Item -Recurse -Force $cfg }
+if (Test-Path $bak) { Move-Item $bak $cfg }
+
 if ($failed -gt 0) { exit 1 }
 Write-Host "SMOKE OK"

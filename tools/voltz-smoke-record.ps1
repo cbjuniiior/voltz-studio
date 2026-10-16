@@ -23,12 +23,15 @@ $voltzVideos = Join-Path ([Environment]::GetFolderPath('MyVideos')) "Voltz Studi
 $hadVoltzVideos = Test-Path -LiteralPath $voltzVideos
 
 $cfg = Join-Path $rundir "config"
-if (Test-Path $cfg) { Remove-Item -Recurse -Force $cfg }
+# A config portatil existente e guardada e restaurada no fim (nunca apagada)
+$bak = Join-Path $rundir "config.smokerecord-bak"
+if (Test-Path $bak) { Write-Host "FALHOU backup anterior em $bak (restaure ou apague antes de rodar)"; exit 1 }
+if (Test-Path $cfg) { Move-Item $cfg $bak }
 $voltzCfg = Join-Path $cfg "Voltz Studio"
 New-Item -ItemType Directory -Force $voltzCfg | Out-Null
 # Sem BOM; ConfirmOnExit=false evita o dialogo de confirmacao ao fechar gravando
 [System.IO.File]::WriteAllText((Join-Path $voltzCfg "user.ini"),
-    "[General]`r`nConfirmOnExit=false`r`n", (New-Object System.Text.UTF8Encoding $false))
+    "[General]`r`nConfirmOnExit=false`r`n[Voltz]`r`nProgramOnly=true`r`n", (New-Object System.Text.UTF8Encoding $false))
 
 # Passo de preparo: no OBS 32.2.2, Load() retorna cedo quando nao ha colecao de cenas e ignora
 # --startrecording (OBSBasic_SceneCollections.cpp). Uma abertura previa cria a cena padrao em disco.
@@ -114,6 +117,11 @@ if (-not $hadVoltzVideos -and (Test-Path -LiteralPath $voltzVideos) -and -not (G
     Remove-Item -Force -LiteralPath $voltzVideos
     Write-Host "apagado (vazio): $voltzVideos"
 }
+
+# Restaura a config portatil original (depois de ler o log e o manifesto; espera o app soltar os arquivos)
+Start-Sleep -Seconds 5
+if (Test-Path $cfg) { Remove-Item -Recurse -Force $cfg }
+if (Test-Path $bak) { Move-Item $bak $cfg }
 
 if ($failed -gt 0) { exit 1 }
 Write-Host "SMOKE GRAVACAO OK"

@@ -6,8 +6,10 @@ add_library(Voltz::core ALIAS voltz-core)
 target_sources(
   voltz-core
   PRIVATE
+    atomic-file.cpp
     preset-layout.cpp
     preview-fit.cpp
+    project-naming.cpp
     recording-clock.cpp
     recording-error.cpp
     recording-files.cpp
@@ -17,8 +19,10 @@ target_sources(
     time-format.cpp
     voltz-version.cpp
   PUBLIC
+    atomic-file.hpp
     preset-layout.hpp
     preview-fit.hpp
+    project-naming.hpp
     recording-clock.hpp
     recording-error.hpp
     recording-files.hpp

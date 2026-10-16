@@ -8,8 +8,10 @@ target_sources(
   voltz-core-tests
   PRIVATE
     test-main.cpp
+    test-atomic-file.cpp
     test-preset-layout.cpp
     test-preview-fit.cpp
+    test-project-naming.cpp
     test-recording-clock.cpp
     test-recording-error.cpp
     test-recording-files.cpp

@@ -1,0 +1,198 @@
+#include <doctest.h>
+
+#include <voltz/core/project-manifest.hpp>
+
+#include <string>
+
+using voltz::ManifestEvent;
+using voltz::PauseSpan;
+using voltz::ProjectManifest;
+using voltz::ProjectStatus;
+
+namespace {
+
+ProjectManifest sample()
+{
+	ProjectManifest m;
+	m.app = "Voltz Studio 1.0.0";
+	m.engine = "libobs 32.2.2";
+	m.name = "Aula 03 · Revisão";
+	m.createdAt = "2026-10-15T15:30:12-03:00";
+	m.status = ProjectStatus::Recording;
+	m.t0Ns = 123456789000;
+	m.durationMs = 90000;
+	m.pauses = {PauseSpan{61000, 75000}, PauseSpan{80000, -1}};
+	m.program.present = true;
+	m.program.file = "programa.mp4";
+	m.program.width = 1920;
+	m.program.height = 1080;
+	m.program.fps = 60;
+	m.program.audioTracks = 3;
+	m.cursor.present = true;
+	m.cursor.file = "cursor.jsonl";
+	m.cursor.width = 2560;
+	m.cursor.height = 1440;
+	m.cursor.origin.type = "monitor";
+	m.cursor.origin.id = "\\\\?\\DISPLAY#ABC";
+	m.cursor.origin.rect[0] = -2560;
+	m.cursor.origin.rect[1] = 0;
+	m.cursor.origin.rect[2] = 2560;
+	m.cursor.origin.rect[3] = 1440;
+	m.cursor.origin.scale = 1.25;
+	m.events = {ManifestEvent{90500, "camera_desconectada", "", 0}, ManifestEvent{1200, "erro_gravacao", "", -4}};
+	return m;
+}
+
+bool contains(const std::string &text, const std::string &part)
+{
+	return text.find(part) != std::string::npos;
+}
+
+} // namespace
+
+TEST_CASE("serializeManifest escreve o formato v1 da spec, na ordem da spec")
+{
+	const std::string json = voltz::serializeManifest(sample());
+	CHECK(contains(json, "\"formato\": \"voltz-projeto\""));
+	CHECK(contains(json, "\"versao\": 1"));
+	CHECK(contains(json, "\"nome\": \"Aula 03 · Revisão\""));
+	CHECK(contains(json, "\"status\": \"gravando\""));
+	CHECK(contains(json, "\"relogio\": \"obs_ns\""));
+	CHECK(contains(json, "\"t0_ns\": 123456789000"));
+	CHECK(contains(json, "\"duracao_liquida_ms\": 66000"));
+	CHECK(contains(json, "\"arquivo\": \"programa.mp4\""));
+	CHECK(contains(json, "\"fps\": 60,"));
+	CHECK(contains(json, "\"faixas_audio\": 3"));
+	CHECK(contains(json, "\"fim_ms\": null"));
+	CHECK(contains(json, "\"escala\": 1.25"));
+	CHECK(contains(json, "\"codigo\": -4"));
+	CHECK_FALSE(contains(json, "\"tela\""));
+	CHECK_FALSE(contains(json, "\"camera\""));
+	CHECK(json.find("\"formato\"") < json.find("\"versao\""));
+	CHECK(json.find("\"versao\"") < json.find("\"arquivos\""));
+	CHECK(json.find("\"arquivos\"") < json.find("\"eventos\""));
+}
+
+TEST_CASE("parseManifest lê de volta tudo o que serializeManifest escreveu")
+{
+	const ProjectManifest original = sample();
+	const voltz::ManifestParse parsed = voltz::parseManifest(voltz::serializeManifest(original));
+	REQUIRE(parsed.ok);
+	CHECK_FALSE(parsed.newerVersion);
+	const ProjectManifest &m = parsed.manifest;
+	CHECK(m.version == 1);
+	CHECK(m.app == original.app);
+	CHECK(m.engine == original.engine);
+	CHECK(m.name == original.name);
+	CHECK(m.createdAt == original.createdAt);
+	CHECK(m.status == ProjectStatus::Recording);
+	CHECK(m.t0Ns == original.t0Ns);
+	CHECK(m.durationMs == 90000);
+	REQUIRE(m.pauses.size() == 2);
+	CHECK(m.pauses[0].startMs == 61000);
+	CHECK(m.pauses[0].endMs == 75000);
+	CHECK(m.pauses[1].endMs == -1);
+	CHECK(m.program.present);
+	CHECK(m.program.file == "programa.mp4");
+	CHECK(m.program.width == 1920);
+	CHECK(m.program.height == 1080);
+	CHECK(m.program.fps == doctest::Approx(60.0));
+	CHECK(m.program.audioTracks == 3);
+	CHECK(m.cursor.present);
+	CHECK(m.cursor.width == 2560);
+	CHECK(m.cursor.origin.type == "monitor");
+	CHECK(m.cursor.origin.id == original.cursor.origin.id);
+	CHECK(m.cursor.origin.rect[0] == -2560);
+	CHECK(m.cursor.origin.rect[3] == 1440);
+	CHECK(m.cursor.origin.scale == doctest::Approx(1.25));
+	REQUIRE(m.events.size() == 2);
+	CHECK(m.events[0].type == "camera_desconectada");
+	CHECK(m.events[0].tMs == 90500);
+	CHECK(m.events[1].code == -4);
+}
+
+TEST_CASE("fps fracionário sai com até 3 casas e volta igual")
+{
+	ProjectManifest m = sample();
+	m.program.fps = 29.97002997;
+	const std::string json = voltz::serializeManifest(m);
+	CHECK(contains(json, "\"fps\": 29.97,"));
+	const voltz::ManifestParse parsed = voltz::parseManifest(json);
+	REQUIRE(parsed.ok);
+	CHECK(parsed.manifest.program.fps == doctest::Approx(29.97));
+}
+
+TEST_CASE("parseManifest tolera campos ausentes e tipos errados")
+{
+	const voltz::ManifestParse parsed = voltz::parseManifest(
+		R"({"formato":"voltz-projeto","nome":"X","duracao_ms":"muito","pausas":[{"inicio_ms":5},3],"arquivos":{"programa":"?"}})");
+	REQUIRE(parsed.ok);
+	CHECK(parsed.manifest.version == 1);
+	CHECK(parsed.manifest.name == "X");
+	CHECK(parsed.manifest.durationMs == 0);
+	REQUIRE(parsed.manifest.pauses.size() == 1);
+	CHECK(parsed.manifest.pauses[0].startMs == 5);
+	CHECK(parsed.manifest.pauses[0].endMs == -1);
+	CHECK_FALSE(parsed.manifest.program.present);
+	CHECK_FALSE(parsed.manifest.cursor.present);
+	CHECK(parsed.manifest.status == ProjectStatus::Failed);
+}
+
+TEST_CASE("parseManifest rejeita JSON inválido e outro formato")
+{
+	CHECK_FALSE(voltz::parseManifest("").ok);
+	CHECK_FALSE(voltz::parseManifest("{").ok);
+	CHECK_FALSE(voltz::parseManifest("[]").ok);
+	CHECK_FALSE(voltz::parseManifest(R"({"formato":"outro","versao":1})").ok);
+}
+
+TEST_CASE("versão mais nova é lida e campos desconhecidos sobrevivem à reescrita")
+{
+	const std::string future = R"({"formato":"voltz-projeto","versao":2,"nome":"Antigo","status":"ok",
+		"arquivos":{"programa":{"arquivo":"programa.mp4"},"tela":{"arquivo":"tela.mkv","largura":2560}},
+		"mouse":{"halo":{"ativo":true}},"novidade":[1,2,3]})";
+	voltz::ManifestParse parsed = voltz::parseManifest(future);
+	REQUIRE(parsed.ok);
+	CHECK(parsed.newerVersion);
+	CHECK(parsed.manifest.version == 2);
+	CHECK(parsed.manifest.status == ProjectStatus::Ok);
+	parsed.manifest.name = "Novo";
+	const std::string rewritten = voltz::serializeManifest(parsed.manifest);
+	CHECK(contains(rewritten, "\"nome\": \"Novo\""));
+	CHECK(contains(rewritten, "\"tela.mkv\""));
+	CHECK(contains(rewritten, "\"halo\""));
+	CHECK(contains(rewritten, "\"novidade\""));
+	CHECK(contains(rewritten, "\"versao\": 2"));
+}
+
+TEST_CASE("status usa os textos da spec; desconhecido vira falhou")
+{
+	CHECK(std::string(voltz::statusToString(ProjectStatus::Recording)) == "gravando");
+	CHECK(std::string(voltz::statusToString(ProjectStatus::Ok)) == "ok");
+	CHECK(std::string(voltz::statusToString(ProjectStatus::Recovered)) == "recuperado");
+	CHECK(std::string(voltz::statusToString(ProjectStatus::Failed)) == "falhou");
+	CHECK(voltz::statusFromString("gravando") == ProjectStatus::Recording);
+	CHECK(voltz::statusFromString("recuperado") == ProjectStatus::Recovered);
+	CHECK(voltz::statusFromString("xyz") == ProjectStatus::Failed);
+}
+
+TEST_CASE("recoverManifest usa o maior entre pulsação e arquivo e fecha a pausa aberta")
+{
+	ProjectManifest m;
+	m.status = ProjectStatus::Recording;
+	m.durationMs = 30000;
+	m.pauses = {PauseSpan{20000, -1}};
+	voltz::recoverManifest(m, 42000);
+	CHECK(m.status == ProjectStatus::Recovered);
+	CHECK(m.durationMs == 42000);
+	CHECK(m.pauses[0].endMs == 42000);
+	REQUIRE_FALSE(m.events.empty());
+	CHECK(m.events.back().type == "recuperado");
+	CHECK(m.events.back().tMs == 42000);
+	CHECK(voltz::manifestNetDurationMs(m) == 20000);
+
+	ProjectManifest heartbeatOnly;
+	heartbeatOnly.durationMs = 5000;
+	voltz::recoverManifest(heartbeatOnly, -10);
+	CHECK(heartbeatOnly.durationMs == 5000);
+}

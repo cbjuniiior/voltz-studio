@@ -11,7 +11,10 @@ target_sources(
     test-atomic-file.cpp
     test-preset-layout.cpp
     test-preview-fit.cpp
+    test-project-manifest.cpp
+    test-project-markers.cpp
     test-project-naming.cpp
+    test-project-timeline.cpp
     test-recording-clock.cpp
     test-recording-error.cpp
     test-recording-files.cpp

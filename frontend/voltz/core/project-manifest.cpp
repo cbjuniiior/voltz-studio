@@ -1,0 +1,270 @@
+#include "project-manifest.hpp"
+
+#include <nlohmann/json.hpp>
+
+#include <algorithm>
+#include <cmath>
+#include <utility>
+
+namespace voltz {
+
+namespace {
+
+using Json = nlohmann::ordered_json;
+
+int64_t getInt(const Json &object, const char *key, int64_t fallback)
+{
+	const auto it = object.find(key);
+	if (it == object.end()) {
+		return fallback;
+	}
+	if (it->is_number_integer()) {
+		return it->get<int64_t>();
+	}
+	if (it->is_number_float()) {
+		return static_cast<int64_t>(std::llround(it->get<double>()));
+	}
+	return fallback;
+}
+
+double getDouble(const Json &object, const char *key, double fallback)
+{
+	const auto it = object.find(key);
+	return it != object.end() && it->is_number() ? it->get<double>() : fallback;
+}
+
+std::string getString(const Json &object, const char *key)
+{
+	const auto it = object.find(key);
+	return it != object.end() && it->is_string() ? it->get<std::string>() : std::string();
+}
+
+// Filho objeto (wantArray = false) ou lista (true); nulo se ausente ou de outro tipo.
+const Json *getChild(const Json &object, const char *key, bool wantArray)
+{
+	const auto it = object.find(key);
+	if (it == object.end()) {
+		return nullptr;
+	}
+	if (wantArray ? it->is_array() : it->is_object()) {
+		return &*it;
+	}
+	return nullptr;
+}
+
+Json fpsValue(double fps)
+{
+	const double rounded = std::round(fps * 1000.0) / 1000.0;
+	if (std::floor(rounded) == rounded) {
+		return Json(static_cast<int64_t>(rounded));
+	}
+	return Json(rounded);
+}
+
+} // namespace
+
+const char *statusToString(ProjectStatus status)
+{
+	switch (status) {
+	case ProjectStatus::Recording:
+		return "gravando";
+	case ProjectStatus::Ok:
+		return "ok";
+	case ProjectStatus::Recovered:
+		return "recuperado";
+	case ProjectStatus::Failed:
+		break;
+	}
+	return "falhou";
+}
+
+ProjectStatus statusFromString(const std::string &text)
+{
+	if (text == "gravando") {
+		return ProjectStatus::Recording;
+	}
+	if (text == "ok") {
+		return ProjectStatus::Ok;
+	}
+	if (text == "recuperado") {
+		return ProjectStatus::Recovered;
+	}
+	return ProjectStatus::Failed;
+}
+
+int64_t manifestNetDurationMs(const ProjectManifest &manifest)
+{
+	return netDuration(manifest.durationMs, manifest.pauses);
+}
+
+std::string serializeManifest(const ProjectManifest &m)
+{
+	Json root = Json::object();
+	if (!m.preservedJson.empty()) {
+		Json base = Json::parse(m.preservedJson, nullptr, false);
+		if (base.is_object()) {
+			root = std::move(base);
+		}
+	}
+	root["formato"] = "voltz-projeto";
+	root["versao"] = m.version;
+	root["app"] = m.app;
+	root["motor"] = m.engine;
+	root["nome"] = m.name;
+	root["criado_em"] = m.createdAt;
+	root["status"] = statusToString(m.status);
+	root["relogio"] = "obs_ns";
+	root["t0_ns"] = m.t0Ns;
+	root["duracao_ms"] = m.durationMs;
+	root["duracao_liquida_ms"] = manifestNetDurationMs(m);
+
+	Json pauses = Json::array();
+	for (const PauseSpan &pause : m.pauses) {
+		Json item = Json::object();
+		item["inicio_ms"] = pause.startMs;
+		item["fim_ms"] = pause.endMs < 0 ? Json(nullptr) : Json(pause.endMs);
+		pauses.push_back(std::move(item));
+	}
+	root["pausas"] = std::move(pauses);
+
+	if (!root.contains("arquivos") || !root["arquivos"].is_object()) {
+		root["arquivos"] = Json::object();
+	}
+	Json &files = root["arquivos"];
+	if (m.program.present) {
+		Json program = Json::object();
+		program["arquivo"] = m.program.file;
+		program["largura"] = m.program.width;
+		program["altura"] = m.program.height;
+		program["fps"] = fpsValue(m.program.fps);
+		program["offset_ms"] = m.program.offsetMs;
+		program["faixas_audio"] = m.program.audioTracks;
+		files["programa"] = std::move(program);
+	}
+	if (m.cursor.present) {
+		Json origin = Json::object();
+		origin["tipo"] = m.cursor.origin.type;
+		origin["id"] = m.cursor.origin.id;
+		origin["retangulo"] = Json::array({m.cursor.origin.rect[0], m.cursor.origin.rect[1],
+						   m.cursor.origin.rect[2], m.cursor.origin.rect[3]});
+		origin["escala"] = m.cursor.origin.scale;
+		Json cursor = Json::object();
+		cursor["arquivo"] = m.cursor.file;
+		cursor["largura"] = m.cursor.width;
+		cursor["altura"] = m.cursor.height;
+		cursor["origem"] = std::move(origin);
+		files["cursor"] = std::move(cursor);
+	}
+
+	Json events = Json::array();
+	for (const ManifestEvent &event : m.events) {
+		Json item = Json::object();
+		item["t_ms"] = event.tMs;
+		item["tipo"] = event.type;
+		if (!event.track.empty()) {
+			item["faixa"] = event.track;
+		}
+		if (event.code != 0) {
+			item["codigo"] = event.code;
+		}
+		events.push_back(std::move(item));
+	}
+	root["eventos"] = std::move(events);
+
+	return root.dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
+}
+
+ManifestParse parseManifest(const std::string &text)
+{
+	ManifestParse result;
+	const Json root = Json::parse(text, nullptr, false);
+	if (root.is_discarded() || !root.is_object()) {
+		result.error = "JSON invalido";
+		return result;
+	}
+	if (getString(root, "formato") != "voltz-projeto") {
+		result.error = "formato desconhecido";
+		return result;
+	}
+
+	ProjectManifest &m = result.manifest;
+	m.version = static_cast<int>(getInt(root, "versao", kManifestVersion));
+	result.newerVersion = m.version > kManifestVersion;
+	m.app = getString(root, "app");
+	m.engine = getString(root, "motor");
+	m.name = getString(root, "nome");
+	m.createdAt = getString(root, "criado_em");
+	m.status = statusFromString(getString(root, "status"));
+	m.t0Ns = getInt(root, "t0_ns", 0);
+	m.durationMs = getInt(root, "duracao_ms", 0);
+
+	if (const Json *pauses = getChild(root, "pausas", true)) {
+		for (const Json &item : *pauses) {
+			if (!item.is_object()) {
+				continue;
+			}
+			m.pauses.push_back(PauseSpan{getInt(item, "inicio_ms", 0), getInt(item, "fim_ms", -1)});
+		}
+	}
+
+	if (const Json *files = getChild(root, "arquivos", false)) {
+		if (const Json *program = getChild(*files, "programa", false)) {
+			m.program.present = true;
+			m.program.file = getString(*program, "arquivo");
+			m.program.width = static_cast<int>(getInt(*program, "largura", 0));
+			m.program.height = static_cast<int>(getInt(*program, "altura", 0));
+			m.program.fps = getDouble(*program, "fps", 0.0);
+			m.program.offsetMs = getInt(*program, "offset_ms", 0);
+			m.program.audioTracks = static_cast<int>(getInt(*program, "faixas_audio", 0));
+		}
+		if (const Json *cursor = getChild(*files, "cursor", false)) {
+			m.cursor.present = true;
+			m.cursor.file = getString(*cursor, "arquivo");
+			m.cursor.width = static_cast<int>(getInt(*cursor, "largura", 0));
+			m.cursor.height = static_cast<int>(getInt(*cursor, "altura", 0));
+			if (const Json *origin = getChild(*cursor, "origem", false)) {
+				m.cursor.origin.type = getString(*origin, "tipo");
+				m.cursor.origin.id = getString(*origin, "id");
+				m.cursor.origin.scale = getDouble(*origin, "escala", 1.0);
+				if (const Json *rect = getChild(*origin, "retangulo", true)) {
+					for (size_t i = 0; i < 4 && i < rect->size(); i++) {
+						if ((*rect)[i].is_number()) {
+							m.cursor.origin.rect[i] =
+								static_cast<int>((*rect)[i].get<int64_t>());
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (const Json *events = getChild(root, "eventos", true)) {
+		for (const Json &item : *events) {
+			if (!item.is_object()) {
+				continue;
+			}
+			m.events.push_back(ManifestEvent{getInt(item, "t_ms", 0), getString(item, "tipo"),
+							 getString(item, "faixa"),
+							 static_cast<int>(getInt(item, "codigo", 0))});
+		}
+	}
+
+	m.preservedJson = text;
+	result.ok = true;
+	return result;
+}
+
+void recoverManifest(ProjectManifest &manifest, int64_t fileElapsedMs)
+{
+	const int64_t gross = std::max<int64_t>(manifest.durationMs, std::max<int64_t>(0, fileElapsedMs));
+	manifest.durationMs = gross;
+	for (PauseSpan &pause : manifest.pauses) {
+		if (pause.endMs < 0) {
+			pause.endMs = std::max(pause.startMs, gross);
+		}
+	}
+	manifest.status = ProjectStatus::Recovered;
+	manifest.events.push_back(ManifestEvent{gross, "recuperado", "", 0});
+}
+
+} // namespace voltz

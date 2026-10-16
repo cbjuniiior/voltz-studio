@@ -26,6 +26,14 @@
     --grey7: #09090B;
     --grey8: #050506;
 
+    /* Escala azul do Yami (usada direto em varias regras): troca por oliva/lima */
+    --blue1: #D4F53C;
+    --blue2: #556122;
+    --blue3: #444C1E;
+    --blue4: #343A1B;
+    --blue5: #282C19;
+    --blue6: #1F2314;
+
     --bg_window: var(--grey7);
     --bg_base: var(--grey6);
     --bg_preview: var(--grey8);
@@ -109,4 +117,15 @@ VolumeMeter {
 .btn-monitor.checked:hover {
     background: var(--primary_light);
     border-color: var(--voltz_accent);
+}
+
+/* Etiqueta de categoria do mixer (Global): discreta, sem o azul do Yami */
+VolumeControl .mixer-category {
+    background: #18181C;
+    color: var(--voltz_muted);
+}
+
+VolumeControl.volume-pinned .mixer-category {
+    background: var(--primary_darker);
+    color: var(--voltz_text);
 }

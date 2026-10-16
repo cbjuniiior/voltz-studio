@@ -23,6 +23,12 @@ public:
 	static void setQuality(RecordingQuality quality);
 	// RecEncoder escolhido automaticamente (AMD → NVIDIA → Intel → x264) entre os encoders registrados.
 	static std::string automaticEncoder();
+	// Ids de todos os encoders registrados no libobs (obs_enum_encoder_types).
+	static std::vector<std::string> registeredEncoderIds();
+	// Ajustes › Gravação › "Gravar só a versão montada" (user.ini [Voltz] ProgramOnly; padrão desligado): sem os ISO
+	// tela.mkv/camera.mkv (spec §4.3).
+	static bool programOnly();
+	static void setProgramOnly(bool programOnly);
 	static std::string currentEncoder();
 	// RecQuality "Stream" (padrão do OBS): a gravação reusa o codificador da transmissão (StreamEncoder).
 	static bool recordsWithStreamEncoder();
@@ -48,7 +54,8 @@ public:
 	// "Vídeos\Voltz Studio" onde SimpleOutput/FilePath e AdvOut/RecFilePath ainda estão no padrão do OBS, e 3 faixas
 	// (mix, mic, sistema) se SimpleOutput/RecTracks ainda é o padrão. Cria a pasta Voltz quando ela é a pasta em uso.
 	static void applyProjectDefaults();
-	// Estimativa de bytes por minuto com a configuração atual (antes de haver medição real).
+	// Estimativa de bytes por minuto com a configuração atual (antes de haver medição real): programa + ISO das fontes
+	// compartilhadas Tela/Câmera com imagem, se "Gravar só a versão montada" estiver desligado.
 	static uint64_t estimatedBytesPerMinute();
 
 private:

@@ -1,7 +1,9 @@
 #include "RecordingConfig.hpp"
+#include "SharedSources.hpp"
 
 #include <widgets/OBSBasic.hpp>
 #include <utility/platform.hpp> // GetDefaultVideoSavePath
+#include <OBSApp.hpp>           // App()
 
 #include <voltz/core/disk-space.hpp>
 
@@ -106,7 +108,7 @@ void RecordingConfig::setQuality(RecordingQuality quality)
 	commit(true);
 }
 
-std::string RecordingConfig::automaticEncoder()
+std::vector<std::string> RecordingConfig::registeredEncoderIds()
 {
 	std::vector<std::string> ids;
 	const char *id = nullptr;
@@ -115,7 +117,25 @@ std::string RecordingConfig::automaticEncoder()
 			ids.emplace_back(id);
 		}
 	}
-	return pickRecEncoder(ids);
+	return ids;
+}
+
+std::string RecordingConfig::automaticEncoder()
+{
+	return pickRecEncoder(registeredEncoderIds());
+}
+
+bool RecordingConfig::programOnly()
+{
+	config_t *user = App()->GetUserConfig();
+	return config_has_user_value(user, "Voltz", "ProgramOnly") && config_get_bool(user, "Voltz", "ProgramOnly");
+}
+
+void RecordingConfig::setProgramOnly(bool programOnly)
+{
+	config_set_bool(App()->GetUserConfig(), "Voltz", "ProgramOnly", programOnly);
+	config_save_safe(App()->GetUserConfig(), "tmp", nullptr);
+	blog(LOG_INFO, "[voltz] gravar so a versao montada: %s", programOnly ? "sim" : "nao");
 }
 
 std::string RecordingConfig::currentEncoder()
@@ -221,7 +241,28 @@ uint64_t RecordingConfig::estimatedBytesPerMinute()
 		input.compact = quality == "Small";
 		input.streamKbps = static_cast<int>(config_get_int(profile(), "SimpleOutput", "VBitrate"));
 	}
-	return estimateBytesPerMinute(input);
+	uint64_t total = estimateBytesPerMinute(input);
+	if (programOnly()) {
+		return total;
+	}
+	/* ISO (Plano 3B): um arquivo por fonte de papel com imagem, na resolução da fonte, no fps do programa, com 1
+	 * faixa AAC de 160 kbps. Qualidade "Alta" sempre (o ISO grava acima do programa). */
+	for (SharedSource role : {SharedSource::Screen, SharedSource::Camera}) {
+		OBSSource source = findSharedSource(role);
+		const uint32_t width = source ? obs_source_get_width(source) : 0;
+		const uint32_t height = source ? obs_source_get_height(source) : 0;
+		if (width < 2 || height < 2) {
+			continue;
+		}
+		RateInput iso;
+		iso.width = static_cast<int>(width);
+		iso.height = static_cast<int>(height);
+		iso.fps = input.fps;
+		iso.audioTracks = 1;
+		iso.audioKbps = 160;
+		total += estimateBytesPerMinute(iso);
+	}
+	return total;
 }
 
 void ProfileOverride::set(const char *section, const char *key, const std::string &value)

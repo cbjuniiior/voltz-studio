@@ -240,6 +240,19 @@ QFrame *SettingsPage::buildRecordingSection()
 	form.addRow(formLabel(QTStr("Voltz.Settings.Encoder"), recording_), encoder_);
 	body->addLayout(form.layout());
 
+	programOnly_ = new QCheckBox(QTStr("Voltz.Settings.ProgramOnly"), recording_);
+	auto *programOnlyHint = new QLabel(QTStr("Voltz.Settings.ProgramOnly.Hint"), recording_);
+	programOnlyHint->setObjectName("muted");
+	programOnlyHint->setWordWrap(true);
+	body->addSpacing(4);
+	body->addWidget(programOnly_);
+	body->addWidget(programOnlyHint);
+	connect(programOnly_, &QCheckBox::toggled, this, [this](bool checked) {
+		if (!loading_) {
+			RecordingConfig::setProgramOnly(checked);
+		}
+	});
+
 	connect(changeFolder_, &QPushButton::clicked, this, [this]() {
 		const QString chosen = QFileDialog::getExistingDirectory(this, QTStr("Voltz.Settings.Folder"),
 									 RecordingConfig::folder());
@@ -372,6 +385,7 @@ void SettingsPage::loadRecording()
 	format_->setCurrentIndex(format_->findData(int(RecordingConfig::format())));
 	quality_->setCurrentIndex(quality_->findData(int(RecordingConfig::quality())));
 	encoder_->setText(encoderLabel());
+	programOnly_->setChecked(RecordingConfig::programOnly());
 	loading_ = false;
 
 	setRecordingLocked(bridge_->isRecording());
@@ -383,6 +397,8 @@ void SettingsPage::setRecordingLocked(bool locked)
 	changeFolder_->setEnabled(editable);
 	format_->setEnabled(editable);
 	quality_->setEnabled(editable);
+	/* Vale também no modo Avançado (o ISO não depende do modo de saída); só trava durante a gravação. */
+	programOnly_->setEnabled(!locked);
 	if (locked) {
 		recordingNotice_->setText(QTStr("Voltz.Settings.LockedWhileRecording"));
 		recordingNotice_->show();

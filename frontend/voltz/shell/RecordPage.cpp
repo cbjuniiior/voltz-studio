@@ -69,8 +69,11 @@ RecordPage::RecordPage(FrontendBridge *bridge, ProjectRecorder *recorder, QWidge
 	errorBanner_ = new ErrorBanner(this);
 	diskBanner_ = new ErrorBanner(this);
 	diskBanner_->setWarning(true);
+	isoBanner_ = new ErrorBanner(this);
+	isoBanner_->setWarning(true);
 	centerColumn->addWidget(errorBanner_);
 	centerColumn->addWidget(diskBanner_);
+	centerColumn->addWidget(isoBanner_);
 	centerColumn->addWidget(preview_, 1);
 
 	auto *sideHolder = new QWidget(this);
@@ -172,7 +175,10 @@ RecordPage::RecordPage(FrontendBridge *bridge, ProjectRecorder *recorder, QWidge
 	connect(recorder_, &ProjectRecorder::projectStarted, this, [this](const QString &, const QString &name) {
 		const QSignalBlocker blocker(projectName_);
 		projectName_->setEditText(name);
+		isoFailures_.clear();
+		isoBanner_->hide();
 	});
+	connect(recorder_, &ProjectRecorder::isoFailed, this, &RecordPage::showIsoFailure);
 	connect(recorder_, &ProjectRecorder::projectFinished, this, [this](const QString &, const QString &) {
 		reloadProjectNames();
 		refreshDiskInfo();
@@ -341,6 +347,22 @@ void RecordPage::refreshDiskInfo()
 		diskBanner_->showError(QTStr("Voltz.Disk.Low.Title"),
 				       QTStr("Voltz.Disk.Low.Text").arg(freeSpaceText(free)));
 	}
+}
+
+void RecordPage::showIsoFailure(const QString &track, const QString &reason)
+{
+	const QString item = QTStr("Voltz.Iso.Failed.Item")
+				     .arg(QTStr(qUtf8Printable(QStringLiteral("Voltz.Iso.Track.") + track)),
+					  QTStr(qUtf8Printable(QStringLiteral("Voltz.Iso.Reason.") + reason)));
+	if (!isoFailures_.contains(item)) {
+		isoFailures_.append(item);
+	}
+	/* spec §5.4: sem nenhum ISO gravando, "gravando só a versão montada". */
+	const QString title = recorder_->runningIsoCount() == 0 ? QTStr("Voltz.Iso.Off.Title")
+								: QTStr("Voltz.Iso.Partial.Title");
+	isoBanner_->showError(
+		title, QTStr("Voltz.Iso.Failed.Text").arg(isoFailures_.join(QStringLiteral(", ")).toHtmlEscaped()));
+	blog(LOG_INFO, "[voltz] aviso de ISO: %s (%s)", qUtf8Printable(track), qUtf8Printable(reason));
 }
 
 } // namespace voltz

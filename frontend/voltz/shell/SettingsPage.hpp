@@ -46,6 +46,7 @@ private:
 	QComboBox *format_ = nullptr;
 	QComboBox *quality_ = nullptr;
 	QLabel *encoder_ = nullptr;
+	QCheckBox *programOnly_ = nullptr;
 	DeviceSelector *monitor_ = nullptr;
 	DeviceSelector *camera_ = nullptr;
 	DeviceSelector *microphone_ = nullptr;

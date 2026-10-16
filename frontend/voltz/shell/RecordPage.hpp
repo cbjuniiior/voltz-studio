@@ -3,6 +3,7 @@
 #include <voltz/core/recording-clock.hpp>
 
 #include <QElapsedTimer>
+#include <QStringList>
 #include <QTimer>
 #include <QWidget>
 
@@ -38,6 +39,7 @@ private:
 	void reloadProjectNames();
 	void commitProjectName();
 	void refreshDiskInfo();
+	void showIsoFailure(const QString &track, const QString &reason);
 
 	FrontendBridge *bridge_;
 	ProjectRecorder *recorder_;
@@ -45,6 +47,7 @@ private:
 	VoltzPreview *preview_ = nullptr;
 	ErrorBanner *errorBanner_ = nullptr;
 	ErrorBanner *diskBanner_ = nullptr;
+	ErrorBanner *isoBanner_ = nullptr;
 	QComboBox *projectName_ = nullptr;
 	QPushButton *markerButton_ = nullptr;
 	QPushButton *pauseButton_ = nullptr;
@@ -60,6 +63,8 @@ private:
 	RecordingClock recordingClock_;
 	bool pendingStart_ = false;
 	bool diskBannerDismissed_ = false;
+	// Faixas ISO que falharam no projeto atual ("a câmera (motivo)"), na ordem em que falharam.
+	QStringList isoFailures_;
 };
 
 } // namespace voltz

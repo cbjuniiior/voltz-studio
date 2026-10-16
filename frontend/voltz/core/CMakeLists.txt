@@ -12,6 +12,7 @@ target_sources(
     recording-error.cpp
     recording-files.cpp
     recording-settings.cpp
+    source-tree.cpp
     svg-recolor.cpp
     time-format.cpp
     voltz-version.cpp
@@ -22,6 +23,7 @@ target_sources(
     recording-error.hpp
     recording-files.hpp
     recording-settings.hpp
+    source-tree.hpp
     svg-recolor.hpp
     time-format.hpp
     voltz-version.hpp

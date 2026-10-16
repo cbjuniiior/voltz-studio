@@ -4,6 +4,7 @@
 
 #include <obs.h>
 
+#include <QAbstractButton>
 #include <QFile>
 #include <QFontDatabase>
 #include <QHash>
@@ -140,6 +141,12 @@ QIcon phosphorToggleIcon(const QString &name, const QColor &off, const QColor &o
 {
 	return QIcon(new PhosphorIconEngine(recoloredSvg(name, off, IconWeight::Regular),
 					    recoloredSvg(name, on, IconWeight::Fill)));
+}
+
+void setButtonHint(QAbstractButton *button, const QString &hint, const QString &context)
+{
+	button->setToolTip(hint);
+	button->setAccessibleName(context.isEmpty() ? hint : hint + QStringLiteral(" \u2014 ") + context);
 }
 
 void loadShellFonts()

@@ -4,6 +4,8 @@
 #include <QIcon>
 #include <QString>
 
+class QAbstractButton;
+
 namespace voltz {
 
 namespace palette {
@@ -21,6 +23,10 @@ QIcon phosphorIcon(const QString &name, const QColor &color, IconWeight weight =
 
 // Ícone de dois estados para botões checáveis: Off = Regular na cor `off`, On = Fill na cor `on`.
 QIcon phosphorToggleIcon(const QString &name, const QColor &off, const QColor &on);
+
+// Botão só com ícone: a dica vira também o nome acessível (leitores de tela e UI Automation usam o nome).
+// `context` (ex. nome da fonte) entra só no nome acessível: "Mostrar/ocultar — Tela".
+void setButtonHint(QAbstractButton *button, const QString &hint, const QString &context = QString());
 
 // Registra a DM Sans (4 pesos) no QFontDatabase. Idempotente.
 void loadShellFonts();

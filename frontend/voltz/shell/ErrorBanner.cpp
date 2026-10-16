@@ -36,7 +36,7 @@ ErrorBanner::ErrorBanner(QWidget *parent) : QFrame(parent)
 	close->setObjectName("iconButton");
 	close->setIcon(phosphorIcon(QStringLiteral("x"), palette::kMuted));
 	close->setIconSize(QSize(16, 16));
-	close->setToolTip(QTStr("Voltz.Error.Dismiss"));
+	setButtonHint(close, QTStr("Voltz.Error.Dismiss"));
 	connect(close, &QToolButton::clicked, this, &QWidget::hide);
 
 	auto *layout = new QHBoxLayout(this);

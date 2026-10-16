@@ -7,12 +7,14 @@
     <file>fonts/DMSans-Bold.ttf</file>
     <file>icons/fill/app-window-fill.svg</file>
     <file>icons/fill/caret-down-fill.svg</file>
+    <file>icons/fill/caret-right-fill.svg</file>
     <file>icons/fill/caret-up-fill.svg</file>
     <file>icons/fill/eye-fill.svg</file>
     <file>icons/fill/eye-slash-fill.svg</file>
     <file>icons/fill/faders-fill.svg</file>
     <file>icons/fill/folder-simple-fill.svg</file>
     <file>icons/fill/gear-six-fill.svg</file>
+    <file>icons/fill/headphones-fill.svg</file>
     <file>icons/fill/image-fill.svg</file>
     <file>icons/fill/lock-simple-fill.svg</file>
     <file>icons/fill/lock-simple-open-fill.svg</file>
@@ -24,7 +26,9 @@
     <file>icons/fill/record-fill.svg</file>
     <file>icons/fill/sliders-horizontal-fill.svg</file>
     <file>icons/fill/speaker-high-fill.svg</file>
+    <file>icons/fill/speaker-slash-fill.svg</file>
     <file>icons/fill/squares-four-fill.svg</file>
+    <file>icons/fill/stack-fill.svg</file>
     <file>icons/fill/stop-fill.svg</file>
     <file>icons/fill/text-t-fill.svg</file>
     <file>icons/fill/trash-fill.svg</file>
@@ -34,6 +38,7 @@
     <file>icons/fill/x-fill.svg</file>
     <file>icons/regular/app-window.svg</file>
     <file>icons/regular/caret-down.svg</file>
+    <file>icons/regular/caret-right.svg</file>
     <file>icons/regular/caret-up.svg</file>
     <file>icons/regular/eye-slash.svg</file>
     <file>icons/regular/eye.svg</file>
@@ -41,6 +46,7 @@
     <file>icons/regular/film-strip.svg</file>
     <file>icons/regular/folder-simple.svg</file>
     <file>icons/regular/gear-six.svg</file>
+    <file>icons/regular/headphones.svg</file>
     <file>icons/regular/image.svg</file>
     <file>icons/regular/lock-simple-open.svg</file>
     <file>icons/regular/lock-simple.svg</file>
@@ -52,7 +58,9 @@
     <file>icons/regular/record.svg</file>
     <file>icons/regular/sliders-horizontal.svg</file>
     <file>icons/regular/speaker-high.svg</file>
+    <file>icons/regular/speaker-slash.svg</file>
     <file>icons/regular/squares-four.svg</file>
+    <file>icons/regular/stack.svg</file>
     <file>icons/regular/stop.svg</file>
     <file>icons/regular/text-t.svg</file>
     <file>icons/regular/trash.svg</file>

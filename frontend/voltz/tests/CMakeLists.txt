@@ -14,6 +14,7 @@ target_sources(
     test-recording-error.cpp
     test-recording-files.cpp
     test-recording-settings.cpp
+    test-source-tree.cpp
     test-svg-recolor.cpp
     test-time-format.cpp
     test-version.cpp

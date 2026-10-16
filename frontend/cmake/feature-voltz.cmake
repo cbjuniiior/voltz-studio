@@ -22,6 +22,8 @@ target_compile_definitions(
 target_sources(
   obs-studio
   PRIVATE
+    voltz/project/ProjectRecorder.cpp
+    voltz/project/ProjectRecorder.hpp
     voltz/shell/AudioPanel.cpp
     voltz/shell/AudioPanel.hpp
     voltz/shell/ErrorBanner.cpp

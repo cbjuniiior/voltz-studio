@@ -13,6 +13,7 @@
 #include <widgets/OBSBasic.hpp>
 #include <widgets/OBSQTDisplay.hpp>
 #include <voltz/core/voltz-version.hpp>
+#include <voltz/project/ProjectRecorder.hpp>
 
 #include <obs.h>
 
@@ -65,6 +66,9 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 	setStyleSheet(shellStyleSheet());
 
 	bridge_ = new FrontendBridge(this);
+	/* Criado depois da ponte: os callbacks do frontend rodam do último registrado para o primeiro
+	 * (OBSStudioAPI::on_event), então o projeto já está atualizado quando a ponte avisa a casca. */
+	recorder_ = new ProjectRecorder(this);
 
 	pages_ = new QStackedWidget(this);
 	pages_->addWidget(new RecordPage(bridge_, pages_));

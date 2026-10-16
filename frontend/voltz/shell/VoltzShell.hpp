@@ -8,6 +8,7 @@ class QStackedWidget;
 namespace voltz {
 
 class FrontendBridge;
+class ProjectRecorder;
 
 // Janela principal do Voltz Studio. A janela do OBS (OBSBasic) fica oculta como motor
 // e pode ser aberta em Ajustes → "Abrir modo clássico".
@@ -37,6 +38,7 @@ private:
 	void setPreviewsEnabled(bool enabled);
 
 	FrontendBridge *bridge_ = nullptr;
+	ProjectRecorder *recorder_ = nullptr;
 	QStackedWidget *pages_ = nullptr;
 	QButtonGroup *navGroup_ = nullptr;
 	bool exiting_ = false;

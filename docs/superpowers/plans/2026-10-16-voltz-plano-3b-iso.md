@@ -10,7 +10,7 @@ e `motivo`, pausa junto com o programa, desligamento com aviso quando a GPU não
 ajuste "Gravar só a versão montada".
 
 **Architecture:** Lógica pura e testada no núcleo (`frontend/voltz/core/`): cadeia/configuração dos encoders do ISO,
-qualidade, regra de sobrecarga (`iso-encoders`) e o modelo do manifesto com `tela`/`camera`, `motivo` nos eventos e
+qualidade, regra de sobrecarga por janelas (`iso-encoders`) e o modelo do manifesto com `tela`/`camera`, `motivo` nos eventos e
 fusão com campos desconhecidos dentro de `arquivos.*` (`project-manifest`). Em `frontend/voltz/project/`, a classe nova
 `IsoTrack` encapsula **um** ISO: canvas privado do libobs (`obs_canvas_create_private`) com a fonte no canal 0, na
 resolução da fonte → encoder de vídeo próprio + AAC da faixa 1 → `ffmpeg_muxer` (MKV). O `ProjectRecorder` (que já
@@ -130,7 +130,7 @@ janela** do app.
 | Cadeia de encoders | AMF → NVENC → QSV, em cada família HEVC antes de H.264; x264 **fora** do ISO; cada faixa tenta a cadeia inteira | Spec §5.4. Encoder que não inicia (sessão esgotada) cai no próximo; nenhum serve → a faixa fica fora com `sem_codificador`. |
 | Qualidade | CQP 14 (Alta) / 20 (Arquivo menor); AMF `preset=quality`; GOP 2 s; perfil `high` no H.264, automático/`main` no HEVC | Acima do programa (16/23 no OBS); GOP curto ajuda o editor a buscar quadros. |
 | Programa | Continua H.264 do modo Simples (sem mudança) | Compatibilidade de reprodução (ver "Fora do 3B"). |
-| "A GPU não sustenta" | (1) encoder que não inicia → próxima opção da cadeia, senão faixa fora; (2) **sobrecarga**: na pulsação de 5 s, se ≥ 5% dos quadros do programa atrasaram na renderização ou foram pulados pelo codificador (janela ≥ 60 quadros, a primeira janela só calibra) → todos os ISO param com `iso_falhou`/`sobrecarga` | Spec §5.4 e §8: a versão montada tem prioridade. |
+| "A GPU não sustenta" | (1) encoder que não inicia → próxima opção da cadeia, senão faixa fora; (2) **sobrecarga** (`IsoOverloadMonitor`): por janela da pulsação de 5 s (≥ 60 quadros renderizados; contador que voltou = janela ignorada), **excesso do codificador** = `max(0, Δpulados − Δatrasados)` sobre Δcodificados e **atraso de render** = Δatrasados sobre Δrenderizados; janela ruim se excesso ≥ 5% **ou** atraso de render ≥ 20%; **duas janelas ruins seguidas** (a primeira janela após o início só calibra; janela boa zera a sequência) → todos os ISO param com `iso_falhou`/`sobrecarga` | Spec §5.4 e §8: a versão montada tem prioridade. Spike: o ruído de render do ambiente (0 a 10% atrasados, também sem ISO) e a dupla contagem do atraso nos "pulados" tornavam a regra ingênua (≥ 5% de atrasados ou pulados) um falso positivo. |
 | Início / fim | Começa no `RECORDING_STARTED` (programa confirmado); parada graciosa pedida no `RECORDING_STOPPING`; `STOPPED`/`EXIT` esperam o `stop` de cada ISO até 5 s e então forçam | O programa nunca espera o ISO para começar; offset sempre ≥ 0; ao fechar o app gravando, os MKV são finalizados antes do libobs desligar. |
 | `offset_ms` | `timeline.relativeMs(ns do sinal "start" do ISO)` — mesmo método do `t0_ns` (sinal `start` do programa) | Spec §5.5. Erro ≤ ~1 quadro (cada saída começa no próximo quadro após o gancho); o áudio-guia permite refinar no editor. |
 | Pausa | `obs_output_pause` em cada ISO no `RECORDING_PAUSED`/`UNPAUSED` | Spec §5.3 "pausa aplica-se a todas as saídas"; ISO e programa ficam com a mesma duração líquida. |
@@ -338,7 +338,7 @@ function Set-CameraStandIn([string]$kind) {
 **Novos — núcleo (`frontend/voltz/core/`, sem Qt/libobs) e testes**
 | Arquivo | Responsabilidade |
 |---|---|
-| `core/iso-encoders.hpp/.cpp` | cadeia de encoders do ISO (AMF → NVENC → QSV, HEVC antes de H.264), nível de qualidade, chaves de configuração por família, regra de sobrecarga (`FrameCounters`/`isoOverloaded`) |
+| `core/iso-encoders.hpp/.cpp` | cadeia de encoders do ISO (AMF → NVENC → QSV, HEVC antes de H.264), nível de qualidade, chaves de configuração por família, regra de sobrecarga (`FrameCounters`/`isoWindowOverloaded`/`IsoOverloadMonitor`) |
 | `tests/test-iso-encoders.cpp` | doctest do acima |
 
 **Novos — projeto (`frontend/voltz/project/`, alvo `obs-studio`)**
@@ -357,7 +357,7 @@ function Set-CameraStandIn([string]$kind) {
 
 **Modificados (OBS upstream):** nenhum. (`docs/voltz/upstream-patches.md` não muda; a Task 9 confere.)
 
-**Contagem de testes:** 91 (base) → 99 (Task 2) → 104 (Task 3).
+**Contagem de testes:** 91 (base) → 102 (Task 2) → 107 (Task 3).
 
 ---
 
@@ -1128,14 +1128,80 @@ TEST_CASE("configuração NVENC/QSV em CQP com perfil por codec; x264 em CRF")
 	CHECK(text(x264, "preset") == "veryfast");
 }
 
-TEST_CASE("sobrecarga: 5% ou mais de quadros atrasados ou pulados numa janela de pelo menos 60")
+TEST_CASE("janela de sobrecarga: excesso do codificador ≥ 5% ou atraso de render ≥ 20%")
 {
 	const FrameCounters before{1000, 10, 1000, 5};
-	CHECK_FALSE(voltz::isoOverloaded(before, FrameCounters{1300, 24, 1300, 5})); // 14/300 = 4,7%
-	CHECK(voltz::isoOverloaded(before, FrameCounters{1300, 25, 1300, 5}));       // 15/300 = 5% (render)
-	CHECK(voltz::isoOverloaded(before, FrameCounters{1300, 10, 1300, 20}));      // 15/300 = 5% (codificador)
-	CHECK_FALSE(voltz::isoOverloaded(FrameCounters{}, FrameCounters{50, 50, 50, 50})); // janela < 60
-	CHECK_FALSE(voltz::isoOverloaded(before, FrameCounters{100, 0, 100, 0}));          // contadores voltaram
+	// excesso do codificador: Δpulados − Δatrasados sobre Δcodificados
+	CHECK(voltz::isoWindowOverloaded(before, FrameCounters{1300, 10, 1300, 20}));       // 15/300 = 5% (ruim)
+	CHECK_FALSE(voltz::isoWindowOverloaded(before, FrameCounters{1300, 10, 1300, 19})); // 14/300 = 4,7% (boa)
+	// ruído do ambiente: 10% de atraso de render com os pulados iguais aos atrasados → excesso 0 (boa)
+	CHECK_FALSE(voltz::isoWindowOverloaded(before, FrameCounters{1300, 40, 1300, 35}));
+	// atraso de render: 59/300 = 19,7% (boa) e 60/300 = 20% (ruim), mesmo com os pulados acompanhando
+	CHECK_FALSE(voltz::isoWindowOverloaded(before, FrameCounters{1300, 69, 1300, 64}));
+	CHECK(voltz::isoWindowOverloaded(before, FrameCounters{1300, 70, 1300, 65}));
+	// o excesso soma-se ao atraso: 30 atrasados + 45 pulados → excesso 15 (5%) é ruim
+	CHECK(voltz::isoWindowOverloaded(before, FrameCounters{1300, 40, 1300, 50}));
+}
+
+TEST_CASE("janela de sobrecarga: curta ou com contador que voltou é ignorada")
+{
+	const FrameCounters before{1000, 10, 1000, 5};
+	CHECK_FALSE(voltz::isoWindowOverloaded(FrameCounters{}, FrameCounters{50, 50, 50, 50})); // 50 < 60 quadros
+	CHECK_FALSE(voltz::isoWindowOverloaded(before, FrameCounters{1059, 59, 1059, 59}));       // 59 < 60 quadros
+	CHECK(voltz::isoWindowOverloaded(before, FrameCounters{1060, 70, 1060, 5}));              // 60 quadros, 100% atrasados
+	CHECK_FALSE(voltz::isoWindowOverloaded(before, FrameCounters{100, 0, 100, 0}));          // contadores voltaram
+	CHECK_FALSE(voltz::isoWindowOverloaded(before, FrameCounters{1300, 10, 900, 100}));      // codificados voltaram
+}
+
+TEST_CASE("monitor de sobrecarga: duas janelas ruins seguidas; a primeira só calibra")
+{
+	const FrameCounters start{1000, 10, 1000, 5};
+	const FrameCounters calibration{1150, 90, 1150, 85}; // ruim, mas é a janela de calibração
+	// janelas de 150 quadros: ruim = 100 atrasados (66%); boa = nada
+	const auto bad = [](const FrameCounters &c) {
+		return FrameCounters{c.rendered + 150, c.lagged + 100, c.encoded + 150, c.skipped + 100};
+	};
+	const auto good = [](const FrameCounters &c) {
+		return FrameCounters{c.rendered + 150, c.lagged, c.encoded + 150, c.skipped};
+	};
+
+	voltz::IsoOverloadMonitor monitor;
+	monitor.reset(start);
+	CHECK_FALSE(monitor.feed(calibration));
+
+	// uma janela ruim isolada não dispara; duas seguidas disparam
+	const FrameCounters w1 = bad(calibration);
+	const FrameCounters w2 = bad(w1);
+	CHECK_FALSE(monitor.feed(w1));
+	CHECK(monitor.feed(w2));
+
+	// ruim, boa, ruim não dispara (a boa zera a sequência); nova ruim seguida dispara
+	monitor.reset(start);
+	CHECK_FALSE(monitor.feed(calibration));
+	const FrameCounters b1 = bad(calibration);
+	const FrameCounters g1 = good(b1);
+	const FrameCounters b2 = bad(g1);
+	const FrameCounters b3 = bad(b2);
+	CHECK_FALSE(monitor.feed(b1));
+	CHECK_FALSE(monitor.feed(g1));
+	CHECK_FALSE(monitor.feed(b2));
+	CHECK(monitor.feed(b3));
+}
+
+TEST_CASE("monitor de sobrecarga: janela curta e contador que voltou não contam nem zeram")
+{
+	const FrameCounters start{1000, 10, 1000, 5};
+	const FrameCounters calibration{1150, 10, 1150, 5};
+	voltz::IsoOverloadMonitor monitor;
+	monitor.reset(start);
+	CHECK_FALSE(monitor.feed(calibration));
+
+	const FrameCounters w1{1300, 110, 1300, 105}; // ruim (100/150 atrasados)
+	CHECK_FALSE(monitor.feed(w1));
+	CHECK_FALSE(monitor.feed(FrameCounters{1330, 140, 1330, 135})); // 30 quadros: ignorada, sem zerar
+	CHECK_FALSE(monitor.feed(FrameCounters{100, 0, 100, 0}));       // voltou: rebase, sem zerar
+	// a janela seguinte (150 quadros ruins desde o rebase) é a 2ª ruim seguida
+	CHECK(monitor.feed(FrameCounters{250, 100, 250, 100}));
 }
 ```
 
@@ -1196,6 +1262,16 @@ struct EncoderSettings {
 // no HEVC, "main" (NVENC/QSV) ou automático (AMF escolhe main/main10).
 EncoderSettings isoEncoderSettings(const IsoEncoderCandidate &candidate, int qualityLevel);
 
+// Regra de sobrecarga (spec §5.4), medida por janela de pulsação (5 s) sobre o programa. O ruído de renderização do
+// ambiente (0 a 10% de quadros atrasados, também sem ISO) e a dupla contagem do atraso de render nos "pulados" do
+// codificador tornam inúteis os limites ingênuos; por isso a regra separa as duas coisas (spike do Plano 3B):
+//  - excesso do codificador = max(0, Δpulados − Δatrasados) sobre Δcodificados (o que o codificador perdeu além do render);
+//  - atraso de render = Δatrasados sobre Δrenderizados.
+constexpr uint64_t kMinWindowFrames = 60;    // janela com menos quadros renderizados é ignorada
+constexpr uint64_t kEncoderExcessPercent = 5; // janela ruim: excesso do codificador ≥ 5%
+constexpr uint64_t kRenderLagPercent = 20;    // ... ou atraso de render ≥ 20%
+constexpr int kOverloadWindows = 2;           // sobrecarga = esse tanto de janelas ruins seguidas
+
 // Contadores de quadros do programa: renderizados/atrasados (obs_get_total_frames/obs_get_lagged_frames) e
 // entregues/pulados pelo codificador (video_output_get_total_frames/get_skipped_frames do vídeo principal).
 struct FrameCounters {
@@ -1205,9 +1281,24 @@ struct FrameCounters {
 	uint64_t skipped = 0;
 };
 
-// "A GPU não sustenta" (spec §5.4): desde `before`, ≥ 5% dos quadros do programa atrasaram na renderização ou foram
-// pulados pelo codificador, numa janela de pelo menos 60 quadros. Contador que voltou (reinício do vídeo) → falso.
-bool isoOverloaded(const FrameCounters &before, const FrameCounters &now);
+// Janela ruim: desde `before`, excesso do codificador ≥ kEncoderExcessPercent ou atraso de render ≥ kRenderLagPercent.
+// Janela com menos de kMinWindowFrames quadros renderizados, ou com contador que voltou (reinício do vídeo) → falso.
+bool isoWindowOverloaded(const FrameCounters &before, const FrameCounters &now);
+
+// Estado da regra ao longo da gravação: a primeira janela depois de reset() só calibra; sobrecarga = kOverloadWindows
+// janelas ruins seguidas (janela boa zera a sequência; janela ignorada não conta nem zera).
+class IsoOverloadMonitor {
+public:
+	// Início da gravação: descarta o estado e passa a esperar a janela de calibração.
+	void reset(const FrameCounters &now);
+	// Uma pulsação com os contadores atuais; true quando a sobrecarga se configurou.
+	bool feed(const FrameCounters &now);
+
+private:
+	FrameCounters baseline_;
+	bool calibrating_ = true;
+	int badWindows_ = 0;
+};
 
 } // namespace voltz
 ```
@@ -1222,9 +1313,6 @@ bool isoOverloaded(const FrameCounters &before, const FrameCounters &now);
 namespace voltz {
 
 namespace {
-
-constexpr uint64_t kMinWindowFrames = 60;
-constexpr uint64_t kOverloadPercent = 5;
 
 // Primeiro id registrado, na ordem de preferência; vazio se nenhum.
 std::string firstAvailable(const std::vector<std::string> &ids, std::initializer_list<const char *> preference)
@@ -1244,9 +1332,10 @@ void add(std::vector<IsoEncoderCandidate> &chain, const std::string &id, const c
 	}
 }
 
-bool overPercent(uint64_t part, uint64_t whole)
+bool countersWentBack(const FrameCounters &before, const FrameCounters &now)
 {
-	return whole >= kMinWindowFrames && part * 100 >= whole * kOverloadPercent;
+	return now.rendered < before.rendered || now.lagged < before.lagged || now.encoded < before.encoded ||
+	       now.skipped < before.skipped;
 }
 
 } // namespace
@@ -1302,14 +1391,52 @@ EncoderSettings isoEncoderSettings(const IsoEncoderCandidate &candidate, int qua
 	return settings;
 }
 
-bool isoOverloaded(const FrameCounters &before, const FrameCounters &now)
+bool isoWindowOverloaded(const FrameCounters &before, const FrameCounters &now)
 {
-	if (now.rendered < before.rendered || now.lagged < before.lagged || now.encoded < before.encoded ||
-	    now.skipped < before.skipped) {
+	if (countersWentBack(before, now)) {
 		return false;
 	}
-	return overPercent(now.lagged - before.lagged, now.rendered - before.rendered) ||
-	       overPercent(now.skipped - before.skipped, now.encoded - before.encoded);
+	const uint64_t rendered = now.rendered - before.rendered;
+	if (rendered < kMinWindowFrames) {
+		return false;
+	}
+	const uint64_t lagged = now.lagged - before.lagged;
+	const uint64_t skipped = now.skipped - before.skipped;
+	const uint64_t encoded = now.encoded - before.encoded;
+	/* o atraso de render também entra nos "pulados": só o que passa dele é do codificador */
+	const uint64_t excess = skipped > lagged ? skipped - lagged : 0;
+	const bool encoderBad = encoded > 0 && excess * 100 >= encoded * kEncoderExcessPercent;
+	const bool renderBad = lagged * 100 >= rendered * kRenderLagPercent;
+	return encoderBad || renderBad;
+}
+
+void IsoOverloadMonitor::reset(const FrameCounters &now)
+{
+	baseline_ = now;
+	calibrating_ = true;
+	badWindows_ = 0;
+}
+
+bool IsoOverloadMonitor::feed(const FrameCounters &now)
+{
+	if (calibrating_) {
+		/* Primeira janela só calibra: o início dos encoders costuma atrasar alguns quadros. */
+		baseline_ = now;
+		calibrating_ = false;
+		badWindows_ = 0;
+		return false;
+	}
+	if (countersWentBack(baseline_, now)) {
+		baseline_ = now;
+		return false;
+	}
+	if (now.rendered - baseline_.rendered < kMinWindowFrames) {
+		return false; /* janela curta: segue acumulando, sem contar nem zerar */
+	}
+	const bool bad = isoWindowOverloaded(baseline_, now);
+	baseline_ = now;
+	badWindows_ = bad ? badWindows_ + 1 : 0;
+	return badWindows_ >= kOverloadWindows;
 }
 
 } // namespace voltz
@@ -1321,7 +1448,7 @@ Em `frontend/voltz/core/CMakeLists.txt`: em `PRIVATE`, depois de `disk-space.cpp
 - [ ] **Step 4: Rodar e ver passar**
 
 Run: **CONFIGURAR**, **COMPILAR TESTES**, **RODAR TESTES** e o executável para a contagem.
-Expected: `100% tests passed`; `test cases: 99 | 99 passed`.
+Expected: `100% tests passed`; `test cases: 102 | 102 passed`.
 (Se a Task 1 trocou o preset do AMF, ajuste `kIsoAmdPreset` aqui e no relatório; o teste usa a própria constante.)
 
 - [ ] **Step 5: Formatar e commitar**
@@ -1694,7 +1821,7 @@ int dropUnusableIsoFiles(ProjectManifest &manifest, const std::function<bool(con
 - [ ] **Step 5: Rodar e ver passar**
 
 Run: **COMPILAR TESTES**, **RODAR TESTES** e o executável.
-Expected: `100% tests passed`; `test cases: 104 | 104 passed` (os 8 casos antigos do manifesto continuam passando —
+Expected: `100% tests passed`; `test cases: 107 | 107 passed` (os 8 casos antigos do manifesto continuam passando —
 em especial "versão mais nova é lida e campos desconhecidos sobrevivem à reescrita", que agora passa pelo modelo do
 `tela`). Se `files.erase(std::string(...))` não compilar com o `ordered_json`, use
 `files.erase(files.find(std::string(key)))` precedido de `if (files.contains(std::string(key)))`.
@@ -1951,8 +2078,7 @@ private:
 	std::vector<std::unique_ptr<IsoTrack>> isoTracks_;
 	// Falhas de início dos ISO, emitidas (isoFailed) depois do projectStarted.
 	std::vector<std::pair<QString, QString>> pendingIsoFailures_;
-	FrameCounters loadBaseline_;
-	bool loadBaselineSet_ = false;
+	IsoOverloadMonitor overload_; // exige #include <voltz/core/iso-encoders.hpp> no .hpp
 	ProfileOverride override_;
 	QTimer heartbeat_;
 	obs_hotkey_id markerHotkey_ = OBS_INVALID_HOTKEY_ID;
@@ -2099,7 +2225,7 @@ void ProjectRecorder::startIsoTracks()
 {
 	finishIsoTracks();
 	pendingIsoFailures_.clear();
-	loadBaselineSet_ = false;
+	overload_.reset(programFrameCounters());
 	manifest_.screen = IsoFile{};
 	manifest_.camera = IsoFile{};
 	if (RecordingConfig::programOnly()) {
@@ -2177,16 +2303,8 @@ void ProjectRecorder::checkIsoLoad()
 	if (runningIsoCount() == 0) {
 		return;
 	}
-	const FrameCounters now = programFrameCounters();
-	if (!loadBaselineSet_) {
-		/* Primeira janela só calibra: o início dos encoders costuma atrasar alguns quadros. */
-		loadBaseline_ = now;
-		loadBaselineSet_ = true;
-		return;
-	}
-	const bool overloaded = isoOverloaded(loadBaseline_, now);
-	loadBaseline_ = now;
-	if (!overloaded) {
+	/* A primeira janela só calibra; sobrecarga = duas janelas ruins seguidas (ver IsoOverloadMonitor). */
+	if (!overload_.feed(programFrameCounters())) {
 		return;
 	}
 	blog(LOG_WARNING, "[voltz] iso: o programa esta perdendo quadros; desligando as faixas separadas");
@@ -2739,7 +2857,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Files:** `docs/voltz/backlog-plano-3.md`, `docs/voltz/upstream-patches.md` (conferência), `CLAUDE.md`, `AGENTS.md`,
 `docs/HISTORICO.md`
 
-- [ ] **Step 1:** COMPILAR TUDO (segundo plano), RODAR TESTES (todos passam; informe o total — esperado **104** casos),
+- [ ] **Step 1:** COMPILAR TUDO (segundo plano), RODAR TESTES (todos passam; informe o total — esperado **107** casos),
   SMOKE, SMOKE GRAVAÇÃO, SMOKE PROJETO e SMOKE PROJETO `-ProgramOnly` (com backup/restauração da config portátil, como
   na Task 8).
 - [ ] **Step 2:** Capturas finais **só da janela** (bloco de teste, config limpa, **Preparo de gravação**, **Fontes
@@ -2764,16 +2882,22 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
     `arquivos.*` preservados ao reescrever.
   - **Ciclo:** início no `RECORDING_STARTED` (`offset_ms` ≥ 0, sinal `start` do ISO − `t0`), pausa junto, parada pedida
     no `STOPPING` e esperada (5 s, depois força) no `STOPPED`/`EXIT`; ISO que para sozinho não para o programa; regra de
-    sobrecarga (≥ 5% de quadros do programa atrasados/pulados em 5 s) desliga os ISO.
+    sobrecarga (`IsoOverloadMonitor`: duas janelas de 5 s seguidas com excesso do codificador ≥ 5% ou atraso de render ≥ 20%) desliga os ISO.
   - **Casca:** faixa âmbar "Gravando só a versão montada"/"Uma faixa separada não está sendo gravada"; Ajustes ›
     Gravação › "Gravar só a versão montada" (`user.ini [Voltz] ProgramOnly`). Taxa de disco medida soma os ISO; a
     estimativa inclui os ISO das fontes compartilhadas.
   - **Recuperação:** ISO sem arquivo sai do manifesto (`arquivo_ausente`); duração pelo maior mtime (programa ou ISO).
-  - Testes: 104 casos; `tools/voltz-smoke-project.ps1` valida `tela.mkv`/`camera.mkv` por `ffprobe` (resolução, áudio,
+  - Testes: 107 casos; `tools/voltz-smoke-project.ps1` valida `tela.mkv`/`camera.mkv` por `ffprobe` (resolução, áudio,
     duração + offset ≈ programa) e o modo `-ProgramOnly`; fontes de papel de teste por `VOLTZ_TEST_ISO_SCREEN`/
     `VOLTZ_TEST_ISO_CAMERA`.
-  - Spike (Task 1): <preencher com o resultado medido: caminho usado (canvas ou view), encoder, offsets, % de quadros
-    pulados/atrasados com 3 encodes AMF em 1440p60 + 720p + 1080p>.
+  - Spike 3B: ISO via `obs_canvas_create_private` OK (sem view); AMF HEVC 2560×1440 + 1280×720 + programa H.264 720p30
+    na RX 6650 XT: 0% de quadros pulados em condição limpa; o ruído de renderização do ambiente (0 a 10%, também sem
+    ISO) domina a medida; preset `quality` mantido; offsets de 50 a 170 ms (inits AMF em sequência); pausa alinhada
+    (~2 ms); 0 vazamentos; tamanhos ~220 MB/min tela 1440p CQP14, ~60 MB/min câmera 720p.
+  - **Regra de sobrecarga ajustada pelo spike:** a regra original (≥ 5% atrasados ou pulados) desligaria os ISO por
+    engano — o atraso de render é contado também nos "pulados" do codificador. Vale: excesso do codificador
+    (`Δpulados − Δatrasados`) ≥ 5% ou atraso de render ≥ 20% em duas janelas de 5 s seguidas.
+  - Observação: o programa limpo após "Pular" é 1280×720@30 (base 1920×1080, padrão do OBS).
 
   ## Próximo
   Plano 4 (anotações `anotacoes.jsonl` + destaque do mouse; o grupo `Tela Voltz` não pode mudar a fonte do ISO),
@@ -2808,8 +2932,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   ## Testes manuais pendentes do 3B
   - Gravar com o preset Tutorial **real** (monitor + webcam) e conferir `tela.mkv`/`camera.mkv`: resolução nativa,
     `arquivos.tela.origem` igual ao `arquivos.cursor.origem`, e a sincronia vista pelo próprio usuário num player.
-  - Carga real com 3 encodes AMF (tela 1440p/4K em movimento + webcam): log sem `skipped frames due to encoding lag` e
-    sem `iso_falhou`/`sobrecarga`.
+  - Carga real com 3 encodes AMF (tela 1440p/4K em movimento + webcam): log sem excesso de `skipped frames due to encoding lag` (descontado o ruído de render do ambiente) e
+    sem `iso_falhou`/`sobrecarga` (a sobrecarga só dispara com duas janelas ruins seguidas, ver Decisões).
   - Desconectar a webcam durante a gravação (o programa segue; anotar o que acontece com `camera.mkv`).
   - "Gravar só a versão montada" com o preset real: nenhum `.mkv`, estimativa de espaço menor na barra inferior.
   ```
@@ -2818,7 +2942,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   linhas de *Estado atual* dos Planos 1, 2A, 2B, 2C e 3A e deixe no lugar delas uma linha só:
   `- Planos 1–3A concluídos (fundação, casca completa, presets, tema, gravação em projeto com programa.mp4/manifesto/marcadores/cursor/Projetos/avisos de disco); detalhes em docs/HISTORICO.md.`
   Depois:
-  - *Estado atual*, +1 linha: `- Plano 3B concluído: ISO tela.mkv/camera.mkv por canvas privado (fonte de papel do preset, resolução nativa, HEVC/H.264 AMF→NVENC→QSV em CQP, áudio-guia), offset_ms, iso_falhou com motivo, desligamento por sobrecarga, "Gravar só a versão montada". Testes: 104 casos + smoke de projeto com ISO.`
+  - *Estado atual*, +1 linha: `- Plano 3B concluído: ISO tela.mkv/camera.mkv por canvas privado (fonte de papel do preset, resolução nativa, HEVC/H.264 AMF→NVENC→QSV em CQP, áudio-guia), offset_ms, iso_falhou com motivo, desligamento por sobrecarga, "Gravar só a versão montada". Testes: 107 casos + smoke de projeto com ISO.`
   - *Próximos passos* → `1. Escrever e executar o Plano 4 (anotações + destaque do mouse; o grupo 'Tela Voltz' não pode mudar a fonte do ISO) a partir da spec §6 e de docs/voltz/backlog-plano-3.md.` e `2. Depois: Plano 5 (marca visual + instalador + CI).`
   - *Decisões*, +1 linha: `- ISO sem patch: IsoTrack = obs_canvas_create_private (EPHEMERAL, canal 0 = fonte compartilhada do preset) → encoder próprio + AAC da faixa 1 → ffmpeg_muxer; fps = do programa; programa segue em H.264, ISO em HEVC; testes só com fontes substitutas via VOLTZ_TEST_ISO_SCREEN/CAMERA.` (se o spike usou a view, troque "obs_canvas_create_private (EPHEMERAL…)" por "obs_view + obs_view_add2 (canvas privado falhou: <sintoma>)").
   - *Armadilhas*, +1 linha cada (só as que se confirmaram na execução): `ffmpeg_muxer`/`mp4_output` exigem encoder de
@@ -2855,13 +2979,12 @@ Expected: push sem `--force`, `voltz -> voltz`.
   alternativa `obs_view` com código; risco 3 (camadas Voltz fora do ISO) — o ISO usa a captura compartilhada, a regra
   vai para o Plano 4. Fora, com motivo: `camera_desconectada`, programa em HEVC, x264 no ISO, fps nativo da câmera,
   mudança de tamanho/limite do codificador.
-- **Placeholders:** nenhum "TBD". O único texto a preencher é o resultado medido do spike no backlog (Task 9, Step 4),
-  que só a execução produz. Onde só a execução decide, há critério e saída: spike (P1–P8 e árvore de decisão do Step 8),
+- **Placeholders:** nenhum "TBD". O resultado medido do spike já está escrito no backlog (Task 9, Step 4). Onde só a execução decide, há critério e saída: spike (P1–P8 e árvore de decisão do Step 8),
   preset do AMF (`kIsoAmdPreset`), `erase` do `ordered_json` (Task 3, Step 5), finalização no `EXIT` (Task 5, critério 5).
 - **Consistência de nomes:** `IsoTrack` (`start`, `setPaused`, `requestStop`, `finish`, `running`, `track`, `startNs`,
   `width`, `height`, `fps`, `encoderId`, `onFailed`), `IsoEncoderAttempt`, `IsoFailure`/`isoFailureCode`
   (`sem_imagem`/`canvas`/`sem_codificador`/`saida`); núcleo `EncoderFamily`, `IsoEncoderCandidate`, `isoEncoderChain`,
-  `isoQualityLevel`, `EncoderSettings`, `isoEncoderSettings`, `FrameCounters`, `isoOverloaded`, `kIsoKeyframeSeconds`,
+  `isoQualityLevel`, `EncoderSettings`, `isoEncoderSettings`, `FrameCounters`, `isoWindowOverloaded`, `IsoOverloadMonitor`, `kIsoKeyframeSeconds`,
   `kIsoAmdPreset`; manifesto `IsoFile`, `ProjectManifest::screen`/`camera`, `ManifestEvent::reason` (`motivo`),
   `dropUnusableIsoFiles`, `kScreenIsoFileName`/`kCameraIsoFileName`/`kScreenTrack`/`kCameraTrack`; `ProjectRecorder`
   (`runningIsoCount`, sinal `isoFailed`, `startIsoTracks`, `startIsoTrack`, `requestIsoStop`, `finishIsoTracks`,
@@ -2871,4 +2994,4 @@ Expected: push sem `--force`, `voltz -> voltz`.
   `.ini`; `arquivo_ausente` só aparece no manifesto); variáveis `VOLTZ_TEST_ISO_SCREEN`/`VOLTZ_TEST_ISO_CAMERA` iguais
   no código, no bloco de teste e no smoke; `VOLTZ_ISO_SPIKE`/`startIsoSpike` só na Task 1 e removidos na Task 5
   (conferido na Task 9); saídas `voltz-iso-tela`/`voltz-iso-camera` iguais no `IsoTrack` e nos testes.
-- **Contagem de testes:** 91 (base) → 99 (Task 2: 8 casos) → 104 (Task 3: 5 casos).
+- **Contagem de testes:** 91 (base) → 102 (Task 2: 11 casos) → 107 (Task 3: 5 casos).

@@ -11,6 +11,7 @@ target_sources(
     test-atomic-file.cpp
     test-cursor-track.cpp
     test-disk-space.cpp
+    test-iso-encoders.cpp
     test-preset-layout.cpp
     test-preview-fit.cpp
     test-project-manifest.cpp

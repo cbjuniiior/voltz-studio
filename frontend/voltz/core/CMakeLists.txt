@@ -12,6 +12,7 @@ target_sources(
     atomic-file.cpp
     cursor-track.cpp
     disk-space.cpp
+    iso-encoders.cpp
     preset-layout.cpp
     preview-fit.cpp
     project-manifest.cpp
@@ -30,6 +31,7 @@ target_sources(
     atomic-file.hpp
     cursor-track.hpp
     disk-space.hpp
+    iso-encoders.hpp
     preset-layout.hpp
     preview-fit.hpp
     project-manifest.hpp

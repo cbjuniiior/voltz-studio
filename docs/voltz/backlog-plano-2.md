@@ -1,5 +1,7 @@
 # Backlog para o Plano 2 (vindo das revisões do Plano 1)
 
+> Pendências de gravação (Plano 3 em diante) ficam em `docs/voltz/backlog-plano-3.md`.
+
 Itens levantados nas revisões de código do Plano 1 que ficaram de fora de propósito. Entram no Plano 2
 (casca completa) a menos que indicado.
 
@@ -59,7 +61,6 @@ Itens levantados nas revisões de código do Plano 1 que ficaram de fora de prop
   precisam de arquivo com BOM ou `[char]0xE1` etc.
 - **Ajustes › Captura** recarrega dispositivos só ao abrir a tela (sem eventos de hotplug); o combo Microfone depende
   da fonte global do canal 3.
-- **Pasta de gravação inválida:** o OBS avisa só por balão da bandeja (`GetOutputFilename`, `OBSApp.cpp`); a casca não mostra nada.
 
 ## Marca / i18n
 - **Modo clássico ainda com cara de OBS:** menu Ajuda com "Portal de ajuda", "Visitar website", "Entrar no servidor do

@@ -26,23 +26,20 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
   - `cmake --build --preset voltz-windows-x64 --parallel -- -v:minimal -nologo -nodeReuse:false`
   - Testes: `ctest --test-dir build_x64/frontend/voltz/tests -C RelWithDebInfo --output-on-failure`
   - Smoke: `powershell -ExecutionPolicy Bypass -File tools/voltz-smoke.ps1`; gravação real:
-    `tools/voltz-smoke-record.ps1` (grava ~15 s em Vídeos e apaga o arquivo de teste)
+    `tools/voltz-smoke-record.ps1` (grava ~15 s em `Vídeos\Voltz Studio` e apaga a pasta do projeto de teste);
+    projeto: `tools/voltz-smoke-project.ps1 -OutDir <pasta vazia>` (websocket + UIA + ffprobe; guarda/restaura a config)
   - Automação da casca: `tools/voltz-uia.ps1` (UI Automation; `-List`; nav = CheckBox) e `tools/voltz-ws.ps1` (obs-websocket).
   - Executável: `build_x64/rundir/RelWithDebInfo/bin/64bit/VoltzStudio.exe`.
     Testar com `--portable --multi` para não tocar config do OBS instalado.
 - Ferramentas instaladas: Inno Setup 6 (`%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`).
 
 ## Estado atual
-- Plano 1 (Fundação) concluído: `VoltzStudio.exe` 1.0.0, config em `%APPDATA%\Voltz Studio`, sem phone-home,
-  câmera virtual própria, `voltz-core` + testes doctest, casca `VoltzShell` (Gravar com cenas/prévia/gravar/pausar)
-  sobre `OBSBasic` oculta. Patches no OBS listados em `docs/voltz/upstream-patches.md`.
-- Plano 2A concluído: tela Gravar completa (cenas por UUID, fontes, áudio, erros de gravação visíveis), textos
-  pt-BR/en-US (`frontend/data/locale/voltz-*.ini`), ícones Phosphor, DM Sans, barra de título escura.
-- Plano 2B concluído: Presets (4, com primeira execução/Pular), Projetos (abrir/mostrar/lixeira), Ajustes de
-  gravação (pasta/formato/qualidade) e captura (monitor/câmera/microfone); padrões HQ + codificador automático + MP4 híbrido.
-- Plano 2C concluído: tema Voltz (.ovt) padrão nas janelas do OBS, bandeja/minimizar conduzem a casca, app fora da
-  captura por padrão (Ajustes › Captura), confirmação de saída e diálogo de falha próprios, grupos e acessibilidade em
-  Fontes, acabamento de Áudio/Projetos/Ajustes. Plano 2 fechado; pendências em `docs/voltz/backlog-plano-2.md`.
+- Planos 1–2 concluídos: `VoltzStudio.exe` 1.0.0 (config em `%APPDATA%\Voltz Studio`, sem phone-home), casca
+  `VoltzShell` sobre `OBSBasic` oculta com Gravar/Projetos/Presets/Ajustes, tema Voltz, bandeja. Relato em
+  `docs/HISTORICO.md`; pendências em `docs/voltz/backlog-plano-2.md`; patches no OBS em `docs/voltz/upstream-patches.md`.
+- Plano 3A concluído: toda gravação vira pasta de projeto (programa.mp4 com 3 faixas e capítulos, projeto.voltz v1,
+  marcadores.json, cursor.jsonl), Projetos lista/recupera, barra inferior com nome do projeto, Marcador, espaço e
+  avisos de disco. Testes: 91 casos + `tools/voltz-smoke-project.ps1`. Pendências em `docs/voltz/backlog-plano-3.md`.
 
 ## Decisões
 - **Casca Qt nova** + `OBSBasic` oculta como motor (modo clássico = saída de emergência); não reformar `OBSBasic.ui`.
@@ -64,6 +61,11 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
   contraste). "Esconder da captura" (`HideOBSWindowsFromCapture`) ligado por padrão no Voltz.
 - Ícones em regras QSS (`image:`/`qproperty-icon:`) = SVG pré-colorido em `icons/qss/` (`tools/voltz-qss-icons.sh`) — o
   QSS não passa pelo `PhosphorIconEngine`; no código, sempre `phosphorIcon()`.
+- Gravação em projeto sem patch no OBS: no RECORDING_STARTING o ProjectRecorder troca temporariamente a pasta e
+  Output/FilenameFormatting=programa (ProfileOverride) e desfaz no próximo giro do laço; 3 faixas no modo Simples
+  (RecTracks=7 + mixers das fontes globais, só se ainda padrão). Núcleo do projeto em JSON com nlohmann (ordered_json,
+  preserva campos desconhecidos). Padrões de projeto (pasta `Vídeos\Voltz Studio`, RecTracks) uma vez por perfil
+  (`[Voltz] ProjectDefaults=true`).
 
 ## Armadilhas
 - Preset upstream `windows-x64` exige **VS 2026**; usar o preset versionado `voltz-windows-x64` (VS 2022). Código só exige SDK ≥ 10.0.20348.
@@ -92,8 +94,21 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
 - `blog` antes de `obs-main.cpp` abrir o log (AppInit, InitTheme) não chega ao `.txt`.
 - Com "esconder da captura" ligado, `PrintWindow` sai preto: testes de captura escrevem `HideOBSWindowsFromCapture=false`
   no `user.ini` portátil. Os smokes apagam a config portátil (`build_x64/rundir/RelWithDebInfo/config`): backup antes.
+- Callbacks do frontend rodam do último registrado para o primeiro: criar o `ProjectRecorder` depois da `FrontendBridge`.
+- `TriggerHotkeyByName` (websocket) chama o callback do atalho na thread do websocket com o lock dos atalhos preso: só enfileirar.
+- Nada de IO, log, lock ou alocação dentro do gancho `WH_MOUSE_LL` (o Windows remove gancho lento).
+- `config_set_default_*` deste libobs grava o padrão também como valor do usuário: "ainda no padrão" = comparar com
+  `config_get_default_*` (`stillObsDefault()`), não `config_has_user_value`.
+- nlohmann em alvo estático: `target_link_libraries PRIVATE` quebra o configurar → `target_include_directories(SYSTEM
+  PRIVATE $<TARGET_PROPERTY:nlohmann_json::nlohmann_json,INTERFACE_INCLUDE_DIRECTORIES>)`.
+- Warnings como erro valem também para o `voltz-core` e os testes (casts explícitos). `signals` é macro do Qt (não usar como nome).
+- PowerShell 5.1: `.ps1` com acento precisa de BOM; `Select-String` em log com caminho acentuado precisa de
+  `-Encoding UTF8`; função que devolve array de 1 elemento é desenrolada (`return ,@(...)`).
+- UIA: "Gravar" é o nome da nav **e** do botão de gravar — `voltz-uia.ps1 -Name "Gravar"` pode iniciar uma gravação.
+- O OBS cria sozinho o capítulo "Iniciar" em 0 s: `programa.mp4` tem N marcadores + 1 capítulos.
+- `QInputDialog`/`QMessageBox` abrem laço de eventos: um `refresh()` pode recriar a lista — ler tudo do item antes.
 
 ## Próximos passos
-1. Escrever e executar o Plano 3 (gravação em projeto: programa.mp4 + ISO tela/câmera + cursor.jsonl + projeto.voltz,
-   avisos de disco) a partir da spec §5 e §8.
+1. Escrever e executar o Plano 3B (ISO tela.mkv/camera.mkv via obs_canvas, encoders p/ 3 sessões, offset_ms, iso_falhou)
+   a partir de `docs/voltz/backlog-plano-3.md` e spec §5.3–5.5.
 2. Depois: Plano 4 (anotações + mouse), 5 (marca visual + instalador + CI).

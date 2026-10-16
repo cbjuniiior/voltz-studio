@@ -160,9 +160,31 @@
 	font-weight: 600;
 }
 
+#voltzShell QFrame#errorBanner[warning="true"] {
+	background: rgba(245, 200, 60, 26);
+	border: 1px solid rgba(245, 200, 60, 102);
+}
+
 #voltzShell QLabel#timeLabel {
 	color: #82828C;
 	font-family: "Cascadia Mono", "Consolas";
+}
+
+#voltzShell QLabel#markerToast {
+	color: #D4F53C;
+	font-weight: 600;
+}
+
+#voltzShell QLabel#spaceLabel {
+	color: #82828C;
+	font-size: 12px;
+}
+
+#voltzShell QComboBox#projectName QLineEdit {
+	background: transparent;
+	border: none;
+	padding: 0;
+	color: #F2F2F3;
 }
 
 #voltzShell OBSQTDisplay {

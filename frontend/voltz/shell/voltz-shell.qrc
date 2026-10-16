@@ -12,8 +12,10 @@
     <file>icons/fill/eye-fill.svg</file>
     <file>icons/fill/eye-slash-fill.svg</file>
     <file>icons/fill/faders-fill.svg</file>
+    <file>icons/fill/flag-fill.svg</file>
     <file>icons/fill/folder-simple-fill.svg</file>
     <file>icons/fill/gear-six-fill.svg</file>
+    <file>icons/fill/hard-drives-fill.svg</file>
     <file>icons/fill/headphones-fill.svg</file>
     <file>icons/fill/image-fill.svg</file>
     <file>icons/fill/lock-simple-fill.svg</file>
@@ -45,8 +47,10 @@
     <file>icons/regular/eye.svg</file>
     <file>icons/regular/faders.svg</file>
     <file>icons/regular/film-strip.svg</file>
+    <file>icons/regular/flag.svg</file>
     <file>icons/regular/folder-simple.svg</file>
     <file>icons/regular/gear-six.svg</file>
+    <file>icons/regular/hard-drives.svg</file>
     <file>icons/regular/headphones.svg</file>
     <file>icons/regular/image.svg</file>
     <file>icons/regular/lock-simple-open.svg</file>

@@ -71,7 +71,7 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 	recorder_ = new ProjectRecorder(this);
 
 	pages_ = new QStackedWidget(this);
-	pages_->addWidget(new RecordPage(bridge_, pages_));
+	pages_->addWidget(new RecordPage(bridge_, recorder_, pages_));
 	pages_->addWidget(new ProjectsPage(bridge_, recorder_, pages_));
 	auto *presets = new PresetsPage(pages_);
 	pages_->addWidget(presets);

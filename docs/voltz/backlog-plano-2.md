@@ -26,43 +26,63 @@ Itens levantados nas revisões de código do Plano 1 que ficaram de fora de prop
 - **Padrões de gravação Voltz:** qualidade alta (HQ) + codificador automático + MP4 híbrido, aplicados ao escolher
   um preset e também ao Pular (só no modo Simples e se a qualidade ainda for o padrão do OBS, `Stream`).
 
+## Feito no Plano 2C
+- **Tema "Voltz"** (`data/themes/Voltz.ovt`, variante do Yami com a paleta §4.1) é o padrão das janelas do OBS
+  enquanto o usuário não escolhe outro tema (alto contraste do Windows continua no tema do sistema).
+- **Bandeja controla a casca:** clique no ícone e "Mostrar/Ocultar" alternam a casca; "minimizar para a bandeja"
+  e "iniciar minimizado na bandeja" valem para a casca; prévia pausa com a janela oculta/minimizada.
+- **Erro de gravação avisado uma vez:** com a casca visível, sem balão da bandeja (fica a faixa vermelha).
+- **Esconder o Voltz Studio da gravação** ligado por padrão (`HideOBSWindowsFromCapture`), com interruptor em
+  Ajustes › Captura; estado de gravação/pausa no botão da casca na barra de tarefas.
+- **Saída e falha:** confirmação própria da casca ao sair com saída ativa; diálogo de encerramento inesperado
+  sem aviso de privacidade/envio e com "Abrir pasta de logs"; menu do clássico sem "Verificar atualizações"/
+  "Reparar"; "Sobre" sem "Apoie"/"Doar"/"Participe".
+- **Fontes:** grupos com filhos (expandir/recolher, mesma chave `collapsed` do OBS), ícone `stack`, ações nos
+  filhos; nome acessível em todos os botões só-ícone (`setButtonHint`).
+- **Áudio:** escala de dB legível, slider lima, mudo/monitor com ícones Phosphor (SVG pré-colorido em
+  `icons/qss/`, `tools/voltz-qss-icons.sh`). Reagir a Configurações → Áudio já era coberto pelo upstream
+  (`VolumeControl` ouve `profileSettingChanged`).
+- **Acabamento:** seta `caret-down` nos combos (inclusive no nome dos controles de Áudio), seta de ordenação lima
+  e "Tamanho" alinhado em Projetos, rótulos de Ajustes centrados; caminho da pasta de gravações com reticências no
+  meio (dica com o caminho completo).
+
 ## Casca / ciclo de vida
-- **Bandeja do Windows:** ícone/menu "Mostrar/Ocultar" hoje alternam a janela clássica, não a casca.
-- **"Ocultar janelas do OBS da captura"** (`SetDisplayAffinity`) e overlay da barra de tarefas não cobrem a casca.
 - **`obs_frontend_get_main_window()`** ainda devolve a `OBSBasic` oculta (diálogos/docks de plugins se prendem a ela).
-- **Confirmação de saída própria da casca** (hoje usa o prompt do OBS, sem mostrar a clássica).
-- **Diálogo de encerramento inesperado** (`frontend/OBSApp.cpp` ~110-112) ainda mostra o aviso de privacidade do OBS
-  e a caixa "Enviar relatório".
-- **Menu clássico** mostra "Verificar atualizações"/"Reparar" desativados — esconder.
-- **Erro de gravação avisado duas vezes:** com o `OBSBasic` oculto, o `RecordingStop` do OBS também mostra o balão
-  da bandeja (`SysTrayNotify`) junto com a faixa vermelha da casca — decidir junto com a bandeja da casca.
-- **Grupos no painel de Fontes:** `obs_scene_enum_items` lista só o nível de topo; um grupo aparece como uma linha,
-  sem os filhos (expandir/recolher).
-- **Painel de Áudio não reage a Configurações → Áudio:** decaimento e tipo do medidor só valem na criação do
-  controle; reconstruir ao aplicar configurações (evento/flag a definir).
-- **Acabamento do painel de Áudio (visual):** a escala de dB do `VolumeMeter` fica sobreposta na largura de 280 px
-  ("-6054-48-42…"); slider azul do OBS (trocar para lima `#D4F53C` via QSS `#voltzShell`); botões de mudo/monitor e
-  seta de menu com o estilo do OBS — alinhar à identidade Voltz (ícones Phosphor `speaker-high`/`microphone`).
 - **Rótulos de áudio:** os nomes vêm das fontes globais do OBS (renomeadas para "Som do sistema"/"Microfone" quando
   ainda têm o nome padrão); um rótulo próprio da casca exigiria tornar `VolumeControl::setName` público.
 - **macOS:** a ordem de destruição da casca depende do event loop (o flush de DeferredDelete é `#ifndef __APPLE__`) —
   irrelevante enquanto o alvo for só Windows.
-
-- **Ícone de grupo no painel de Fontes:** "Câmera redonda" (grupo) aparece com ícone genérico do OBS; usar ícone Phosphor próprio para grupos (`obs_sceneitem_is_group`).
-- **Acabamento de Projetos/Ajustes (visual):** a seta de ordenação do cabeçalho de Projetos é cinza e quase invisível,
-  e o cabeçalho "Tamanho" fica 22 px à esquerda dos valores (por causa do `padding-right` da seção); a seta do
-  QComboBox ainda é o triângulo do OBS — trocar por `caret-down` Phosphor.
 - **Presets em monitor ultrawide:** Tutorial/Só tela usam SCALE_INNER → faixas pretas grandes em 21:9; avaliar opção de recorte.
+- **Bandeja com o modo clássico aberto:** a bandeja alterna só a casca; a clássica minimizada para a bandeja pelo
+  OBS só volta por Ajustes → "Abrir modo clássico".
+- **PowerShell 5.1 e acentos:** `.ps1` sem BOM é lido como ANSI — nomes com acento passados a `tools/voltz-uia.ps1`
+  precisam de arquivo com BOM ou `[char]0xE1` etc.
 - **Ajustes › Captura** recarrega dispositivos só ao abrir a tela (sem eventos de hotplug); o combo Microfone depende
   da fonte global do canal 3.
+- **Pasta de gravação inválida:** o OBS avisa só por balão da bandeja (`GetOutputFilename`, `OBSApp.cpp`); a casca não mostra nada.
 
 ## Marca / i18n
-- **Acessibilidade dos botões só com ícone:** dar `setAccessibleName` (= texto da dica) a todos os `QToolButton#iconButton` (Fontes: +, lixeira, setas, propriedades; olho/cadeado por linha; fechar da faixa de erro) — hoje leitores de tela e a UI Automation (`tools/voltz-uia.ps1`) não os encontram.
-- "Sobre" do modo clássico ainda tem links "Doar"/"Participe" para obsproject.com.
+- **Modo clássico ainda com cara de OBS:** menu Ajuda com "Portal de ajuda", "Visitar website", "Entrar no servidor do
+  Discord", "Notas de lançamento" (spec §7.3: links de ajuda → GitHub do Voltz); "Sobre" com o texto "OBS Studio é um
+  software livre…"; barra de título "OBS 32.2.2-…".
+- **Fontes na UI Automation:** a fábrica `QAccessible` do `sourcesList` expõe os botões das linhas, mas as linhas
+  deixam de ter `SelectionItem` (selecionar uma linha pela UIA não funciona; teclado/mouse ok). Avaliar expor as
+  duas coisas.
+- Item "Encerrar OBS" do menu da bandeja (chave `Exit` do OBS) ainda diz "OBS".
+- **Tema Voltz no clássico:** com a cena vazia, o texto de ajuda do painel Fontes e "Nenhuma fonte selecionada"
+  saem cortados na largura padrão do dock (conferir se o Yami faz o mesmo).
+
 ## Testes / ferramentas
 - **Testes manuais pendentes do 2A (precisam de mãos humanas):** tirar pendrive durante gravação → faixa vermelha; adicionar fonte pelo diálogo do `+`; travar/ordem/propriedades/filtros/remover com confirmação; volume/mudo; desativar microfone em Configurações → controle some.
 - **Testes manuais pendentes do 2B:** mover para a lixeira pela tela Projetos; trocar câmera/monitor em Ajustes;
   checar a câmera redonda com uma webcam real.
+- **Testes manuais pendentes do 2C:** clique no ícone da bandeja e "Mostrar/Ocultar" alternam a casca (texto do
+  item correto); "Sair" pela bandeja com a casca oculta; restaurar pela bandeja depois de minimizar para a
+  bandeja; a prévia volta a desenhar depois de esconder/mostrar; ícone de estado no botão da barra de tarefas
+  (gravando/pausado); erro de gravação real com a casca em outra página → volta para Gravar e sem balão;
+  "Abrir pasta de logs" no diálogo de falha; "Encerrar e sair?" com câmera virtual/replay ativo; remover e mover
+  filhos de grupo nas Fontes; monitor ligado (fone lima) no Áudio; reagir a Configurações → Áudio
+  (decaimento/tipo de medidor) com som real; codificador mostrado com qualidade "Stream".
 - Smoke sem `--multi` para provar o crash sentinel (`config\Voltz Studio\.sentinel\run_*` existe durante a execução
   e some após saída limpa). O log "No crash sentinel location set" no smoke atual é efeito do `--multi`.
 - `ENABLE_VOLTZ_TESTS` liga por padrão; considerar desligar no preset de release/instalador (Plano 5).

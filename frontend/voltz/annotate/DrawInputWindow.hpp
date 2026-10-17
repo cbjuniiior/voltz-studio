@@ -16,9 +16,10 @@ namespace voltz {
 // Estado dividido entre a thread de entrada do modo desenho e a thread da UI.
 struct DrawShared {
 	std::atomic<int64_t> uiHeartbeatNs{0}; // a UI escreve a cada 250 ms; a thread de entrada lê no tique (vigia)
-	std::mutex mutex;                      // protege os campos abaixo
-	std::vector<DrawCommand> commands;     // thread de entrada → UI (DrawModeController::drain)
-	bool wakePending = false;              // já há um drain a caminho da UI
+	// Protege os campos abaixo. A UI só o segura por instantes; a thread de entrada, com a janela viva, só por try_lock.
+	std::mutex mutex;
+	std::vector<DrawCommand> commands; // thread de entrada → UI (DrawModeController::drain)
+	bool wakePending = false;          // já há um drain a caminho da UI
 	// Chamado SOB o mutex; anulado no shutdown (depois disso ninguém é acordado).
 	void (*wake)(void *context) = nullptr;
 	void *wakeContext = nullptr;
@@ -46,7 +47,8 @@ public:
 
 	// Thread da UI. Cria a thread e espera a janela nascer (até 2 s); nullptr = não ligou (motivo no log).
 	static std::unique_ptr<DrawInputWindow> start(std::shared_ptr<DrawShared> shared, const Options &options);
-	// Pede a saída (Shutdown) e espera a thread até 2 s; se não acabar, ela fica destacada e sai sozinha.
+	// Pede a saída (Shutdown) e espera a thread até 2 s (nada, se um start/wait anterior já esgotou o prazo); se não
+	// acabar, ela fica destacada e sai sozinha (cancel conferido a cada tique). Pior caso para a UI: ~2 s no total.
 	~DrawInputWindow();
 	DrawInputWindow(const DrawInputWindow &) = delete;
 	DrawInputWindow &operator=(const DrawInputWindow &) = delete;
@@ -54,7 +56,7 @@ public:
 	// Assíncronos (postam para a janela; nunca esperam a thread de entrada). Pedir a saída mais de uma vez é inócuo.
 	void requestExit(DrawExit reason);
 	void holeChanged();
-	// Espera a thread terminar (até timeoutMs). Falso = ainda viva.
+	// Espera a thread terminar (até timeoutMs). Falso = ainda viva (com prazo > 0, o destrutor não espera de novo).
 	bool wait(int timeoutMs);
 	// A janela ficou em primeiro plano ao nascer (pelo botão "Desenhar"); pelo atalho, o primeiro clique a ativa.
 	bool activated() const;
@@ -65,6 +67,7 @@ private:
 	std::shared_ptr<DrawInputHandle> handle_;
 	std::thread thread_;
 	std::future<void> finished_;
+	bool waitTimedOut_ = false; // a UI já esperou 2 s (start ou wait): o destrutor não espera de novo
 };
 
 } // namespace voltz

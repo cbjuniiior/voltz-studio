@@ -26,6 +26,8 @@ target_compile_definitions(
 target_sources(
   obs-studio
   PRIVATE
+    voltz/annotate/OverlayWindow.cpp
+    voltz/annotate/OverlayWindow.hpp
     voltz/project/CursorTracker.cpp
     voltz/project/CursorTracker.hpp
     voltz/project/IsoTrack.cpp

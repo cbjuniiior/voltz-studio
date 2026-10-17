@@ -61,8 +61,8 @@
   ~26,1 e ~29,2 MB/min: ~2,2× abaixo nesse conteúdo de alta entropia, igual para programa e ISO (ver pendências).
 
 ## Próximo
-Plano 4 (anotações `anotacoes.jsonl` + destaque do mouse; o grupo `Tela Voltz` não pode mudar a fonte do ISO),
-Plano 5 (marca visual, instalador, CI).
+Plano 4A feito (ver `docs/voltz/backlog-plano-4.md`); a seguir o Plano 4B (desenho na tela) e o Plano 5 (marca
+visual, instalador, CI).
 
 ## Pendências e limites do 3A
 - Cursor em **captura de janela** (evento `janela` com o retângulo; hoje: sem `cursor.jsonl` +
@@ -91,8 +91,6 @@ Plano 5 (marca visual, instalador, CI).
   fechado como `ok`. Janela de microssegundos; resolver lendo o código pelo próprio evento quando houver API.
 - **`CursorTracker::stop`:** o `join` da thread do gancho travaria se o `WM_QUIT` não chegasse (o envio é repetido
   200× por 1 s). Risco teórico; um `join` com prazo + `TerminateThread` não vale o custo hoje.
-- **Manifesto ao reescrever:** campos desconhecidos dentro de `pausas[]` e `eventos[]` ainda não são preservados (os
-  de `arquivos.*` passaram a ser no 3B).
 - **Outra instância (`--multi`)** gravando na mesma pasta: o projeto dela aparece como "Recuperável" nesta.
 - **Toast do marcador** desloca os botões centrais da barra ~6 px (stretch dos dois lados); fixar a largura do
   rótulo ou tirá-lo do fluxo.

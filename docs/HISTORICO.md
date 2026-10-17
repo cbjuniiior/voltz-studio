@@ -41,3 +41,34 @@ automaticamente; consultar sob demanda. Detalhes de cada plano: `docs/superpower
   `try/finally`; smoke de projeto com a "Tela teste" (item desativado) e `cursor.jsonl` obrigatório de novo. Medida de
   taxa com clipe sintético: tela 1440p 214,8 MB/min, câmera 720p 60,4 MB/min (estimativa do núcleo ~2,2× abaixo).
   Feito, limites e testes manuais pendentes em `docs/voltz/backlog-plano-3.md`.
+
+## Estado até o Plano 3B (texto que saiu do CLAUDE.md, 2026-10-16)
+- Planos 1–3A concluídos (fundação, casca completa, presets, tema, gravação em projeto com programa.mp4/manifesto/
+  marcadores/cursor/Projetos/avisos de disco); relato em `docs/HISTORICO.md`, pendências do 2 em `docs/voltz/backlog-plano-2.md`. Patches no OBS:
+  `docs/voltz/upstream-patches.md`.
+- Plano 3B concluído: ISO tela.mkv/camera.mkv por canvas privado (fonte de papel do preset, resolução nativa, HEVC/H.264
+  AMF→NVENC→QSV em CQP, áudio-guia), offset_ms, iso_falhou com motivo, desligamento por sobrecarga, "Gravar só a versão
+  montada". Testes: 107 casos + smoke de projeto com ISO. Pendências: `docs/voltz/backlog-plano-3.md`.
+
+## Decisões e armadilha condensadas na poda do Plano 4A (texto original do CLAUDE.md, 2026-10-16)
+- Gravação em projeto sem patch no OBS: no RECORDING_STARTING o ProjectRecorder troca temporariamente a pasta e
+  Output/FilenameFormatting=programa (ProfileOverride) e desfaz no próximo giro do laço; 3 faixas no modo Simples
+  (RecTracks=7 + mixers das fontes globais, só se ainda padrão). Manifesto em nlohmann `ordered_json` (preserva campos
+  desconhecidos). Padrões de projeto uma vez por perfil (`[Voltz] ProjectDefaults=true`).
+- ISO sem patch: IsoTrack = obs_canvas_create_private (EPHEMERAL, canal 0 = fonte compartilhada do preset) → encoder
+  próprio + AAC da faixa 1 → ffmpeg_muxer; fps = do programa; programa segue em H.264, ISO em HEVC; testes só com
+  fontes substitutas via VOLTZ_TEST_ISO_SCREEN/CAMERA.
+- Testes de ISO nunca com `monitor_capture`/webcam real; a "Tela teste" do cursor é captura de monitor com o item de
+  cena desativado (conferido antes de gravar).
+- Fontes de áudio globais com o nome padrão do OBS ('Desktop Audio'/'Mic/Aux' ou equivalente traduzido) são renomeadas para 'Som do sistema'/'Microfone' (fica na coleção de cenas; nunca sobrescreve nome personalizado).
+- O OBS cria sozinho o capítulo "Iniciar" em 0 s: `programa.mp4` tem N marcadores + 1 capítulos.
+
+## Plano 4A (2026-10-16)
+- Plugin `plugins/voltz-sources` (entra pelo `feature-voltz.cmake`, sem patch no OBS) com a fonte Voltz Mouse (halo,
+  onda do clique, holofote; tamanho da captura alvo) e o canal frontend → plugin por procedimentos no proc handler
+  global + `MouseFeed` com mutex.
+- Mouse ao vivo sem gancho (`LiveMouse`: `GetPhysicalCursorPos` a 16 ms + Raw Input), só com Voltz Mouse mostrada;
+  grupo "Tela Voltz" por cena nos presets + migração uma vez por coleção; Ajustes › Mouse com prévia ao vivo e estilos
+  salvos; atalho do holofote (Ctrl+Shift+H) com eventos no manifesto; `mouse` no `projeto.voltz`.
+- 126 casos de teste + `tools/voltz-smoke-mouse.ps1`. Revisão final: a contagem de Voltz Mouse mostradas vazava ao
+  apagar a fonte/trocar de coleção (corrigido no `destroy`). Pendências em `docs/voltz/backlog-plano-4.md`.

@@ -103,16 +103,19 @@ entrada e dependem de (a) pronto. Por isso:
   `WM_INPUT` continua indo para a janela do `LiveMouse` com o Voltz em primeiro plano.
 - **Janela em camadas com `LWA_ALPHA` = 1/255:** invisível a olho e ainda recebe o mouse (um pixel de alfa 0 deixaria o
   clique passar). Com `WDA_EXCLUDEFROMCAPTURE` nem o 1/255 entra na captura.
-- **`QScreen::name()` no Windows é o nome GDI do monitor** (`\\.\DISPLAY1`), o mesmo `MONITORINFOEX::szDevice` que o
-  `findMonitor` já percorre (`frontend/voltz/project/MonitorLocator.cpp:24-47`) ⇒ a barra vai para o monitor da Tela
-  pelo nome, em coordenadas lógicas do Qt, sem conta de DPI à mão.
+- ~~**`QScreen::name()` no Windows é o nome GDI do monitor**~~ — **corrigido na execução:** no Qt 6.11 o
+  `QScreen::name()` é o nome **amigável** do monitor (dois monitores do mesmo modelo têm o mesmo nome). A barra acha a
+  `QScreen` por `screenForMonitor(nomeGDI)` (`frontend/voltz/project/MonitorLocator.cpp`), que compara o `HMONITOR`
+  (`QNativeInterface::QWindowsScreen::handle()` + `GetMonitorInfo`) com o `MONITORINFOEX::szDevice` (`\\.\DISPLAY1`)
+  que o `findMonitor` já percorre; posição em coordenadas lógicas do Qt, sem conta de DPI à mão.
 - **Textura dinâmica do D3D11 é mapeada com `D3D11_MAP_WRITE_DISCARD`** (`libobs-d3d11/d3d11-subsystem.cpp:2755`): o
   `gs_texture_set_image` sempre reenvia a textura inteira. ⇒ Na fonte, o ganho do retângulo sujo é na **rasterização**
   (CPU); o envio continua inteiro, no máximo uma vez por quadro. Na sobreposição, `UpdateLayeredWindowIndirect` com
   `prcDirty` atualiza só a região.
-- **`OBSStudioAPI::on_event` percorre os callbacks de trás para frente** (`frontend/OBSStudioAPI.cpp:752`): o
-  `DrawModeController` (criado depois da `FrontendBridge`) pode tirar o próprio callback durante o EXIT disparado pela
-  ponte.
+- **`OBSStudioAPI::on_event` percorre os callbacks de trás para frente** (`frontend/OBSStudioAPI.cpp:752`, por índice,
+  copiando cada entrada antes de chamá-la): o `DrawModeController` trata o `OBS_FRONTEND_EVENT_EXIT` no **próprio** callback — criado por
+  último (depois da `FrontendBridge`, do `ProjectRecorder` e do `MouseStyleStore`), roda primeiro e fecha o traço em
+  andamento antes de o `ProjectRecorder` fechar o projeto — e pode tirar o próprio callback durante o evento.
 
 ---
 
@@ -127,7 +130,7 @@ entrada e dependem de (a) pronto. Por isso:
 | Janela de entrada | `DrawInputWindow`: thread própria (`voltz-draw-input`, Per-Monitor v2), janela `VoltzDrawInput` `WS_POPUP`, `WS_EX_LAYERED | TOOLWINDOW | TOPMOST` (sem `TRANSPARENT`/`NOACTIVATE`), `LWA_ALPHA` 1, `WDA_EXCLUDEFROMCAPTURE` quando suportado, **só sobre o monitor da Tela**, cursor em cruz, sem dono; `SetCapture` só entre botão apertado e solto; saída: solta o mouse, esconde, devolve o primeiro plano a quem o tinha (se ainda era nosso) | Se a UI travar, a janela continua viva e sai sozinha; outros monitores ficam livres. |
 | Exceção de segurança | `SetCapture`, `ReleaseCapture`, `SetForegroundWindow` (e qualquer outra API de foco/captura) **só** em `frontend/voltz/annotate/DrawInputWindow.cpp`; injeção/bloqueio (`SendInput`, `SetCursorPos`, `mouse_event`, `keybd_event`, `BlockInput`, `ClipCursor`, `RegisterHotKey`) em lugar nenhum; observação passiva já existente só onde já estava (`SetWindowsHookEx` no `CursorTracker.cpp` do 3A, `RegisterRawInputDevices` no `LiveMouse.cpp` do 4A) | Uma lista de exceções de um arquivo só: quem revisa a captura de entrada lê um arquivo de ~300 linhas. |
 | Canal entrada → UI | `DrawShared` (mutex): fila de `DrawCommand`, `wake` chamado sob o mutex (posta um `drain` na UI, um por vez), retângulo do buraco da barra; pulso da UI num atômico | A thread de entrada nunca espera a UI; o shutdown anula `wake` antes de o controlador morrer. |
-| Barra | `DrawToolbar` Qt sem pai: `Qt::Tool | Frameless | StaysOnTop | WindowDoesNotAcceptFocus` + `WS_EX_NOACTIVATE`, `isOBSProjectorWindow`, `WDA_EXCLUDEFROMCAPTURE` (quando suportado e não queimado), no alto e ao centro do monitor da Tela; buraco na região da janela de entrada; 6 ferramentas · 4 cores + 8 · 4 espessuras · desfazer · limpar · somem após (nunca → 3 → 5 → 10 s) · sair; aviso de "queimadas"; QSS próprio `#voltzDrawToolbar` | Clicar na barra não tira a ativação da janela de entrada (o Esc segue valendo); sem diálogo modal. |
+| Barra | `DrawToolbar` Qt sem pai: `Qt::Tool | Frameless | StaysOnTop | WindowDoesNotAcceptFocus` + `WS_EX_NOACTIVATE`, `isOBSProjectorWindow`, `WDA_EXCLUDEFROMCAPTURE` sempre que suportado (`exclude = SetDisplayAffinitySupported()`, sem `!burned()`: com "queimadas" por outro motivo a barra e a janela de entrada continuam fora da captura), no alto e ao centro do monitor da Tela; buraco na região da janela de entrada; 6 ferramentas · 4 cores + 8 · 4 espessuras · desfazer · limpar · somem após (nunca → 3 → 5 → 10 s) · sair; aviso de "queimadas"; QSS próprio `#voltzDrawToolbar` | Clicar na barra não tira a ativação da janela de entrada (o Esc segue valendo); sem diálogo modal. |
 | Atalhos | `VoltzStudio.Draw` (Ctrl+Shift+D), `VoltzStudio.UndoAnnotation` e `VoltzStudio.ClearAnnotations` (sem tecla padrão — os atalhos do OBS não consomem a tecla e Ctrl+Shift+Z/X iriam também para o app em uso), carregados do perfil como `VoltzStudio.AddMarker`; dentro do modo desenho, Ctrl+Z desfaz (só na janela de entrada) | Mesmo padrão do 4A; sem conflito global novo. |
 | Desempenho | Retângulo sujo: `strokeBounds`/`appendDirtyRect` (peças novas da caneta; forma antiga ∪ nova) + `redrawRegion` (limpa a região e redesenha os traços que a tocam, recortados) — **byte a byte igual** a redesenhar tudo (doctest); sobreposição com `UpdateLayeredWindowIndirect` + `prcDirty`; fonte com `DirtyHistory` por versão; medidas (parciais/completas, média/máximo em µs) no estado de teste, no log do modo desenho e no log do plugin a cada 600 redesenhos | O desenho a 60 Hz não pode limpar 15 MB a cada ponto; a igualdade exata garante que o 4B continua certo. |
 | Fantasma | `DisableProcessWindowsGhosting()` no construtor da casca (log `[voltz] janelas fantasma do Windows desligadas no processo`) | O fantasma de uma janela que cobre o monitor receberia cliques. Custo: com o Voltz travado, a janela dele não vira fantasma (não dá para arrastá-la; o Gerenciador de Tarefas continua). |
@@ -4254,7 +4257,8 @@ void DrawModeController::shutdown()
 	shutdown_ = true;
 	unregisterHotkeys();
 	if (eventsRegistered_) {
-		/* seguro durante o EXIT: OBSStudioAPI::on_event percorre os callbacks de trás para frente */
+		/* seguro durante o EXIT (que o handleEvent trata chamando este shutdown): OBSStudioAPI::on_event percorre
+		 * os callbacks por índice de trás para frente */
 		obs_frontend_remove_event_callback(&DrawModeController::handleEvent, this);
 		eventsRegistered_ = false;
 	}
@@ -4521,8 +4525,20 @@ void DrawModeController::unregisterHotkeys()
 
 void DrawModeController::handleEvent(enum obs_frontend_event event, void *data)
 {
-	if (event == OBS_FRONTEND_EVENT_PROFILE_CHANGED) {
-		static_cast<DrawModeController *>(data)->loadHotkeyBindings();
+	auto *self = static_cast<DrawModeController *>(data);
+	switch (event) {
+	case OBS_FRONTEND_EVENT_PROFILE_CHANGED:
+		self->loadHotkeyBindings();
+		break;
+	case OBS_FRONTEND_EVENT_EXIT:
+		/* Corrigido na execução: criado depois da FrontendBridge, do ProjectRecorder e do MouseStyleStore, este
+		 * callback roda ANTES dos deles (OBSStudioAPI::on_event vai por índice de trás para frente, copiando cada
+		 * entrada): o modo sai e o traço em andamento termina (e vai para o diário do projeto) antes de o projeto
+		 * fechar. Tirar o próprio callback no shutdown durante o evento é seguro (só os índices de cima mudam). O exiting da ponte chama de novo (sem efeito). */
+		self->shutdown();
+		break;
+	default:
+		break;
 	}
 }
 
@@ -5700,6 +5716,36 @@ git push origin voltz
 Expected: push sem `--force`, `voltz -> voltz`.
 
 ---
+## Desvios aceitos durante a execução (o código é a referência)
+
+1. **Monitor da barra:** `QScreen::name()` no Qt 6.11 é o nome amigável; `screenForMonitor(nomeGDI)` em
+   `MonitorLocator` compara por `HMONITOR` (`QNativeInterface::QWindowsScreen::handle()`). Monitor não achado → monitor
+   principal, com aviso no log.
+2. **Afinidade da barra e da janela de entrada:** `exclude = SetDisplayAffinitySupported()`, sem `!burned()` (tabela de
+   decisões corrigida).
+3. **EXIT:** o `DrawModeController` trata `OBS_FRONTEND_EVENT_EXIT` no próprio callback (criado por último, roda
+   primeiro e fecha o traço antes do `ProjectRecorder`); tirar o callback durante o evento é seguro (Task 7 Step 4
+   corrigido).
+4. **Mutex:** a thread de entrada nunca bloqueia no `DrawShared::mutex` com a janela viva (backlog local + `try_lock`;
+   um único lock bloqueante depois do `DestroyWindow`, para o Exit sempre chegar). Sob o mutex, só atribuições e swap.
+5. **Saída do app:** pior caso de UI parada ~2 s (`waitTimedOut_`: o destrutor não espera de novo o que o `start`/`wait`
+   já esperou); mensagens privadas por `RegisterWindowMessageW`; tique rearmado antes do laço; pulso da UI logo depois
+   do `start`.
+6. **Botão "Desenhar" e religar:** o estado é lido no `pressed` (`drawWasActive_`) com a guarda `lostFocusRecently`
+   (500 ms: o clique na casca já tirou a ativação → sai por `foco` e não religa). Depois de uma saída durante uma trava
+   da UI (vigia ou pulso velho), atalho e botão são recusados por 500 ms (`DrawRefusal::Recent`, log
+   `recusado (recente)`): o gatilho que ficou na fila durante a trava chega depois do drain.
+7. **Fim do modo:** o `finish` chama `endStroke()`; `annotations_` é `QPointer`; o destrutor usa `QSignalBlocker`.
+8. **Barra:** fundo com alfa 1 (os cantos arredondados não deixam o clique passar); `WS_EX_NOACTIVATE` e afinidade antes
+   do `show()`; recentraliza ao crescer; volta para cima da sobreposição depois de cada `Begin`. `ToolbarImage` aceita
+   `{"queimadas":true}`.
+9. **Funções auxiliares** com nome de membro do `QWidget` (ex. `styleSheet()`) resolvem para o membro dentro da classe:
+   qualificar (`voltz::...`) ou renomear (o auxiliar da barra virou `toolbarStyleSheet()`).
+
+Medidas do smoke (Task 10, sobreposição de teste 2560×1440): 61 parciais (média 121 µs, máx. 273 µs), 1 completa
+(máx. 6 515 µs); fonte: 12 parciais, 1 completa, máx. 4 984 µs (com o envio da textura inteira).
+
+---
 ## Roteiro de teste manual do Plano 4C (para o usuário, depois da Task 10)
 
 Nada aqui é automatizado: é o usuário quem liga o modo desenho, desenha e usa o PC. Em qualquer momento, se algo
@@ -5718,14 +5764,21 @@ motivo da saída (`desligado (esc)`, `(clique_direito)`, `(atalho)`, `(botao)`, 
    Esc (depois de ter clicado ao menos uma vez) → `esc` e o foco volta ao Bloco de Notas · clique direito →
    `clique_direito` · Ctrl+Shift+D → `atalho` · botão **X** da barra → `botao` · Alt+Tab → `foco` · tecla Windows →
    `foco` · clicar numa janela de **outro monitor** → `foco` · Alt+F4 → `fechar` (o Voltz **não** fecha) · 30 s parado →
-   `inatividade`.
-4. **Pelo botão:** com a casca visível, clicar **Desenhar** → `ativa: sim`; o Esc sai **sem** clique antes. Clicar
-   Desenhar de novo (se a casca estiver em outro monitor) → `botao`.
+   `inatividade`. **Pelo atalho e sem nenhum clique antes** (janela de entrada ainda não ativada), Esc, Alt+Tab, tecla
+   Windows, clique em outro monitor e Alt+F4 **não** saem (vão para o app em uso; limite conhecido) — saem o clique
+   direito, o atalho, o X da barra e os 30 s. **Sair no meio de um traço** (Esc com o botão esquerdo ainda apertado):
+   o traço entra inteiro no `anotacoes.jsonl` (gravando).
+4. **Pelo botão:** com a casca visível, clicar **Desenhar** → `ativa: sim`; o Esc sai **sem** clique antes. Com a casca
+   em **outro monitor** e o modo ligado pelo botão, clicar Desenhar de novo sai por **`foco`** (o clique na casca tira a
+   ativação da janela de entrada), **não** por `botao`, e **não religa**. `botao` só aparece pelo X da barra, ou pelo
+   Desenhar quando o modo foi ligado pelo atalho e a janela de entrada ainda não foi ativada. Um clique em Desenhar
+   menos de 0,5 s depois de uma saída não liga o modo.
 5. **Ferramentas e barra:** caneta, marca-texto (translúcido, sem "contas" onde o traço se cruza), linha, seta,
    retângulo, elipse; as 4 cores e as 8 de "mais cores"; as 4 espessuras; desfazer pelo botão e por **Ctrl+Z** (também
    no meio de um traço); limpar; "somem após" em 3 s (os traços somem sozinhos). Arrastar para fora do monitor: o traço
    fica preso à borda. **Clicar nos botões da barra não tira a cruz nem o Esc** (depois de clicar na barra, o Esc ainda
-   sai); a barra não aparece na barra de tarefas nem no Alt+Tab.
+   sai); a barra não aparece na barra de tarefas nem no Alt+Tab. As **dicas** (tooltips) da barra **não aparecem**
+   (limite conhecido: a janela nunca fica ativa); confira que nenhuma dica aparece na gravação.
 6. **Gravação:** gravar ~20 s desenhando com várias ferramentas. No player: `programa.mp4` **com** os traços e **sem**
    a barra; `tela.mkv` **sem** traços e sem barra; nenhuma onda de clique no começo dos traços. `anotacoes.jsonl` com
    uma linha por traço em pixels da captura.
@@ -5735,10 +5788,12 @@ motivo da saída (`desligado (esc)`, `(clique_direito)`, `(atalho)`, `(botao)`, 
    Ctrl+Shift+F12 (trava a interface 8 s): em **~1 s** a cruz some e o clique volta a passar no monitor (clique numa
    janela embaixo); a barra fica parada no topo até a interface voltar e então some; **nenhuma** janela
    "(Não está respondendo)" cobre o monitor; os traços continuam visíveis e o clique passa por eles. `-Log`:
-   `depuracao: thread da UI travada por 8000 ms`, `desligado (vigia)`. Repetir o Ctrl+Shift+F12 **fora** do modo desenho,
-   com traços na tela: o clique passa pelos traços o tempo todo.
+   `depuracao: thread da UI travada por 8000 ms`, `desligado (vigia)`. **Durante a trava**, apertar Ctrl+Shift+D: depois
+   que a interface volta o modo **não religa** (`-Log`: `recusado (recente)`). Repetir o Ctrl+Shift+F12 **fora** do modo
+   desenho, com traços na tela: o clique passa pelos traços o tempo todo.
 9. **Escala e posição:** Windows a 125% e 150%, e um monitor à **esquerda** do principal como Tela: o traço sai
-   exatamente sob a ponta da cruz, alinhado com a prévia; a barra fica centrada no monitor certo.
+   exatamente sob a ponta da cruz, alinhado com a prévia; a barra fica centrada no monitor certo — no monitor da Tela
+   **mesmo quando ele não é o principal**, inclusive com **dois monitores do mesmo modelo** (mesmo nome amigável).
 10. **Desempenho:** desenhar sem parar por ~30 s com traços longos (caneta e marca-texto), até dezenas de traços na
     tela: a cruz não atrasa, o sistema segue responsivo, a prévia acompanha. Sair e rodar `-Log`: anotar a linha
     `desligado (...); sobreposicao: N parcial(is) (media X us, max Y us), ...` e, se aparecer,
@@ -5746,10 +5801,16 @@ motivo da saída (`desligado (esc)`, `(clique_direito)`, `(atalho)`, `(botao)`, 
 11. **Nunca liga sozinho:** fechar (`-Close`) e abrir (`-Launch`) duas vezes: o modo desenho começa desligado
     (`-Log`: `desligado ao abrir`) e só liga pelo atalho ou pelo botão.
 12. **`-Close`:** o Voltz fecha (com ou sem o modo desenho ligado) e a config portátil volta a ser a de antes — ou some,
-    se não havia uma.
+    se não havia uma. `-Close` **gravando**, com o modo ligado e um traço **em andamento** (botão apertado): o traço
+    entra no `anotacoes.jsonl`.
 13. (Se houver uma VM com Windows 10 anterior ao 2004) **queimadas:** a barra mostra o aviso amarelo; os traços aparecem
-    uma vez só no programa.
+    uma vez só no programa; a barra e a janela de entrada **aparecem** no `tela.mkv` (limite conhecido). Com
+    "queimadas" por **outro** motivo (afinidade recusada num Windows ≥ 2004), a barra continua **fora** da captura.
 14. **en-US:** trocar o idioma e conferir os textos da barra ("Pen", "Highlighter", ...) e do botão ("Draw").
+15. **Logo depois de abrir ou de trocar de coleção:** ligar o modo desenho logo depois de abrir o app e logo depois de
+    trocar de coleção de cenas: ele **não** sai por `vigia`.
+16. **Barra por cima:** passar o mouse pela barra (as dicas não aparecem) e desenhar uma forma (retângulo, elipse) que
+    passa **por cima** da área da barra: a barra continua por cima dos traços e clicável.
 
 ---
 

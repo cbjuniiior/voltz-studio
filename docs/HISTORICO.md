@@ -157,3 +157,44 @@ automaticamente; consultar sob demanda. Detalhes de cada plano: `docs/superpower
   "queimadas" no Windows < 10 2004; "somem após N s".
 - 153 casos de teste + `tools/voltz-smoke-annotations.ps1` + demo manual `tools/voltz-annot-demo.ps1`. Revisão final:
   sobreposição que não voltava quando a Tela sumia e reaparecia (corrigido). Pendências em `docs/voltz/backlog-plano-4.md`.
+
+## Poda do Plano 4C (texto que saiu do CLAUDE.md, 2026-10-17)
+
+### Stack & estrutura: smokes (linha trocada)
+    `voltz-smoke-mouse -OutDir <vazia>` · `voltz-smoke-annotations -OutDir <vazia>`; demo manual: `voltz-annot-demo`.
+
+### Estado atual (item trocado)
+- Plano 4B concluído: traços no núcleo (modelo, rasterizador, StrokeStore, `anotacoes.jsonl`), fonte Voltz Anotações
+  (camada 2 da Tela Voltz, migração 1→2), sobreposição só de exibição fora da captura, "queimadas", "somem após".
+  Traços só por pedidos de teste até o 4C. Testes: 153 casos + `tools/voltz-smoke-annotations.ps1`.
+
+### Armadilhas arquivadas
+- Grupo do OBS não se compartilha entre cenas ("Adicionar existente" esconde grupos); `RemoveSceneItem` do websocket
+  não aceita item de grupo (ler filhos com `GetGroupSceneItemList`).
+- Raw Input é por processo/uso: o último `RegisterRawInputDevices` vence e `RIDEV_REMOVE` vale para o processo todo.
+- `show`/`hide` de fonte só no tick, e fonte removida sai do tick: contagem de "mostradas" também se desconta no `destroy`.
+- Item novo num grupo existente: `obs_scene_add` na **cena-mãe** + `obs_sceneitem_group_add_item` (os ids dos itens do
+  grupo vêm do contador da cena-mãe; `obs_scene_add` na cena do grupo repete id e a lista de Fontes troca as linhas).
+- Fonte sem `OBS_SOURCE_SRGB` que mistura alfa: desligar o framebuffer sRGB no render (o principal o liga) e usar
+  `ONE/INVSRCALPHA` com imagem pré-multiplicada, senão a cor translúcida muda.
+
+### Armadilhas: PowerShell 5.1
+- PowerShell 5.1: `.ps1` com acento precisa de BOM; `Select-String` em log com caminho acentuado precisa de
+  `-Encoding UTF8`; função que devolve array de 1 elemento é desenrolada (`return ,@(...)`, e `@(f).Count` de quem
+  devolve `,@()` dá 1); `$null` vira `""` em parâmetro string do .NET (`[NullString]::Value` no `FindWindowEx`).
+
+### Próximos passos (trocados)
+1. Escrever e executar o Plano 4C (modo desenho com saídas garantidas, barra, texto, atalhos, Ajustes › Anotações/Atalhos,
+   sobreposição em todos os monitores) a partir do fim do plano 4B e do `docs/voltz/backlog-plano-4.md`.
+2. Depois: Plano 5 (marca visual + instalador + CI).
+
+## Plano 4C (2026-10-17)
+- Modo desenho: `DrawSession` no núcleo (gesto + todas as saídas garantidas, relógio injetado, vigia de 1 s da UI) e
+  janela de entrada Win32 numa thread própria (`annotate/DrawInputWindow.cpp`, única exceção de captura/foco do código),
+  barra Qt sem foco e fora da captura, atalhos Draw/Undo/Clear e botão Desenhar; nunca liga em teste (dupla recusa).
+- Retângulo sujo na sobreposição (`prcDirty`) e na fonte (`DirtyHistory`), byte a byte igual ao desenho inteiro e
+  medido no smoke; fantasma desligado; `ensureClickThrough` devolve o topo; `-Close` da demo do 4B consertado.
+- 170 casos de teste + `tools/voltz-smoke-draw.ps1` + demo manual `tools/voltz-draw-demo.ps1`. As revisões mudaram 9
+  pontos do plano (monitor por `HMONITOR`, EXIT no próprio callback, mutex sem bloqueio na thread de entrada, recusa de
+  500 ms depois de uma trava da UI, barra...): seção "Desvios aceitos" no fim do plano. Roteiro manual no plano;
+  pendências em `docs/voltz/backlog-plano-4.md`.

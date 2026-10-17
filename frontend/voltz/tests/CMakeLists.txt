@@ -9,6 +9,7 @@ target_sources(
   PRIVATE
     test-main.cpp
     test-annotation-model.cpp
+    test-annotation-raster.cpp
     test-atomic-file.cpp
     test-cursor-track.cpp
     test-disk-space.cpp

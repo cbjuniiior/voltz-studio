@@ -10,6 +10,7 @@ target_sources(
   voltz-core
   PRIVATE
     annotation-model.cpp
+    annotation-raster.cpp
     atomic-file.cpp
     cursor-track.cpp
     disk-space.cpp
@@ -32,6 +33,7 @@ target_sources(
     voltz-version.cpp
   PUBLIC
     annotation-model.hpp
+    annotation-raster.hpp
     atomic-file.hpp
     cursor-track.hpp
     disk-space.hpp

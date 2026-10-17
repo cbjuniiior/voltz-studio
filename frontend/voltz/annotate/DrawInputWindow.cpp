@@ -393,6 +393,12 @@ void inputThreadMain(std::shared_ptr<DrawShared> shared, DrawInputWindow::Option
 		ready.set_value(true);
 	}
 
+	/* Rearma o tique a partir de agora: o primeiro fica pelo menos 100 ms depois do ready (a UI acabou de sair do start
+	 * e dá o pulso). Sem o tique não há vigia nem inatividade: falhou, sai como no SetTimer acima. */
+	if (!SetTimer(hwnd, kTickTimer, kTickMs, nullptr)) {
+		blog(LOG_WARNING, "[voltz] modo desenho: SetTimer falhou (%lu)", GetLastError());
+		deliver(state, state.session.requestExit(DrawExit::Shutdown)); /* posta o WM_QUIT: o laço sai já */
+	}
 	state.lastTickNs = nowNs();
 	MSG msg;
 	while (GetMessageW(&msg, nullptr, 0, 0) > 0) {

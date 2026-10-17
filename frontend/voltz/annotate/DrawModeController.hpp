@@ -10,6 +10,7 @@
 #include <QString>
 #include <QTimer>
 
+#include <cstdint>
 #include <memory>
 
 namespace voltz {
@@ -43,6 +44,9 @@ public:
 	// Atalho ou botão: liga (se nada recusar) ou pede a saída.
 	void toggle(DrawTrigger trigger);
 	bool active() const { return input_ != nullptr; }
+	// Saiu por perda de foco há menos de 500 ms (o mouse-down na casca tirou a ativação da janela de entrada): o
+	// botão "Desenhar" trata esse clique como "desligar", não como "ligar de novo".
+	bool lostFocusRecently() const;
 	// Teclas do atalho de desenhar ("Ctrl + Shift + D") ou "sem atalho".
 	QString drawShortcutText() const;
 
@@ -75,6 +79,7 @@ private:
 	CaptureMapping mapping_;
 	QTimer heartbeat_;
 	int beats_ = 0;
+	int64_t focusLostNs_ = 0; // última saída por perda de foco (os_gettime_ns); 0 = nenhuma
 	obs_hotkey_id drawHotkey_ = OBS_INVALID_HOTKEY_ID;
 	obs_hotkey_id undoHotkey_ = OBS_INVALID_HOTKEY_ID;
 	obs_hotkey_id clearHotkey_ = OBS_INVALID_HOTKEY_ID;

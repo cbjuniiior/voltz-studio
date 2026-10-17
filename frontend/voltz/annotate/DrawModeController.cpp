@@ -31,6 +31,7 @@ constexpr const char *kFreezeHotkeyName = "VoltzStudio.DebugFreezeUi";
 constexpr int kHeartbeatMs = 250;
 constexpr int kTargetCheckBeats = 4; // confere a Tela/monitor a cada ~1 s
 constexpr unsigned long kFreezeMs = 8000;
+constexpr int64_t kFocusLostClickNs = 500LL * 1000000LL; // um clique (apertar e soltar) cabe nisso
 
 int64_t nowNs()
 {
@@ -167,6 +168,10 @@ void DrawModeController::enter(DrawTrigger trigger)
 	/* pulso fresco logo antes de a thread de entrada nascer (o vigia dela sai com o pulso velho de 1 s) */
 	shared_->uiHeartbeatNs.store(nowNs());
 	input_ = DrawInputWindow::start(shared_, options);
+	if (input_) {
+		/* o start pode ter esperado a janela nascer (até 2 s, UI parada): pulso fresco antes do primeiro tique */
+		shared_->uiHeartbeatNs.store(nowNs());
+	}
 	if (!input_) {
 		blog(LOG_WARNING, "[voltz] modo desenho: recusado (janela)");
 		heartbeat_.stop();
@@ -309,6 +314,9 @@ void DrawModeController::drain()
 
 void DrawModeController::finish(DrawExit reason)
 {
+	/* Nenhum traço fica aberto (a sessão sempre manda o End antes do Exit; isto cobre a thread que não o entregou).
+	 * Sem traço aberto, não faz nada. */
+	annotations_->endStroke();
 	heartbeat_.stop();
 	if (shared_) {
 		std::lock_guard<std::mutex> lock(shared_->mutex);
@@ -321,10 +329,16 @@ void DrawModeController::finish(DrawExit reason)
 	if (toolbar_) {
 		toolbar_->hide();
 	}
+	focusLostNs_ = reason == DrawExit::FocusLost ? nowNs() : 0;
 	annotations_->setDrawStatus(false, "", drawExitName(reason));
 	blog(LOG_INFO, "[voltz] modo desenho: desligado (%s); sobreposicao: %s", drawExitName(reason),
 	     annotations_->overlayStatsText().c_str());
 	emit activeChanged(false);
+}
+
+bool DrawModeController::lostFocusRecently() const
+{
+	return focusLostNs_ != 0 && nowNs() - focusLostNs_ < kFocusLostClickNs;
 }
 
 QString DrawModeController::drawShortcutText() const

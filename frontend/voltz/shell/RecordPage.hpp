@@ -70,6 +70,7 @@ private:
 	RecordingClock recordingClock_;
 	bool pendingStart_ = false;
 	bool diskBannerDismissed_ = false;
+	bool drawWasActive_ = false; // modo desenho ligado no "pressed" do botão Desenhar
 	// Faixas ISO que falharam no projeto atual ("a câmera (motivo)"), na ordem em que falharam.
 	QStringList isoFailures_;
 };

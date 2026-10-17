@@ -171,8 +171,18 @@ RecordPage::RecordPage(FrontendBridge *bridge, ProjectRecorder *recorder, DrawMo
 	connect(pauseButton_, &QPushButton::clicked, this,
 		[this]() { bridge_->setRecordingPaused(!bridge_->isRecordingPaused()); });
 	connect(markerButton_, &QPushButton::clicked, this, [this]() { recorder_->addMarker(); });
+	/* O estado é lido no "pressed": com a janela de entrada ativa (casca em outro monitor), o mouse-down na casca já
+	 * tira a ativação dela e o modo sai (perda de foco) antes do "clicked" — que não pode religá-lo. A saída pode
+	 * chegar à UI antes até do "pressed" (evento postado × WM_LBUTTONDOWN): por isso também conta a perda de foco
+	 * recente. */
+	connect(drawButton_, &QPushButton::pressed, this,
+		[this]() { drawWasActive_ = drawMode_->active() || drawMode_->lostFocusRecently(); });
 	connect(drawButton_, &QPushButton::clicked, this, [this]() {
-		drawMode_->toggle(DrawTrigger::Button);
+		const bool wasActive = drawWasActive_;
+		drawWasActive_ = false;
+		if (!(wasActive && !drawMode_->active())) {
+			drawMode_->toggle(DrawTrigger::Button);
+		}
 		/* o botão reflete o estado de verdade (ligou, foi recusado ou vai sair) */
 		const QSignalBlocker blocker(drawButton_);
 		drawButton_->setChecked(drawMode_->active());

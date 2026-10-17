@@ -154,6 +154,28 @@ TEST_CASE("redrawRegion depois de acrescentar pontos = redesenhar tudo (caneta, 
 			CHECK(incremental.pixels == full.pixels);
 		}
 	}
+	/* forma que encolhe e muda de direção: a forma antiga (fora da nova) também precisa ser apagada */
+	const AnnotationTool shapes[] = {AnnotationTool::Rectangle, AnnotationTool::Arrow, AnnotationTool::Ellipse,
+					 AnnotationTool::Line};
+	for (const auto &scale : scales) {
+		for (AnnotationTool tool : shapes) {
+			const Stroke below =
+				makeStroke(1, AnnotationTool::Highlighter, kRed, 6, {{20, 30}, {300, 200}});
+			Stroke stroke = makeStroke(2, tool, kLime, 5, {{40, 40}, {360, 260}});
+			const Stroke above = makeStroke(3, AnnotationTool::Pen, kBlue, 3, {{100, 20}, {110, 280}});
+			const std::vector<const Stroke *> list{&below, &stroke, &above};
+			Image incremental(400, 300);
+			redrawAll(incremental, list, scale[0], scale[1]);
+			const voltz::StrokeTail tail = voltz::strokeTail(stroke);
+			voltz::appendStrokePoints(stroke, {{100, 80}});
+			const PixelRect dirty = voltz::appendDirtyRect(tail, stroke, scale[0], scale[1]);
+			CHECK_FALSE(dirty.empty());
+			voltz::redrawRegion(incremental.view(), list, scale[0], scale[1], dirty);
+			Image full(400, 300);
+			redrawAll(full, list, scale[0], scale[1]);
+			CHECK(incremental.pixels == full.pixels);
+		}
+	}
 	/* ponto repetido na caneta: nada muda */
 	Stroke pen = makeStroke(9, AnnotationTool::Pen, kLime, 4, {{10, 10}, {20, 20}});
 	const voltz::StrokeTail tail = voltz::strokeTail(pen);
@@ -173,6 +195,25 @@ TEST_CASE("redrawRegion depois de desfazer = redesenhar tudo sem o traço")
 		Image expected(400, 300);
 		redrawAll(expected, {&a, &c}, scale, scale);
 		CHECK(image.pixels == expected.pixels);
+
+		/* marca-texto grosso que atravessa a borda e o canto: a região sai da imagem */
+		Stroke edge = makeStroke(4, AnnotationTool::Highlighter, kLime, 48, {{-20, -10}});
+		const std::vector<const Stroke *> withEdge{&a, &edge, &c};
+		Image incremental(400, 300);
+		redrawAll(incremental, withEdge, scale, scale);
+		const voltz::StrokeTail tail = voltz::strokeTail(edge);
+		voltz::appendStrokePoints(edge, {{395, 295}});
+		const PixelRect dirty = voltz::appendDirtyRect(tail, edge, scale, scale);
+		CHECK(dirty.left < 0);
+		CHECK(dirty.top < 0);
+		CHECK((scale < 1.0 || (dirty.right > 400 && dirty.bottom > 300)));
+		voltz::redrawRegion(incremental.view(), withEdge, scale, scale, dirty);
+		Image full(400, 300);
+		redrawAll(full, withEdge, scale, scale);
+		CHECK(incremental.pixels == full.pixels);
+		voltz::redrawRegion(incremental.view(), {&a, &c}, scale, scale,
+				    voltz::strokeBounds(edge, scale, scale));
+		CHECK(incremental.pixels == expected.pixels);
 	}
 }
 

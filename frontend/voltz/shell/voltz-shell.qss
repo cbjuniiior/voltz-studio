@@ -112,6 +112,11 @@
 	color: #4A4A52;
 }
 
+#voltzShell QPushButton#drawButton:checked {
+	border-color: #D4F53C;
+	color: #D4F53C;
+}
+
 #voltzShell QPushButton#recordButton {
 	background: #FF4D4D;
 	color: #FFFFFF;

@@ -76,6 +76,9 @@ constexpr const char *kTestVendor = "voltz-teste";
 constexpr const char *kTestVendorShell = "voltz-teste-casca";
 constexpr const char *kTestOverlayRectEnv = "VOLTZ_TEST_OVERLAY_RECT";
 constexpr const char *kTestBurnedEnv = "VOLTZ_TEST_ANNOT_BURNED";
+// Só depuração e testes (independe de VOLTZ_TEST_LIVE): registra o atalho "VoltzStudio.DebugFreezeUi" (Ctrl+Shift+F12),
+// que trava a thread da UI por 8 s — para ver o vigia do modo desenho e a ausência de janela fantasma (Plano 4C).
+constexpr const char *kDebugFreezeEnv = "VOLTZ_DEBUG_FREEZE_UI";
 
 inline bool testModeEnabled()
 {

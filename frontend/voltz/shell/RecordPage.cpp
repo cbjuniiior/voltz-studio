@@ -14,6 +14,7 @@
 #include <voltz/core/time-format.hpp>
 #include <voltz/project/ProjectLibrary.hpp>
 #include <voltz/project/ProjectRecorder.hpp>
+#include <voltz/annotate/DrawModeController.hpp>
 
 #include <OBSApp.hpp> // QTStr
 
@@ -52,10 +53,11 @@ QString freeSpaceText(quint64 bytes)
 
 } // namespace
 
-RecordPage::RecordPage(FrontendBridge *bridge, ProjectRecorder *recorder, QWidget *parent)
+RecordPage::RecordPage(FrontendBridge *bridge, ProjectRecorder *recorder, DrawModeController *drawMode, QWidget *parent)
 	: QWidget(parent),
 	  bridge_(bridge),
-	  recorder_(recorder)
+	  recorder_(recorder),
+	  drawMode_(drawMode)
 {
 	monotonic_.start();
 
@@ -101,6 +103,11 @@ RecordPage::RecordPage(FrontendBridge *bridge, ProjectRecorder *recorder, QWidge
 	projectName_->setAccessibleName(QTStr("Voltz.Record.ProjectName"));
 	projectName_->lineEdit()->setPlaceholderText(QTStr("Voltz.Project.DefaultName"));
 
+	drawButton_ = new QPushButton(QTStr("Voltz.Record.Draw"), this);
+	drawButton_->setObjectName("drawButton");
+	drawButton_->setCheckable(true);
+	drawButton_->setIcon(phosphorToggleIcon(QStringLiteral("pencil-simple"), palette::kText, palette::kAccent));
+	drawButton_->setIconSize(QSize(16, 16));
 	markerButton_ = new QPushButton(QTStr("Voltz.Record.Marker"), this);
 	markerButton_->setIcon(phosphorIcon(QStringLiteral("flag"), palette::kText));
 	markerButton_->setIconSize(QSize(16, 16));
@@ -128,6 +135,7 @@ RecordPage::RecordPage(FrontendBridge *bridge, ProjectRecorder *recorder, QWidge
 	bar->setSpacing(12);
 	bar->addWidget(projectName_);
 	bar->addStretch(1);
+	bar->addWidget(drawButton_);
 	bar->addWidget(markerButton_);
 	bar->addWidget(pauseButton_);
 	bar->addWidget(recordButton_);
@@ -163,6 +171,18 @@ RecordPage::RecordPage(FrontendBridge *bridge, ProjectRecorder *recorder, QWidge
 	connect(pauseButton_, &QPushButton::clicked, this,
 		[this]() { bridge_->setRecordingPaused(!bridge_->isRecordingPaused()); });
 	connect(markerButton_, &QPushButton::clicked, this, [this]() { recorder_->addMarker(); });
+	connect(drawButton_, &QPushButton::clicked, this, [this]() {
+		drawMode_->toggle(DrawTrigger::Button);
+		/* o botão reflete o estado de verdade (ligou, foi recusado ou vai sair) */
+		const QSignalBlocker blocker(drawButton_);
+		drawButton_->setChecked(drawMode_->active());
+	});
+	connect(drawMode_, &DrawModeController::activeChanged, this, [this](bool active) {
+		const QSignalBlocker blocker(drawButton_);
+		drawButton_->setChecked(active);
+	});
+	connect(drawMode_, &DrawModeController::refused, this, [this](const QString &message) { showToast(message); });
+	refreshDrawHint();
 	connect(projectName_->lineEdit(), &QLineEdit::editingFinished, this, &RecordPage::commitProjectName);
 	connect(projectName_, &QComboBox::activated, this, [this](int) { commitProjectName(); });
 
@@ -206,6 +226,7 @@ void RecordPage::showEvent(QShowEvent *event)
 		reloadProjectNames();
 	}
 	refreshDiskInfo();
+	refreshDrawHint();
 }
 
 void RecordPage::updateRecordingUi(bool active, bool paused)
@@ -301,8 +322,18 @@ void RecordPage::showMarkerToast(int number)
 {
 	/* Mostra o tempo do cronômetro (líquido, como o usuário vê), não o t_ms bruto do marcadores.json. */
 	const QString clock = QString::fromStdString(formatClock(recordingClock_.elapsedMs(monotonic_.elapsed())));
-	markerToast_->setText(QTStr("Voltz.Record.MarkerAdded").arg(QTStr("Voltz.Marker.Name").arg(number), clock));
+	showToast(QTStr("Voltz.Record.MarkerAdded").arg(QTStr("Voltz.Marker.Name").arg(number), clock));
+}
+
+void RecordPage::showToast(const QString &text)
+{
+	markerToast_->setText(text);
 	markerToastTimer_.start();
+}
+
+void RecordPage::refreshDrawHint()
+{
+	drawButton_->setToolTip(QTStr("Voltz.Record.Draw.Hint").arg(drawMode_->drawShortcutText()));
 }
 
 void RecordPage::reloadProjectNames()

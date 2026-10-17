@@ -279,7 +279,7 @@ void LiveMouse::threadMain(std::promise<void> ready)
 						    sizeof(RAWINPUTHEADER)) != static_cast<UINT>(-1) &&
 				    raw.header.dwType == RIM_TYPEMOUSE) {
 					const MouseButton button = pressedButton(raw.data.mouse.usButtonFlags, swapped);
-					if (button != MouseButton::None) {
+					if (button != MouseButton::None && !clicksSuppressed_.load()) {
 						const CapturePoint point = currentPoint();
 						if (point.inside) {
 							sendClick(point, button, static_cast<int64_t>(os_gettime_ns()));

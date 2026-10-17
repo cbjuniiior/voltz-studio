@@ -14,18 +14,21 @@ class QPushButton;
 namespace voltz {
 
 class ErrorBanner;
+class DrawModeController;
 class FrontendBridge;
 class ProjectRecorder;
 class ScenesPanel;
 class VoltzPreview;
 
 // Tela "Gravar" (layout H2): cenas | prévia | coluna lateral (fontes + áudio). Barra inferior (spec §4.2): nome do
-// projeto · Marcador · Pausar · Gravar + tempo · estimativa de espaço. Faixas na prévia: erro de gravação e disco.
+// projeto · Desenhar · Marcador · Pausar · Gravar + tempo · estimativa de espaço. Faixas na prévia: erro de gravação
+// e disco.
 class RecordPage : public QWidget {
 	Q_OBJECT
 
 public:
-	RecordPage(FrontendBridge *bridge, ProjectRecorder *recorder, QWidget *parent = nullptr);
+	RecordPage(FrontendBridge *bridge, ProjectRecorder *recorder, DrawModeController *drawMode,
+		   QWidget *parent = nullptr);
 
 protected:
 	void showEvent(QShowEvent *event) override;
@@ -36,6 +39,8 @@ private:
 	void showRecordingError(int code, const QString &lastError);
 	void tickClock();
 	void showMarkerToast(int number);
+	void showToast(const QString &text);
+	void refreshDrawHint();
 	void reloadProjectNames();
 	void commitProjectName();
 	void refreshDiskInfo();
@@ -43,6 +48,7 @@ private:
 
 	FrontendBridge *bridge_;
 	ProjectRecorder *recorder_;
+	DrawModeController *drawMode_;
 	ScenesPanel *scenes_ = nullptr;
 	VoltzPreview *preview_ = nullptr;
 	ErrorBanner *errorBanner_ = nullptr;
@@ -50,6 +56,7 @@ private:
 	ErrorBanner *isoBanner_ = nullptr;
 	QComboBox *projectName_ = nullptr;
 	QPushButton *markerButton_ = nullptr;
+	QPushButton *drawButton_ = nullptr;
 	QPushButton *pauseButton_ = nullptr;
 	QPushButton *recordButton_ = nullptr;
 	QLabel *timeLabel_ = nullptr;

@@ -9,6 +9,7 @@ namespace voltz {
 
 class FrontendBridge;
 class AnnotationController;
+class DrawModeController;
 class LiveMouse;
 class MouseStyleStore;
 class ProjectRecorder;
@@ -45,6 +46,7 @@ private:
 	MouseStyleStore *mouseStyles_ = nullptr;
 	LiveMouse *liveMouse_ = nullptr;
 	AnnotationController *annotations_ = nullptr;
+	DrawModeController *drawMode_ = nullptr;
 	QStackedWidget *pages_ = nullptr;
 	QButtonGroup *navGroup_ = nullptr;
 	bool exiting_ = false;

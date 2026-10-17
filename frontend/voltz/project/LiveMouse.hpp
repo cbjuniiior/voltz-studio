@@ -28,6 +28,9 @@ public:
 	// Para a consulta e a thread. Chamar no EXIT do frontend, antes de o libobs descarregar o plugin.
 	void shutdown();
 	bool running() const { return running_; }
+	// Modo desenho ligado: os cliques não fazem onda (cada traço começaria com uma); o halo segue o mouse. Nada muda no
+	// registro de Raw Input. Qualquer thread.
+	void setClicksSuppressed(bool suppressed) { clicksSuppressed_.store(suppressed); }
 
 private:
 	void poll();
@@ -42,6 +45,7 @@ private:
 	QTimer poll_;
 	std::thread thread_;
 	std::atomic<unsigned long> threadId_{0};
+	std::atomic<bool> clicksSuppressed_{false};
 	std::mutex mutex_;
 	CaptureMapping mapping_; // protegido por mutex_ (a UI escreve, a thread lê)
 	int mappingState_ = -1;  // -1 desconhecido, 0 sem captura de monitor, 1 com captura (só para o log)

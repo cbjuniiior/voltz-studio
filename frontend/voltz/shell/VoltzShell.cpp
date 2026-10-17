@@ -18,6 +18,7 @@
 #include <voltz/project/ProjectRecorder.hpp>
 #include <voltz/project/LiveMouse.hpp>
 #include <voltz/annotate/AnnotationController.hpp>
+#include <voltz/annotate/DrawModeController.hpp>
 
 #include <obs.h>
 
@@ -36,6 +37,13 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
+
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 
 #include "moc_VoltzShell.cpp"
 
@@ -68,6 +76,12 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 	setMinimumSize(1024, 640);
 	resize(1280, 800);
 	setStyleSheet(shellStyleSheet());
+#ifdef _WIN32
+	/* Nenhuma janela do processo vira "fantasma" quando a UI trava (> 5 s): o fantasma de uma janela que cobre o monitor
+	 * (sobreposição das anotações) receberia os cliques do usuário. O modo desenho tem ainda o vigia de 1 s. */
+	DisableProcessWindowsGhosting();
+	blog(LOG_INFO, "[voltz] janelas fantasma do Windows desligadas no processo");
+#endif
 
 	bridge_ = new FrontendBridge(this);
 	/* Criado depois da ponte: os callbacks do frontend rodam do último registrado para o primeiro
@@ -76,15 +90,19 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 	mouseStyles_ = new MouseStyleStore(this);
 	recorder_->setMouseStyleStore(mouseStyles_);
 	liveMouse_ = new LiveMouse(mouseStyles_, this);
-	/* Anotações (4B): só exibe; os traços vêm do fornecedor de teste até o modo desenho do 4C. */
+	/* Anotações: o modo desenho (atalho ou botão "Desenhar") entrega os traços ao AnnotationController. Criado depois
+	 * da ponte, do projeto e do estilo do mouse: o EXIT do modo desenho roda antes dos deles (ele sai primeiro). */
 	annotations_ = new AnnotationController(this);
 	recorder_->setAnnotationController(annotations_);
+	drawMode_ = new DrawModeController(annotations_, this);
+	connect(drawMode_, &DrawModeController::activeChanged, this,
+		[this](bool active) { liveMouse_->setClicksSuppressed(active); });
 	/* A coleção já está carregada (a casca nasce depois do OBSBasic::OBSInit): Tela Voltz nas cenas de antes. */
 	ensureScreenGroups();
 	connect(bridge_, &FrontendBridge::sceneCollectionChanged, this, []() { ensureScreenGroups(); });
 
 	pages_ = new QStackedWidget(this);
-	pages_->addWidget(new RecordPage(bridge_, recorder_, pages_));
+	pages_->addWidget(new RecordPage(bridge_, recorder_, drawMode_, pages_));
 	pages_->addWidget(new ProjectsPage(bridge_, recorder_, pages_));
 	auto *presets = new PresetsPage(pages_);
 	pages_->addWidget(presets);
@@ -107,6 +125,7 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 	connect(bridge_, &FrontendBridge::exiting, this, [this]() {
 		/* antes de o libobs descarregar o plugin: nada de chamar os procedimentos dele depois daqui; a sobreposição
 		 * das anotações é destruída aqui */
+		drawMode_->shutdown(); /* antes das anotações: o traço em andamento termina (o EXIT dele já o chamou) */
 		annotations_->shutdown();
 		liveMouse_->shutdown();
 		exiting_ = true;

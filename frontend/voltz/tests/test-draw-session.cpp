@@ -76,16 +76,19 @@ std::string describe(const std::vector<DrawCommand> &commands)
 
 } // namespace
 
-TEST_CASE("checkDrawEntry: saindo vence teste, que vence sem alvo; nomes das recusas")
+TEST_CASE("checkDrawEntry: saindo vence teste, que vence recente, que vence sem alvo; nomes das recusas")
 {
-	CHECK(voltz::checkDrawEntry(false, false, true) == DrawRefusal::None);
-	CHECK(voltz::checkDrawEntry(true, true, false) == DrawRefusal::ShuttingDown);
-	CHECK(voltz::checkDrawEntry(false, true, true) == DrawRefusal::TestMode);
-	CHECK(voltz::checkDrawEntry(false, true, false) == DrawRefusal::TestMode);
-	CHECK(voltz::checkDrawEntry(false, false, false) == DrawRefusal::NoTarget);
+	CHECK(voltz::checkDrawEntry(false, false, false, true) == DrawRefusal::None);
+	CHECK(voltz::checkDrawEntry(true, true, true, false) == DrawRefusal::ShuttingDown);
+	CHECK(voltz::checkDrawEntry(false, true, true, true) == DrawRefusal::TestMode);
+	CHECK(voltz::checkDrawEntry(false, true, false, false) == DrawRefusal::TestMode);
+	CHECK(voltz::checkDrawEntry(false, false, true, true) == DrawRefusal::Recent);
+	CHECK(voltz::checkDrawEntry(false, false, true, false) == DrawRefusal::Recent);
+	CHECK(voltz::checkDrawEntry(false, false, false, false) == DrawRefusal::NoTarget);
 	CHECK(std::string(voltz::drawRefusalName(DrawRefusal::None)).empty());
 	CHECK(std::string(voltz::drawRefusalName(DrawRefusal::ShuttingDown)) == "saindo");
 	CHECK(std::string(voltz::drawRefusalName(DrawRefusal::TestMode)) == "teste");
+	CHECK(std::string(voltz::drawRefusalName(DrawRefusal::Recent)) == "recente");
 	CHECK(std::string(voltz::drawRefusalName(DrawRefusal::NoTarget)) == "sem_alvo");
 }
 

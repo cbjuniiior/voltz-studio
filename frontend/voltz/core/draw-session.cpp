@@ -54,6 +54,8 @@ const char *drawRefusalName(DrawRefusal refusal)
 		return "saindo";
 	case DrawRefusal::TestMode:
 		return "teste";
+	case DrawRefusal::Recent:
+		return "recente";
 	case DrawRefusal::NoTarget:
 		return "sem_alvo";
 	case DrawRefusal::None:
@@ -62,13 +64,16 @@ const char *drawRefusalName(DrawRefusal refusal)
 	return "";
 }
 
-DrawRefusal checkDrawEntry(bool shuttingDown, bool testMode, bool hasTarget)
+DrawRefusal checkDrawEntry(bool shuttingDown, bool testMode, bool recentFreezeExit, bool hasTarget)
 {
 	if (shuttingDown) {
 		return DrawRefusal::ShuttingDown;
 	}
 	if (testMode) {
 		return DrawRefusal::TestMode;
+	}
+	if (recentFreezeExit) {
+		return DrawRefusal::Recent;
 	}
 	if (!hasTarget) {
 		return DrawRefusal::NoTarget;

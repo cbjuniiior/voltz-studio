@@ -16,17 +16,22 @@ enum class DrawExit { None, Escape, RightClick, Hotkey, Button, FocusLost, Idle,
 const char *drawExitName(DrawExit exit);
 
 // Por que o modo desenho não ligou.
-enum class DrawRefusal { None, ShuttingDown, TestMode, NoTarget };
+enum class DrawRefusal { None, ShuttingDown, TestMode, Recent, NoTarget };
 
-// "saindo" | "teste" | "sem_alvo"; "" para None.
+// "saindo" | "teste" | "recente" | "sem_alvo"; "" para None.
 const char *drawRefusalName(DrawRefusal refusal);
 
 // O modo desenho só liga por ação do usuário e nunca: com o app saindo, com VOLTZ_TEST_LIVE (teste automático não
-// consegue ligá-lo) ou sem monitor capturado onde desenhar — nessa ordem.
-DrawRefusal checkDrawEntry(bool shuttingDown, bool testMode, bool hasTarget);
+// consegue ligá-lo), logo depois de uma saída durante uma trava da UI (`recentFreezeExit`: o atalho ou o clique em
+// "Desenhar" que ficou na fila durante a trava queria desligar, não religar) ou sem monitor capturado onde desenhar —
+// nessa ordem.
+DrawRefusal checkDrawEntry(bool shuttingDown, bool testMode, bool recentFreezeExit, bool hasTarget);
 
 constexpr int64_t kDrawIdleNs = 30LL * 1000000000LL; // 30 s sem entrada do usuário
 constexpr int64_t kDrawHeartbeatNs = 1000000000LL;   // thread da UI sem pulsar por 1 s
+// Depois de uma saída durante uma trava da UI (vigia, ou qualquer saída tratada com a UI parada há mais de
+// kDrawHeartbeatNs), o atalho e o botão não religam o modo por este tempo (DrawRefusal::Recent).
+constexpr int64_t kDrawReentryBlockNs = 500LL * 1000000LL;
 
 enum class DrawInputKind {
 	Move,          // o mouse moveu (x, y)

@@ -378,6 +378,10 @@ void DrawToolbar::showOnScreen(const QString &deviceName, bool excludeFromCaptur
 	/* pelo HMONITOR (screenForMonitor): no Qt 6 o QScreen::name() é o nome amigável, não o "\\.\DISPLAYn" */
 	QScreen *target = voltz::screenForMonitor(deviceName.toStdString());
 	if (!target) {
+		blog(LOG_WARNING,
+		     "[voltz] barra do modo desenho: monitor '%s' nao encontrado entre as telas do Qt; vai para a "
+		     "tela principal",
+		     deviceName.toUtf8().constData());
 		target = QGuiApplication::primaryScreen();
 	}
 	adjustSize();

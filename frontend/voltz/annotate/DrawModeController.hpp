@@ -7,6 +7,7 @@
 #include <obs.hpp>
 
 #include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QTimer>
 
@@ -41,7 +42,8 @@ public:
 	// EXIT do frontend, ANTES do AnnotationController::shutdown: sai do modo (o traço em andamento termina), apaga a
 	// barra e solta os atalhos. Idempotente (o próprio EXIT chama primeiro; a casca chama de novo).
 	void shutdown();
-	// Atalho ou botão: liga (se nada recusar) ou pede a saída.
+	// Atalho ou botão: liga (se nada recusar) ou pede a saída. Até 500 ms depois de uma saída durante uma trava da UI
+	// (vigia), recusa ligar ("recente"): o gatilho que ficou na fila durante a trava queria desligar.
 	void toggle(DrawTrigger trigger);
 	bool active() const { return input_ != nullptr; }
 	// Saiu por perda de foco há menos de 500 ms (o mouse-down na casca tirou a ativação da janela de entrada): o
@@ -72,14 +74,19 @@ private:
 	static void handleClearHotkey(void *data, obs_hotkey_id id, obs_hotkey_t *hotkey, bool pressed);
 	static void handleFreezeHotkey(void *data, obs_hotkey_id id, obs_hotkey_t *hotkey, bool pressed);
 
-	AnnotationController *annotations_;
+	bool recentFreezeExit() const;
+
+	/* QPointer: o AnnotationController é irmão mais velho na casca e morre antes deste se o EXIT não rodou */
+	QPointer<AnnotationController> annotations_;
 	std::shared_ptr<DrawShared> shared_;
 	std::unique_ptr<DrawInputWindow> input_;
 	DrawToolbar *toolbar_ = nullptr; // sem pai (janela própria): apagada no shutdown
 	CaptureMapping mapping_;
 	QTimer heartbeat_;
 	int beats_ = 0;
-	int64_t focusLostNs_ = 0; // última saída por perda de foco (os_gettime_ns); 0 = nenhuma
+	int64_t exitNs_ = 0;                   // última saída (os_gettime_ns, ao ser tratada na UI); 0 = nenhuma
+	DrawExit exitReason_ = DrawExit::None; // motivo da última saída
+	bool exitInFreeze_ = false; // a última saída foi o vigia ou foi tratada com a UI parada há mais de 1 s
 	obs_hotkey_id drawHotkey_ = OBS_INVALID_HOTKEY_ID;
 	obs_hotkey_id undoHotkey_ = OBS_INVALID_HOTKEY_ID;
 	obs_hotkey_id clearHotkey_ = OBS_INVALID_HOTKEY_ID;

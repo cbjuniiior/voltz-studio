@@ -11,6 +11,7 @@
 
 #include <util/platform.h>
 
+#include <QSignalBlocker>
 #include <QThread>
 
 #include <initializer_list>
@@ -74,6 +75,10 @@ DrawModeController::DrawModeController(AnnotationController *annotations, QObjec
 
 DrawModeController::~DrawModeController()
 {
+	/* Normalmente o EXIT já chamou o shutdown. Se não (casca destruída sem o EXIT), os irmãos mais velhos na casca
+	 * (LiveMouse, AnnotationController) já morreram: nenhum sinal sai daqui (o activeChanged chegaria ao LiveMouse pela
+	 * casca) e o finish não toca nas anotações (QPointer nulo). */
+	const QSignalBlocker blocker(this);
 	shutdown();
 }
 
@@ -118,16 +123,24 @@ void DrawModeController::toggle(DrawTrigger trigger)
 void DrawModeController::enter(DrawTrigger trigger)
 {
 	const bool testMode = live::testModeEnabled();
+	const bool shuttingDown = shutdown_ || !annotations_;
+	/* O atalho ou o clique em "Desenhar" que ficou na fila durante uma trava da UI chega logo depois do drain que tratou
+	 * a saída (vigia): queria desligar o modo, não religá-lo. */
+	const bool recent = !shuttingDown && recentFreezeExit();
 	CaptureMapping mapping;
 	std::string device;
 	/* com VOLTZ_TEST_LIVE nem procura o alvo: a recusa vem antes de qualquer janela */
-	const bool hasTarget = !shutdown_ && !testMode && annotations_->drawTarget(mapping, device);
-	const DrawRefusal refusal = checkDrawEntry(shutdown_, testMode, hasTarget);
+	const bool hasTarget = !shuttingDown && !testMode && !recent && annotations_->drawTarget(mapping, device);
+	const DrawRefusal refusal = checkDrawEntry(shuttingDown, testMode, recent, hasTarget);
 	if (refusal != DrawRefusal::None) {
 		blog(LOG_INFO, "[voltz] modo desenho: recusado (%s)", drawRefusalName(refusal));
-		annotations_->setDrawStatus(false, drawRefusalName(refusal), "");
+		if (annotations_) {
+			annotations_->setDrawStatus(false, drawRefusalName(refusal), "");
+		}
 		if (refusal == DrawRefusal::TestMode) {
 			emit refused(QTStr("Voltz.Draw.Refused.Test"));
+		} else if (refusal == DrawRefusal::Recent) {
+			emit refused(QTStr("Voltz.Draw.Refused.Recent"));
 		} else if (refusal == DrawRefusal::NoTarget) {
 			emit refused(QTStr("Voltz.Draw.Refused.NoTarget"));
 		}
@@ -256,7 +269,7 @@ void DrawModeController::beat()
 	}
 	CaptureMapping mapping;
 	std::string device;
-	if (!annotations_->drawTarget(mapping, device) || !sameMapping(mapping, mapping_)) {
+	if (!annotations_ || !annotations_->drawTarget(mapping, device) || !sameMapping(mapping, mapping_)) {
 		blog(LOG_INFO, "[voltz] modo desenho: a Tela ou o monitor mudou");
 		input_->requestExit(DrawExit::Target);
 	}
@@ -276,6 +289,16 @@ void DrawModeController::drain()
 		return;
 	}
 	const std::vector<DrawCommand> commands = takeDrawCommands(*shared_);
+	if (!annotations_) {
+		/* destrutor sem o EXIT: o AnnotationController já morreu; dos comandos, só a saída importa */
+		for (const DrawCommand &command : commands) {
+			if (command.type == DrawCommandType::Exit) {
+				finish(command.exit);
+				return;
+			}
+		}
+		return;
+	}
 	const AnnotationStyle style = annotations_->style();
 	std::vector<StrokePoint> pending;
 	auto flush = [this, &pending]() {
@@ -290,6 +313,11 @@ void DrawModeController::drain()
 			flush();
 			if (!command.points.empty()) {
 				annotations_->beginStroke(style.tool, style.color, style.width, command.points.front());
+				/* o traço pode ter acabado de mostrar a sobreposição (HWND_TOPMOST, por cima de tudo, inclusive da
+				 * barra): a barra volta para cima, sem ativar */
+				if (toolbar_) {
+					toolbar_->raiseWithoutActivating();
+				}
 			}
 			break;
 		case DrawCommandType::Extend:
@@ -314,9 +342,18 @@ void DrawModeController::drain()
 
 void DrawModeController::finish(DrawExit reason)
 {
+	const int64_t now = nowNs();
+	/* Saída durante uma trava da UI: o vigia, ou qualquer outra tratada aqui com o último pulso (a UI pulsa a cada
+	 * 250 ms) mais velho que o prazo do vigia — o atalho/botão que ficou na fila não religa o modo (recentFreezeExit). */
+	const int64_t lastBeat = shared_ ? shared_->uiHeartbeatNs.load() : 0;
+	exitInFreeze_ = reason == DrawExit::Watchdog || (lastBeat != 0 && now - lastBeat > kDrawHeartbeatNs);
+	exitNs_ = now;
+	exitReason_ = reason;
 	/* Nenhum traço fica aberto (a sessão sempre manda o End antes do Exit; isto cobre a thread que não o entregou).
 	 * Sem traço aberto, não faz nada. */
-	annotations_->endStroke();
+	if (annotations_) {
+		annotations_->endStroke();
+	}
 	heartbeat_.stop();
 	if (shared_) {
 		std::lock_guard<std::mutex> lock(shared_->mutex);
@@ -329,16 +366,28 @@ void DrawModeController::finish(DrawExit reason)
 	if (toolbar_) {
 		toolbar_->hide();
 	}
-	focusLostNs_ = reason == DrawExit::FocusLost ? nowNs() : 0;
-	annotations_->setDrawStatus(false, "", drawExitName(reason));
-	blog(LOG_INFO, "[voltz] modo desenho: desligado (%s); sobreposicao: %s", drawExitName(reason),
-	     annotations_->overlayStatsText().c_str());
+	std::string stats = "indisponivel";
+	if (annotations_) {
+		annotations_->setDrawStatus(false, "", drawExitName(reason));
+		stats = annotations_->overlayStatsText();
+	}
+	blog(LOG_INFO, "[voltz] modo desenho: desligado (%s); sobreposicao: %s", drawExitName(reason), stats.c_str());
+	if (exitInFreeze_ && !shutdown_) {
+		blog(LOG_INFO,
+		     "[voltz] modo desenho: saida durante uma trava da UI; atalho e botao nao religam por %lld ms",
+		     static_cast<long long>(kDrawReentryBlockNs / 1000000));
+	}
 	emit activeChanged(false);
 }
 
 bool DrawModeController::lostFocusRecently() const
 {
-	return focusLostNs_ != 0 && nowNs() - focusLostNs_ < kFocusLostClickNs;
+	return exitReason_ == DrawExit::FocusLost && exitNs_ != 0 && nowNs() - exitNs_ < kFocusLostClickNs;
+}
+
+bool DrawModeController::recentFreezeExit() const
+{
+	return exitInFreeze_ && exitNs_ != 0 && nowNs() - exitNs_ < kDrawReentryBlockNs;
 }
 
 QString DrawModeController::drawShortcutText() const
@@ -425,7 +474,7 @@ void DrawModeController::handleUndoHotkey(void *data, obs_hotkey_id, obs_hotkey_
 	QMetaObject::invokeMethod(
 		self,
 		[self]() {
-			if (!self->shutdown_) {
+			if (!self->shutdown_ && self->annotations_) {
 				self->annotations_->undo();
 			}
 		},
@@ -441,7 +490,7 @@ void DrawModeController::handleClearHotkey(void *data, obs_hotkey_id, obs_hotkey
 	QMetaObject::invokeMethod(
 		self,
 		[self]() {
-			if (!self->shutdown_) {
+			if (!self->shutdown_ && self->annotations_) {
 				self->annotations_->clear();
 			}
 		},

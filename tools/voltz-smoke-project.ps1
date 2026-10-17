@@ -215,6 +215,7 @@ if ($projects.Count -eq 1) {
     $prog = Join-Path $dir ([string]$m.arquivos.programa.arquivo)
     Check "programa.mp4 existe e > 0" ($m.arquivos.programa.arquivo -eq "programa.mp4" -and (Test-Path -LiteralPath $prog) -and (Get-Item -LiteralPath $prog).Length -gt 0)
     Check "manifesto declara 3 faixas de audio" ($m.arquivos.programa.faixas_audio -eq 3)
+    Check "manifesto: bloco mouse (halo/clique/holofote, estilo padrao)" ($m.mouse -and $m.mouse.halo -and $m.mouse.clique -and $m.mouse.holofote -and $m.mouse.halo.tamanho -eq 46)
     $tela = $m.arquivos.tela
     $camera = $m.arquivos.camera
     if ($ProgramOnly) {

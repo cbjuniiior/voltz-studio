@@ -112,9 +112,13 @@ void FrontendBridge::handleEvent(enum obs_frontend_event event, void *data)
 void FrontendBridge::dispatch(enum obs_frontend_event event)
 {
 	switch (event) {
+	case OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED:
+		emit sceneCollectionChanged();
+		emit sceneListChanged();
+		emit currentSceneChanged(currentSceneUuid());
+		break;
 	case OBS_FRONTEND_EVENT_FINISHED_LOADING:
 	case OBS_FRONTEND_EVENT_SCENE_LIST_CHANGED:
-	case OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED:
 		emit sceneListChanged();
 		emit currentSceneChanged(currentSceneUuid());
 		break;

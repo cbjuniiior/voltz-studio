@@ -3,6 +3,7 @@
 #include "FrontendBridge.hpp"
 #include "Icons.hpp"
 #include "MouseStyleStore.hpp"
+#include "PresetBuilder.hpp"
 #include "PresetsPage.hpp"
 #include "ProjectsPage.hpp"
 #include "RecordPage.hpp"
@@ -73,6 +74,9 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 	recorder_ = new ProjectRecorder(this);
 	mouseStyles_ = new MouseStyleStore(this);
 	liveMouse_ = new LiveMouse(mouseStyles_, this);
+	/* A coleção já está carregada (a casca nasce depois do OBSBasic::OBSInit): Tela Voltz nas cenas de antes. */
+	ensureScreenGroups();
+	connect(bridge_, &FrontendBridge::sceneCollectionChanged, this, []() { ensureScreenGroups(); });
 
 	pages_ = new QStackedWidget(this);
 	pages_->addWidget(new RecordPage(bridge_, recorder_, pages_));

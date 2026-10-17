@@ -36,6 +36,8 @@ public:
 
 signals:
 	void sceneListChanged();
+	// Coleção de cenas trocada (já carregada).
+	void sceneCollectionChanged();
 	void currentSceneChanged(const QString &uuid);
 	void recordingStateChanged(bool active, bool paused);
 	// Gravação iniciando (stopping=false) ou finalizando (stopping=true): estado transitório.

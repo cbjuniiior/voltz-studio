@@ -1,6 +1,7 @@
 #include "SharedSources.hpp"
 
 #include <OBSApp.hpp>
+#include <voltz/core/live-protocol.hpp>
 
 #include <util/config-file.h>
 
@@ -22,6 +23,8 @@ const char *configKey(SharedSource which)
 		return "CameraSourceUuid";
 	case SharedSource::Background:
 		return "BackgroundSourceUuid";
+	case SharedSource::Mouse:
+		return "MouseSourceUuid";
 	}
 	return "";
 }
@@ -53,18 +56,34 @@ OBSSource createShared(SharedSource which)
 	OBSDataAutoRelease settings = obs_data_create();
 	const char *id = nullptr;
 	QString name;
+	/* Só testes: presets sem captura de monitor nem webcam reais (fontes de cor nos tamanhos típicos). */
+	const bool standins = qEnvironmentVariableIsSet("VOLTZ_TEST_PRESET_STANDINS");
 
 	switch (which) {
 	case SharedSource::Screen:
-		id = "monitor_capture";
 		name = QTStr("Voltz.Source.Screen");
-		obs_data_set_string(settings, "monitor_id", firstListValue(id, "monitor_id").c_str());
-		obs_data_set_bool(settings, "capture_cursor", true);
+		if (standins) {
+			id = "color_source_v3";
+			obs_data_set_int(settings, "color", 0xFF302A2A); // ABGR de #2A2A30
+			obs_data_set_int(settings, "width", 2560);
+			obs_data_set_int(settings, "height", 1440);
+		} else {
+			id = "monitor_capture";
+			obs_data_set_string(settings, "monitor_id", firstListValue(id, "monitor_id").c_str());
+			obs_data_set_bool(settings, "capture_cursor", true);
+		}
 		break;
 	case SharedSource::Camera:
-		id = "dshow_input";
 		name = QTStr("Voltz.Source.Camera");
-		obs_data_set_string(settings, "video_device_id", firstListValue(id, "video_device_id").c_str());
+		if (standins) {
+			id = "color_source_v3";
+			obs_data_set_int(settings, "color", 0xFF5A4A3A); // ABGR de #3A4A5A
+			obs_data_set_int(settings, "width", 1280);
+			obs_data_set_int(settings, "height", 720);
+		} else {
+			id = "dshow_input";
+			obs_data_set_string(settings, "video_device_id", firstListValue(id, "video_device_id").c_str());
+		}
 		break;
 	case SharedSource::Background: {
 		id = "color_source_v3";
@@ -76,10 +95,21 @@ OBSSource createShared(SharedSource which)
 		obs_data_set_int(settings, "height", ovi.base_height ? ovi.base_height : 1080);
 		break;
 	}
+	case SharedSource::Mouse: {
+		if (!obs_source_get_display_name(live::kMouseSourceId)) {
+			blog(LOG_WARNING, "[voltz] plugin voltz-sources ausente: sem a fonte Voltz Mouse");
+			return {};
+		}
+		id = live::kMouseSourceId;
+		name = QTStr("Voltz.Source.Mouse");
+		OBSSource screen = findSharedSource(SharedSource::Screen);
+		obs_data_set_string(settings, live::kTargetSetting, screen ? obs_source_get_uuid(screen) : "");
+		break;
+	}
 	}
 
 	/* Nome já usado por outra fonte: reaproveita só se for do mesmo tipo; senão cria com sufixo. */
-	const char *unversionedId = which == SharedSource::Background ? "color_source" : id;
+	const char *unversionedId = strcmp(id, "color_source_v3") == 0 ? "color_source" : id;
 	OBSSourceAutoRelease existing = obs_get_source_by_name(name.toUtf8().constData());
 	if (existing && strcmp(obs_source_get_unversioned_id(existing), unversionedId) == 0) {
 		return OBSSource(existing.Get()); // OBSRef(T) faz addref; o AutoRelease solta o dele

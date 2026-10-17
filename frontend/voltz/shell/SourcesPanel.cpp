@@ -2,6 +2,7 @@
 
 #include "FrontendBridge.hpp"
 #include "Icons.hpp"
+#include <voltz/core/live-protocol.hpp>
 
 #include <widgets/OBSBasic.hpp>
 
@@ -20,6 +21,7 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include <cstring>
 #include <map>
 #include <utility>
 
@@ -358,8 +360,11 @@ QWidget *SourcesPanel::buildRow(obs_sceneitem_t *item, const SourceRow &row, boo
 	}
 
 	auto *icon = new QLabel(widget);
+	const char *sourceId = obs_source_get_id(source);
 	const QIcon sourceIcon = row.isGroup ? phosphorIcon(QStringLiteral("stack"), palette::kMuted)
-					     : OBSBasic::Get()->GetSourceIcon(obs_source_get_id(source));
+				 : strcmp(sourceId, live::kMouseSourceId) == 0
+					 ? phosphorIcon(QStringLiteral("cursor-click"), palette::kMuted)
+					 : OBSBasic::Get()->GetSourceIcon(sourceId);
 	icon->setPixmap(sourceIcon.pixmap(16, 16));
 	auto *name = new QLabel(sourceName, widget);
 	name->setTextInteractionFlags(Qt::NoTextInteraction);

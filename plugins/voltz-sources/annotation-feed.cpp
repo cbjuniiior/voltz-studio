@@ -140,6 +140,10 @@ bool AnnotationFeed::snapshotIfChanged(uint64_t knownVersion, std::vector<Stroke
 	burned = burned_;
 	dirty = PixelRect{};
 	full = false;
+	if (burned_) {
+		/* queimadas: a fonte não desenha nem copia; ao desqueimar, o setBurned já registrou uma mudança completa */
+		return false;
+	}
 	if (knownVersion == version_) {
 		return false;
 	}

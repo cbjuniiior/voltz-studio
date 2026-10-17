@@ -104,7 +104,10 @@ void rebuild(AnnotationSource *ctx, uint32_t width, uint32_t height, uint64_t ve
 	const size_t bytes = static_cast<size_t>(width) * static_cast<size_t>(height) * 4;
 	const bool partial = !full && ctx->texture && ctx->textureWidth == width && ctx->textureHeight == height &&
 			     ctx->pixels.size() == bytes;
-	if (partial && dirty.empty()) {
+	/* região fora da imagem = nada mudou nela: avança a versão sem reenviar a textura */
+	const PixelRect area =
+		intersectRects(dirty, PixelRect{0, 0, static_cast<int>(width), static_cast<int>(height)});
+	if (partial && area.empty()) {
 		ctx->hasStrokes = !ctx->strokes.empty();
 		ctx->builtVersion = version;
 		return;
@@ -118,7 +121,7 @@ void rebuild(AnnotationSource *ctx, uint32_t width, uint32_t height, uint64_t ve
 		strokes.push_back(&stroke);
 	}
 	if (partial) {
-		redrawRegion(image, strokes, 1.0, 1.0, dirty);
+		redrawRegion(image, strokes, 1.0, 1.0, area);
 	} else {
 		clearRaster(image);
 		for (const Stroke *stroke : strokes) {

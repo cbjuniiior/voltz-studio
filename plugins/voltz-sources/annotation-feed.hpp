@@ -30,7 +30,8 @@ public:
 	// "Queimadas" (spec §6.3): a sobreposição aparece na captura, então as fontes não desenham.
 	void setBurned(bool burned);
 	// Copia os traços para `out` e devolve true se a versão mudou desde `knownVersion` (0 = nunca copiou); `dirty` = a
-	// região que mudou desde ela e `full` = redesenhar tudo. `version` e `burned` sempre preenchidos.
+	// região que mudou desde ela e `full` = redesenhar tudo. `version` e `burned` sempre preenchidos; queimadas = nada é
+	// copiado (devolve false).
 	bool snapshotIfChanged(uint64_t knownVersion, std::vector<Stroke> &out, uint64_t &version, bool &burned,
 			       PixelRect &dirty, bool &full);
 	// Tempo de um redesenho da fonte (thread gráfica). A cada 600 redesenhos vai um resumo para o log.

@@ -17,6 +17,7 @@ constexpr const char *kMarkersFileName = "marcadores.json";
 constexpr const char *kCursorFileName = "cursor.jsonl";
 constexpr const char *kScreenIsoFileName = "tela.mkv";
 constexpr const char *kCameraIsoFileName = "camera.mkv";
+constexpr const char *kAnnotationsFileName = "anotacoes.jsonl";
 // "faixa" dos eventos e chave em "arquivos"
 constexpr const char *kScreenTrack = "tela";
 constexpr const char *kCameraTrack = "camera";
@@ -68,6 +69,17 @@ struct IsoFile {
 	CaptureOrigin origin;   // mesmo formato de arquivos.cursor.origem
 };
 
+// arquivos.anotacoes (4B): traços em pixels da captura da Tela (as coordenadas de tela.mkv); `origin` só com captura
+// de monitor (mesmo formato de arquivos.cursor.origem).
+struct AnnotationsFile {
+	bool present = false;
+	std::string file;
+	int width = 0;
+	int height = 0;
+	bool hasOrigin = false;
+	CaptureOrigin origin;
+};
+
 // eventos[]: { "t_ms", "tipo", "faixa"?, "codigo"?, "motivo"? } + campos que esta versão não conhece (extraJson, objeto
 // JSON compacto), devolvidos ao reescrever.
 struct ManifestEvent {
@@ -93,6 +105,10 @@ struct ProjectManifest {
 	IsoFile screen;
 	IsoFile camera;
 	CursorFile cursor;
+	AnnotationsFile annotations;
+	// "anotacoes_queimadas" (spec §6.3): a sobreposição apareceu na captura (Windows < 10 2004 ou afinidade recusada) —
+	// os traços estão gravados em tela.mkv e no programa pela própria captura. Só é escrito quando verdadeiro.
+	bool annotationsBurned = false;
 	std::vector<ManifestEvent> events;
 	// "mouse" (spec §5.2): estilo do destaque do mouse no início do projeto. hasMouse falso = bloco ausente.
 	bool hasMouse = false;

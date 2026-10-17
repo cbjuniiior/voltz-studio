@@ -277,6 +277,24 @@ std::string serializeManifest(const ProjectManifest &m)
 	} else {
 		files.erase(std::string("cursor"));
 	}
+	if (m.annotations.present) {
+		Json &annotations = fileEntry(files, "anotacoes");
+		annotations["arquivo"] = m.annotations.file;
+		annotations["largura"] = m.annotations.width;
+		annotations["altura"] = m.annotations.height;
+		if (m.annotations.hasOrigin) {
+			annotations["origem"] = originJson(m.annotations.origin);
+		} else {
+			annotations.erase(std::string("origem"));
+		}
+	} else {
+		files.erase(std::string("anotacoes"));
+	}
+	if (m.annotationsBurned) {
+		root["anotacoes_queimadas"] = true;
+	} else {
+		root.erase(std::string("anotacoes_queimadas"));
+	}
 
 	if (m.hasMouse) {
 		const Json fresh = Json::parse(mouseStyleToJson(m.mouse), nullptr, false);
@@ -364,7 +382,19 @@ ManifestParse parseManifest(const std::string &text)
 		}
 		readIso(*files, kScreenTrack, m.screen);
 		readIso(*files, kCameraTrack, m.camera);
+		if (const Json *annotations = getChild(*files, "anotacoes", false)) {
+			m.annotations.present = true;
+			m.annotations.file = getString(*annotations, "arquivo");
+			m.annotations.width = static_cast<int>(getInt(*annotations, "largura", 0));
+			m.annotations.height = static_cast<int>(getInt(*annotations, "altura", 0));
+			if (const Json *origin = getChild(*annotations, "origem", false)) {
+				m.annotations.hasOrigin = true;
+				readOrigin(*origin, m.annotations.origin);
+			}
+		}
 	}
+	const auto burned = root.find("anotacoes_queimadas");
+	m.annotationsBurned = burned != root.end() && burned->is_boolean() && burned->get<bool>();
 
 	if (const Json *events = getChild(root, "eventos", true)) {
 		for (const Json &item : *events) {

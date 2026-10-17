@@ -388,3 +388,53 @@ TEST_CASE("campos desconhecidos dentro de pausas[] e eventos[] sobrevivem à ree
 	CHECK(contains(rewritten, "\"tipo\": \"recuperado\""));
 	CHECK(count(rewritten, "\"tentativas\"") == 1);
 }
+
+TEST_CASE("manifesto: arquivos.anotacoes e anotacoes_queimadas")
+{
+	ProjectManifest manifest;
+	manifest.annotations.present = true;
+	manifest.annotations.file = voltz::kAnnotationsFileName;
+	manifest.annotations.width = 2560;
+	manifest.annotations.height = 1440;
+	manifest.annotations.hasOrigin = true;
+	manifest.annotations.origin.type = "monitor";
+	manifest.annotations.origin.id = "\\\\.\\DISPLAY1";
+	manifest.annotations.origin.rect[2] = 2560;
+	manifest.annotations.origin.rect[3] = 1440;
+	manifest.annotations.origin.scale = 1.25;
+	manifest.annotationsBurned = true;
+	const std::string json = voltz::serializeManifest(manifest);
+	CHECK(json.find("\"anotacoes\": {") != std::string::npos);
+	CHECK(json.find("\"arquivo\": \"anotacoes.jsonl\"") != std::string::npos);
+	CHECK(json.find("\"anotacoes_queimadas\": true") != std::string::npos);
+	const voltz::ManifestParse parsed = voltz::parseManifest(json);
+	REQUIRE(parsed.ok);
+	CHECK(parsed.manifest.annotations.present);
+	CHECK(parsed.manifest.annotations.file == "anotacoes.jsonl");
+	CHECK(parsed.manifest.annotations.width == 2560);
+	CHECK(parsed.manifest.annotations.height == 1440);
+	CHECK(parsed.manifest.annotations.hasOrigin);
+	CHECK(parsed.manifest.annotations.origin.rect[2] == 2560);
+	CHECK(parsed.manifest.annotations.origin.scale == doctest::Approx(1.25));
+	CHECK(parsed.manifest.annotationsBurned);
+}
+
+TEST_CASE("manifesto: sem anotações nem queimadas, as chaves antigas saem ao reescrever")
+{
+	ProjectManifest manifest;
+	manifest.annotations.present = true;
+	manifest.annotations.file = voltz::kAnnotationsFileName;
+	manifest.annotations.width = 10;
+	manifest.annotations.height = 10;
+	manifest.annotationsBurned = true;
+	voltz::ManifestParse parsed = voltz::parseManifest(voltz::serializeManifest(manifest));
+	REQUIRE(parsed.ok);
+	parsed.manifest.annotations = voltz::AnnotationsFile{};
+	parsed.manifest.annotationsBurned = false;
+	const std::string again = voltz::serializeManifest(parsed.manifest);
+	CHECK(again.find("anotacoes") == std::string::npos);
+	const voltz::ManifestParse reparsed = voltz::parseManifest(again);
+	REQUIRE(reparsed.ok);
+	CHECK_FALSE(reparsed.manifest.annotations.present);
+	CHECK_FALSE(reparsed.manifest.annotationsBurned);
+}

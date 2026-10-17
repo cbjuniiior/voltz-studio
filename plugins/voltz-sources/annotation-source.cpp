@@ -6,6 +6,7 @@
 #include <voltz/core/live-protocol.hpp>
 
 #include <obs-module.h>
+#include <util/platform.h>
 
 #include <atomic>
 #include <cstddef>
@@ -93,15 +94,36 @@ void annotationsTick(void *data, float)
 	static_cast<AnnotationSource *>(data)->target.tick();
 }
 
-// Refaz a imagem (CPU, núcleo) e manda para a textura. Só quando a versão do feed ou o tamanho muda.
-void rebuild(AnnotationSource *ctx, uint32_t width, uint32_t height, uint64_t version)
+// Refaz a imagem (CPU, núcleo) e manda para a textura. Só quando a versão do feed ou o tamanho muda; com a textura do
+// mesmo tamanho e uma região conhecida, redesenha só a região (o envio continua inteiro: textura dinâmica do D3D11 é
+// mapeada com WRITE_DISCARD).
+void rebuild(AnnotationSource *ctx, uint32_t width, uint32_t height, uint64_t version, bool full,
+	     const PixelRect &dirty)
 {
-	ctx->pixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height) * 4);
+	const int64_t start = static_cast<int64_t>(os_gettime_ns());
+	const size_t bytes = static_cast<size_t>(width) * static_cast<size_t>(height) * 4;
+	const bool partial = !full && ctx->texture && ctx->textureWidth == width && ctx->textureHeight == height &&
+			     ctx->pixels.size() == bytes;
+	if (partial && dirty.empty()) {
+		ctx->hasStrokes = !ctx->strokes.empty();
+		ctx->builtVersion = version;
+		return;
+	}
+	ctx->pixels.resize(bytes);
 	const RasterImage image{ctx->pixels.data(), static_cast<int>(width), static_cast<int>(height),
 				static_cast<int>(width) * 4};
-	clearRaster(image);
+	std::vector<const Stroke *> strokes;
+	strokes.reserve(ctx->strokes.size());
 	for (const Stroke &stroke : ctx->strokes) {
-		rasterizeStroke(image, stroke, 1.0, 1.0);
+		strokes.push_back(&stroke);
+	}
+	if (partial) {
+		redrawRegion(image, strokes, 1.0, 1.0, dirty);
+	} else {
+		clearRaster(image);
+		for (const Stroke *stroke : strokes) {
+			rasterizeStroke(image, *stroke, 1.0, 1.0);
+		}
 	}
 	if (!ctx->texture || ctx->textureWidth != width || ctx->textureHeight != height) {
 		if (ctx->texture) {
@@ -116,6 +138,7 @@ void rebuild(AnnotationSource *ctx, uint32_t width, uint32_t height, uint64_t ve
 	}
 	ctx->hasStrokes = !ctx->strokes.empty();
 	ctx->builtVersion = version;
+	AnnotationFeed::instance().recordRaster(static_cast<int64_t>(os_gettime_ns()) - start, partial);
 }
 
 void annotationsRender(void *data, gs_effect_t *effect)
@@ -129,8 +152,10 @@ void annotationsRender(void *data, gs_effect_t *effect)
 	const bool resized = width != ctx->textureWidth || height != ctx->textureHeight;
 	uint64_t version = 0;
 	bool burned = false;
+	PixelRect dirty;
+	bool full = true;
 	const bool changed = AnnotationFeed::instance().snapshotIfChanged(resized ? 0 : ctx->builtVersion, ctx->strokes,
-									  version, burned);
+									  version, burned, dirty, full);
 	if (burned) {
 		return;
 	}
@@ -141,7 +166,7 @@ void annotationsRender(void *data, gs_effect_t *effect)
 			ctx->builtVersion = version;
 			return;
 		}
-		rebuild(ctx, width, height, version);
+		rebuild(ctx, width, height, version, full || resized, dirty);
 	}
 	if (!ctx->hasStrokes || !ctx->texture) {
 		return;

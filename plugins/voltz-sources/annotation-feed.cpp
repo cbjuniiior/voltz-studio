@@ -2,6 +2,7 @@
 
 #include <voltz/core/live-protocol.hpp>
 
+#include <algorithm>
 #include <cstdio>
 #include <utility>
 
@@ -53,6 +54,12 @@ AnnotationFeed &AnnotationFeed::instance()
 	return feed;
 }
 
+void AnnotationFeed::changed(const PixelRect &rect, bool full)
+{
+	version_++;
+	history_.record(version_, rect, full);
+}
+
 bool AnnotationFeed::begin(int id, const std::string &json)
 {
 	Stroke stroke;
@@ -60,16 +67,18 @@ bool AnnotationFeed::begin(int id, const std::string &json)
 		return false;
 	}
 	stroke.id = id;
+	const PixelRect area = strokeBounds(stroke, 1.0, 1.0);
 	std::lock_guard<std::mutex> lock(mutex_);
 	for (Stroke &existing : strokes_) {
 		if (existing.id == id) {
+			const PixelRect old = strokeBounds(existing, 1.0, 1.0);
 			existing = std::move(stroke);
-			version_++;
+			changed(uniteRects(old, area), false);
 			return true;
 		}
 	}
 	strokes_.push_back(std::move(stroke));
-	version_++;
+	changed(area, false);
 	return true;
 }
 
@@ -82,8 +91,9 @@ void AnnotationFeed::extend(int id, const std::string &pointsJson)
 	std::lock_guard<std::mutex> lock(mutex_);
 	for (Stroke &stroke : strokes_) {
 		if (stroke.id == id) {
+			const StrokeTail tail = strokeTail(stroke);
 			appendStrokePoints(stroke, points);
-			version_++;
+			changed(appendDirtyRect(tail, stroke, 1.0, 1.0), false);
 			return;
 		}
 	}
@@ -94,8 +104,9 @@ void AnnotationFeed::remove(int id)
 	std::lock_guard<std::mutex> lock(mutex_);
 	for (auto it = strokes_.begin(); it != strokes_.end(); ++it) {
 		if (it->id == id) {
+			const PixelRect area = strokeBounds(*it, 1.0, 1.0);
 			strokes_.erase(it);
-			version_++;
+			changed(area, false);
 			return;
 		}
 	}
@@ -106,7 +117,7 @@ void AnnotationFeed::clear()
 	std::lock_guard<std::mutex> lock(mutex_);
 	if (!strokes_.empty()) {
 		strokes_.clear();
-		version_++;
+		changed(PixelRect{}, true);
 	}
 }
 
@@ -115,22 +126,51 @@ void AnnotationFeed::setBurned(bool burned)
 	std::lock_guard<std::mutex> lock(mutex_);
 	if (burned_ != burned) {
 		burned_ = burned;
-		version_++;
+		changed(PixelRect{}, true);
 		blog(LOG_INFO, "[voltz-sources] anotacoes %s",
 		     burned ? "queimadas: a fonte nao desenha" : "desenhadas pela fonte");
 	}
 }
 
-bool AnnotationFeed::snapshotIfChanged(uint64_t knownVersion, std::vector<Stroke> &out, uint64_t &version, bool &burned)
+bool AnnotationFeed::snapshotIfChanged(uint64_t knownVersion, std::vector<Stroke> &out, uint64_t &version, bool &burned,
+				       PixelRect &dirty, bool &full)
 {
 	std::lock_guard<std::mutex> lock(mutex_);
 	version = version_;
 	burned = burned_;
+	dirty = PixelRect{};
+	full = false;
 	if (knownVersion == version_) {
 		return false;
 	}
+	full = !history_.since(knownVersion, version_, dirty);
 	out = strokes_;
 	return true;
+}
+
+void AnnotationFeed::recordRaster(int64_t elapsedNs, bool partial)
+{
+	uint32_t partials = 0;
+	uint32_t total = 0;
+	int64_t maxNs = 0;
+	{
+		std::lock_guard<std::mutex> lock(mutex_);
+		rasterLastNs_ = elapsedNs;
+		rasterMaxNs_ = std::max(rasterMaxNs_, elapsedNs);
+		if (partial) {
+			partialRasters_++;
+		} else {
+			fullRasters_++;
+		}
+		partials = partialRasters_;
+		total = partialRasters_ + fullRasters_;
+		maxNs = rasterMaxNs_;
+	}
+	if (total % 600 == 0) {
+		blog(LOG_INFO,
+		     "[voltz-sources] anotacoes: %u redesenho(s) (%u parcial(is)), ultimo %lld us, max %lld us", total,
+		     partials, static_cast<long long>(elapsedNs / 1000), static_cast<long long>(maxNs / 1000));
+	}
 }
 
 std::string AnnotationFeed::describe()
@@ -143,10 +183,13 @@ std::string AnnotationFeed::describe()
 		}
 		ids += std::to_string(stroke.id);
 	}
-	char buffer[160];
+	char buffer[320];
 	std::snprintf(buffer, sizeof(buffer),
-		      "{\"tracos\":%zu,\"versao\":%llu,\"queimadas\":%s,\"mostradas\":%d,\"ids\":[", strokes_.size(),
-		      static_cast<unsigned long long>(version_), burned_ ? "true" : "false", showing_.load());
+		      "{\"tracos\":%zu,\"versao\":%llu,\"queimadas\":%s,\"mostradas\":%d,\"raster_us_ultimo\":%lld,"
+		      "\"raster_us_max\":%lld,\"parciais\":%u,\"completas\":%u,\"ids\":[",
+		      strokes_.size(), static_cast<unsigned long long>(version_), burned_ ? "true" : "false",
+		      showing_.load(), static_cast<long long>(rasterLastNs_ / 1000),
+		      static_cast<long long>(rasterMaxNs_ / 1000), partialRasters_, fullRasters_);
 	return std::string(buffer) + ids + "]}";
 }
 

@@ -89,9 +89,13 @@ de ponta a ponta sem tocar na entrada do usuário com código que **só** pode s
   traço recebe a cobertura máxima entre as peças do traço; só então mistura). Testável com doctest pixel a pixel e
   reutilizado pela sobreposição (o mesmo desenho nos dois lugares).
 - **Grupo:** `obs_scene_insert_group` (`libobs/obs-scene.c:3535-3599`) mantém a ordem do vetor (`items[0]` embaixo).
-  Para acrescentar uma camada num grupo existente: `obs_scene_add(obs_sceneitem_group_get_scene(grupo), fonte)` —
-  `obs_sceneitem_group_add_item` (`:3700-3734`) exige o item já na cena-mãe. `obs_scene_find_source` (`libobs/obs.h:1690`)
-  acha a Tela dentro do grupo (para copiar o recorte).
+  Para acrescentar uma camada num grupo existente, como o OBS faz: `obs_scene_add(cena-mãe, fonte)` e depois
+  `obs_sceneitem_group_add_item(grupo, item)` (`:3700-3734`, exige o item já na cena-mãe). **Não** usar
+  `obs_scene_add(obs_sceneitem_group_get_scene(grupo), fonte)`: os ids dos itens de um grupo vêm do contador da
+  cena-mãe (o do grupo fica em 0), então o item repetiria o id da Tela e a lista de Fontes, que acha as linhas por
+  (grupo, id), mostraria a camada no lugar dela (corrigido na execução; ver `upgradeScreenGroups` em
+  `frontend/voltz/shell/PresetBuilder.cpp`). `obs_scene_find_source` (`libobs/obs.h:1690`) acha a Tela dentro do
+  grupo (para copiar o recorte).
 - **Fornecedor do obs-websocket:** `PerformVendorRequest` (`plugins/obs-websocket/src/WebSocketApi.cpp:106-128`) chama o
   callback **sem lock**, na thread do websocket; `vendor_request_unregister` (`:316-345`) não espera callbacks em
   andamento; `vendor_register` (`:244-268`) só insere num mapa. ⇒ O frontend pode registrar um fornecedor depois do
@@ -3607,6 +3611,8 @@ int upgradeScreenGroups(obs_source_t *screen)
 	syncTarget(annotations, screen);
 	int upgraded = 0;
 	for (const OBSSceneItem &group : found.groups) {
+		/* ERRATA (execução): obs_scene_add na cena do grupo repete ids. O código final cria o item na cena-mãe e o põe
+		 * no grupo com obs_sceneitem_group_add_item (ver "Descobertas" e PresetBuilder.cpp). */
 		obs_scene_t *inner = obs_sceneitem_group_get_scene(group);
 		obs_sceneitem_t *layer = inner ? obs_scene_add(inner, annotations) : nullptr;
 		if (!layer) {

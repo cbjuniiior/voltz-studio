@@ -25,36 +25,31 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
   - `cmake --preset voltz-windows-x64` (versionado em `CMakePresets.json`, VS 17 2022, saída `build_x64/`)
   - `cmake --build --preset voltz-windows-x64 --parallel -- -v:minimal -nologo -nodeReuse:false`
   - Testes: `ctest --test-dir build_x64/frontend/voltz/tests -C RelWithDebInfo --output-on-failure`
-  - Smoke: `powershell -ExecutionPolicy Bypass -File tools/voltz-smoke.ps1`; gravação real:
-    `tools/voltz-smoke-record.ps1` (grava ~15 s em `Vídeos\Voltz Studio` e apaga a pasta do projeto de teste);
-    projeto: `tools/voltz-smoke-project.ps1 -OutDir <pasta vazia>` (websocket + UIA + ffprobe; guarda/restaura a config);
-    mouse: `tools/voltz-smoke-mouse.ps1 -OutDir <pasta vazia>` (presets com substitutas, render, migração)
+  - Smokes (`powershell -ExecutionPolicy Bypass -File tools/<nome>.ps1`; todos guardam/restauram a config portátil):
+    `voltz-smoke` · `voltz-smoke-record` (grava ~15 s em `Vídeos\Voltz Studio`) · `voltz-smoke-project -OutDir <vazia>` ·
+    `voltz-smoke-mouse -OutDir <vazia>` · `voltz-smoke-annotations -OutDir <vazia>`; demo manual: `voltz-annot-demo`.
   - Automação da casca: `tools/voltz-uia.ps1` (UI Automation; `-List`; nav = CheckBox) e `tools/voltz-ws.ps1` (obs-websocket).
   - Executável: `build_x64/rundir/RelWithDebInfo/bin/64bit/VoltzStudio.exe`.
     Testar com `--portable --multi` para não tocar config do OBS instalado.
 - Ferramentas instaladas: Inno Setup 6 (`%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`).
 
 ## Estado atual
-- Planos 1–3B concluídos (fundação, casca, presets, tema, gravação em projeto com manifesto/marcadores/cursor/ISO
-  tela.mkv+camera.mkv); relato em `docs/HISTORICO.md`; pendências em `docs/voltz/backlog-plano-2.md` e
-  `backlog-plano-3.md`; patches no OBS em `docs/voltz/upstream-patches.md`.
-- Plano 4A concluído: plugin voltz-sources (Voltz Mouse: halo/onda/holofote), mouse ao vivo sem gancho, grupo 'Tela
-  Voltz' nos presets + migração, Ajustes › Mouse com prévia e estilos salvos, atalho do holofote, mouse no manifesto.
-  Testes: 126 casos + `tools/voltz-smoke-mouse.ps1`. Pendências: `docs/voltz/backlog-plano-4.md`.
+- Planos 1–4A concluídos (fundação, casca, presets, tema, gravação em projeto com manifesto/marcadores/cursor/ISO,
+  plugin voltz-sources com Voltz Mouse e grupo Tela Voltz); relato em `docs/HISTORICO.md`; pendências em
+  `docs/voltz/backlog-plano-*.md`; patches no OBS em `docs/voltz/upstream-patches.md`.
+- Plano 4B concluído: traços no núcleo (modelo, rasterizador, StrokeStore, `anotacoes.jsonl`), fonte Voltz Anotações
+  (camada 2 da Tela Voltz, migração 1→2), sobreposição só de exibição fora da captura, "queimadas", "somem após".
+  Traços só por pedidos de teste até o 4C. Testes: 153 casos + `tools/voltz-smoke-annotations.ps1`.
 
 ## Decisões
 - **Casca Qt nova** + `OBSBasic` oculta como motor (modo clássico = saída de emergência); não reformar `OBSBasic.ui`.
 - Cenas mantidas (simplificadas); layout **H2**; tema **preto #09090B + lima #D4F53C**; DM Sans.
 - Ícones: **Phosphor Icons** (MIT; SVGs do `@phosphor-icons/core` embutidos no `.qrc`, recoloridos pelo tema);
   peso **Regular** no estado normal e **Fill** no item ativo. Nada de glifos de texto (●▤◫⚙⏸▶) na UI final.
-- Plugins de terceiros: o Voltz procura plugins em `%ProgramData%\Voltz Studio\plugins` e `%APPDATA%\Voltz Studio\plugins` (isolado do OBS instalado, de propósito).
 - Lives ocultas mas mantidas (Ajustes → Avançado).
 - Gravação em projeto: `programa.mp4` (MP4 híbrido, capítulos, 3 faixas) + ISO `tela.mkv`/`camera.mkv` via
   `obs_canvas` + `cursor.jsonl` + `anotacoes.jsonl` + `projeto.voltz`.
-- Anotações/mouse **ao vivo + editáveis**: overlay com `WDA_EXCLUDEFROMCAPTURE`, render no programa por fontes Voltz.
 - Instalador **Inno Setup** (repo do OBS não tem script de instalador; só gera ZIP).
-- Fontes de áudio globais com o nome padrão do OBS viram 'Som do sistema'/'Microfone' (na coleção; nunca sobrescreve
-  nome personalizado).
 - Logo: obturador de 3 lâminas lima inclinado sobre squircle preto; bolinha REC só ao gravar.
 - Presets: fontes compartilhadas (Tela/Câmera/Fundo) por UUID em user.ini [Voltz]; câmera redonda = grupo 'Câmera redonda'
   + mask_filter_v2 com `data/voltz/mask-circle.png`. Ajustes de gravação só no modo de saída Simples (Avançado → modo
@@ -63,77 +58,70 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
   contraste). "Esconder da captura" (`HideOBSWindowsFromCapture`) ligado por padrão no Voltz.
 - Ícones em regras QSS (`image:`/`qproperty-icon:`) = SVG pré-colorido em `icons/qss/` (`tools/voltz-qss-icons.sh`) — o
   QSS não passa pelo `PhosphorIconEngine`; no código, sempre `phosphorIcon()`.
-- Gravação em projeto sem patch: `ProfileOverride` troca pasta e `FilenameFormatting=programa` no RECORDING_STARTING e
-  desfaz no giro seguinte; 3 faixas no Simples (RecTracks=7 + mixers, só se ainda padrão); manifesto em `ordered_json`
-  (preserva desconhecidos); padrões uma vez por perfil (`[Voltz] ProjectDefaults`).
-- ISO sem patch: `IsoTrack` = canvas privado (canal 0 = fonte compartilhada) → encoder próprio + AAC da faixa 1 →
-  ffmpeg_muxer; fps do programa; programa em H.264, ISO em HEVC.
+- Gravação em projeto e ISO sem patch no OBS (`ProfileOverride` troca pasta/nome no RECORDING_STARTING; `IsoTrack` =
+  canvas privado → encoder próprio → ffmpeg_muxer); detalhes em `docs/HISTORICO.md`.
+- Decisões arquivadas (pastas de plugins de terceiros, renomear áudio global, anotações ao vivo + editáveis):
+  `docs/HISTORICO.md` → "Poda do Plano 4B".
 - Fontes Voltz = plugin `plugins/voltz-sources` (entra pelo `feature-voltz.cmake`, liga o `voltz-core`); canal
   frontend → plugin = procedimentos no proc handler global (`voltz/core/live-protocol.hpp`) + estado com mutex no
   plugin; mouse ao vivo sem gancho (`GetPhysicalCursorPos` + Raw Input) só com Voltz Mouse mostrada.
-- Tela Voltz = um grupo por cena (Tela + Voltz Mouse compartilhadas, travadas em (0,0)); migração uma vez por coleção
-  (`voltz_tela_migrada` na Tela; `voltz_tela_camadas` no grupo, para o 4B); o ISO continua na captura.
+- Tela Voltz = um grupo por cena (Tela + Voltz Anotações + Voltz Mouse compartilhadas, travadas em (0,0)); migração
+  uma vez por coleção (`voltz_tela_migrada`) e versão de camadas no grupo (`voltz_tela_camadas` 1 → 2, sempre); ISO na captura.
+- Anotações: traços em pixels da captura da Tela; rasterizador por CPU no núcleo (o mesmo na sobreposição e na fonte);
+  sobreposição = janela Win32 pura, sempre transparente a cliques no 4B, `WDA_EXCLUDEFROMCAPTURE` sempre (sem suporte →
+  "queimadas": fonte não desenha + manifesto); `anotacoes.jsonl` = diário só de acréscimo, consolidado no fim/recuperação.
 
 ## Armadilhas
 - Preset upstream `windows-x64` exige **VS 2026**; usar o preset versionado `voltz-windows-x64` (VS 2022). Código só exige SDK ≥ 10.0.20348.
-- Build Tools precisa do componente **ATL** (`Microsoft.VisualStudio.Component.VC.ATL`) — sem ele falham virtualcam, qsv11 e frontend-tools.
+- Armadilhas arquivadas (ATL/8006 do VS, gancho `WH_MOUSE_LL`, nlohmann em alvo estático, saídas/ordem/falha do ISO,
+  quadros pulados, geração do projeto, fechamento OBSBasic/casca, `--startrecording`, `AddSourceDialog`, `blog` cedo,
+  laço do `QInputDialog`, log AJA/NVENC): `docs/HISTORICO.md` → "Poda do Plano 4B".
 - No Git Bash, flags do MSBuild com `/` (ex. `/v:minimal`) viram caminho → usar `-v:minimal`.
-- Instalar componente do VS falha com 8006 se houver `MSBuild.exe` vivo → matar processos ou usar `-nodeReuse:false`.
 - `.gitignore` do OBS é whitelist (`/*` + exceções): arquivo novo na raiz precisa de `!nome` para ser versionado.
-- Log de módulos AJA/Decklink/NVENC falhando é esperado nesta máquina (sem hardware/GPU NVIDIA).
 - Dentro de QWidget, chamar funções livres do Voltz qualificadas (`voltz::windowTitle`) — nome não qualificado resolve para membro do Qt.
-- Interceptar só fechamentos `event->spontaneous()` no OBSBasic; `close()` programático (Sair, reiniciar) precisa seguir, senão o app relança depois.
-- O fechamento da casca deve chamar `OBSBasic::close()` via `Qt::QueuedConnection` (síncrono destrói a casca dentro do próprio closeEvent).
 - Build x86 auxiliar às vezes falha com MSB4018 "Touch"/ZERO_CHECK (race) — rodar de novo.
-- Sem coleção de cenas em disco o OBS ignora `--startrecording` (o smoke de gravação abre o app uma vez antes). Fechar
-  gravando não loga `==== Recording Stop` (upstream; o arquivo é finalizado).
 - Regras da casca no QSS precisam do prefixo `#voltzShell` (o tema do OBS é global e tem `QPushButton { max-height }`).
 - Sinais do libobs (cena, saída, `channel_change`, `source_rename`) chegam fora da thread da UI: repassar com `Qt::QueuedConnection`.
-- `OBSBasic::AddSourceDialog` só abre se chamado por QAction → disparar `actionAddSource` com `trigger()`.
 - A saída de gravação é recriada ao mudar configurações: reconectar o sinal `stop` a cada `RECORDING_STARTING`.
-- Especificidade QSS: `#voltzShell QFrame#x QWidget {}` vence `#voltzShell QPushButton#id` — estilo de botão dentro de
-  painel precisa de seletor tão específico quanto.
-- `#voltzShell QWidget { font-size }` vale para widgets do OBS dentro da casca (ex. `VolumeMeter`) — sobrescrever com regra própria.
+- Armadilhas de QSS da casca (especificidade, font-size, objectName antes do setStyleSheet): `docs/HISTORICO.md` → "Poda do Plano 4B".
 - O projeto compila com `QT_NO_CONTEXTLESS_CONNECT`: todo `connect` com lambda precisa de objeto de contexto.
-- `objectName` usado por regra QSS deve ser definido antes do `setStyleSheet` do pai.
 - Widgets postos com `setItemWidget` não aparecem na UIA; o `SourcesPanel` usa uma fábrica `QAccessible` presa ao
   `objectName` `sourcesList` — não renomear.
 - Filhos de grupo emitem sinais pela fonte do grupo: ligar o `signal_handler` de cada grupo para atualizar as Fontes.
-- `blog` antes de `obs-main.cpp` abrir o log (AppInit, InitTheme) não chega ao `.txt`.
 - Com "esconder da captura" ligado, `PrintWindow` sai preto: testes de captura escrevem `HideOBSWindowsFromCapture=false`
   no `user.ini` portátil. Os smokes apagam a config portátil (`build_x64/rundir/RelWithDebInfo/config`): backup antes.
 - Callbacks do frontend rodam do último registrado para o primeiro: criar o `ProjectRecorder` depois da `FrontendBridge`
   e o `MouseStyleStore` depois do recorder (o EXIT do store grava o estilo e solta o atalho antes).
 - `TriggerHotkeyByName` (websocket) chama o callback do atalho na thread do websocket com o lock dos atalhos preso: só enfileirar.
-- Nada de IO, log, lock ou alocação dentro do gancho `WH_MOUSE_LL` (o Windows remove gancho lento).
 - `config_set_default_*` deste libobs grava o padrão também como valor do usuário: "ainda no padrão" = comparar com
   `config_get_default_*` (`stillObsDefault()`), não `config_has_user_value`.
-- nlohmann em alvo estático: `target_link_libraries PRIVATE` quebra o configurar → `target_include_directories(SYSTEM
-  PRIVATE $<TARGET_PROPERTY:nlohmann_json::nlohmann_json,INTERFACE_INCLUDE_DIRECTORIES>)`.
 - Warnings como erro valem também para o `voltz-core` e os testes (casts explícitos). `signals` é macro do Qt (não usar como nome).
 - PowerShell 5.1: `.ps1` com acento precisa de BOM; `Select-String` em log com caminho acentuado precisa de
-  `-Encoding UTF8`; função que devolve array de 1 elemento é desenrolada (`return ,@(...)`).
+  `-Encoding UTF8`; função que devolve array de 1 elemento é desenrolada (`return ,@(...)`, e `@(f).Count` de quem
+  devolve `,@()` dá 1); `$null` vira `""` em parâmetro string do .NET (`[NullString]::Value` no `FindWindowEx`).
 - UIA: "Gravar" é o nome da nav **e** do botão de gravar — `voltz-uia.ps1 -Name "Gravar"` pode iniciar uma gravação.
-- `QInputDialog`/`QMessageBox` abrem laço de eventos: um `refresh()` pode recriar a lista — ler tudo do item antes.
-- `ffmpeg_muxer`/`mp4_output` são `OBS_OUTPUT_AV`: saída só de vídeo não inicia (o ISO leva um AAC). Mix/canvas
-  auxiliar herda o fps do canvas principal.
-- ISO: liberar saída → encoders → canvas, nessa ordem (destruir o canvas privado libera o mix na hora); nunca
-  `obs_canvas_remove` em canvas privado (o `OBSBasic` enfileira `RemoveCanvas` com uma ref).
-- `obs_output_start` que falha (ex. sessão de GPU esgotada) é síncrono e não emite `stop`: tentar o próximo encoder ali.
-- Os "skipped frames" do vídeo incluem o atraso de render (`lagged`): excesso do codificador = pulados − atrasados.
-- Sinal de saída enfileirado para a UI pode chegar depois de outro projeto começar: conferir a geração do projeto.
 - Testes ao vivo nunca com captura/webcam reais: ISO por `VOLTZ_TEST_ISO_SCREEN/CAMERA` (a "Tela teste" do cursor é
   `monitor_capture` com o item desativado); mouse por `VOLTZ_TEST_LIVE` + `VOLTZ_TEST_PRESET_STANDINS`, render por
   `GetSourceScreenshot` de cena sintética.
 - Grupo do OBS não se compartilha entre cenas ("Adicionar existente" esconde grupos); `RemoveSceneItem` do websocket
   não aceita item de grupo (ler filhos com `GetGroupSceneItemList`).
 - `proc_handler` não tem remoção: quem chama procedimentos de plugin para no `EXIT` (antes do descarregamento).
-- Fornecedor do obs-websocket só no `obs_module_post_load`; `CreateInput` recusa fontes `OBS_SOURCE_CAP_DISABLED`.
+- Fornecedor do obs-websocket: plugin só no `obs_module_post_load`; frontend depois do `OBSInit`, com mutex próprio (o
+  callback roda sem lock e o unregister não espera); `obs_data` não guarda lista de números (pontos/estado como texto
+  JSON); `CreateInput` recusa fontes `OBS_SOURCE_CAP_DISABLED`.
 - Raw Input é por processo/uso: o último `RegisterRawInputDevices` vence e `RIDEV_REMOVE` vale para o processo todo.
 - `show`/`hide` de fonte só no tick, e fonte removida sai do tick: contagem de "mostradas" também se desconta no `destroy`.
+- Item novo num grupo existente: `obs_scene_add` na **cena-mãe** + `obs_sceneitem_group_add_item` (os ids dos itens do
+  grupo vêm do contador da cena-mãe; `obs_scene_add` na cena do grupo repete id e a lista de Fontes troca as linhas).
+- `OBSApp::notify` reaplica `HideOBSWindowsFromCapture` (inclusive `WDA_NONE`) em toda janela Qt mostrada: janela que
+  precisa ficar fora da captura é Win32 pura ou tem a propriedade `isOBSProjectorWindow`.
+- `WDA_EXCLUDEFROMCAPTURE` antes do Windows 10 2004 vira caixa preta: só com `SetDisplayAffinitySupported()`.
+- Fonte sem `OBS_SOURCE_SRGB` que mistura alfa: desligar o framebuffer sRGB no render (o principal o liga) e usar
+  `ONE/INVSRCALPHA` com imagem pré-multiplicada, senão a cor translúcida muda.
+- Testes com sobreposição: `VOLTZ_TEST_OVERLAY_RECT` fora do desktop virtual + `Assert-OverlaySafe` a cada traço + vigia
+  (`FindWindowEx` ∪ `EnumWindows`); fechar por `WM_CLOSE` na casca guardada (o `MainWindowHandle` vira a sobreposição).
 
 ## Próximos passos
-1. Escrever e executar o Plano 4B (overlay de desenho com WDA_EXCLUDEFROMCAPTURE, StrokeStore/anotacoes.jsonl, fonte
-   Voltz Anotações como camada 2 da Tela Voltz, atalhos de desenho, Ajustes › Anotações/Atalhos) a partir da spec
-   §6.2–§6.3 e do fim do plano 4A.
+1. Escrever e executar o Plano 4C (modo desenho com saídas garantidas, barra, texto, atalhos, Ajustes › Anotações/Atalhos,
+   sobreposição em todos os monitores) a partir do fim do plano 4B e do `docs/voltz/backlog-plano-4.md`.
 2. Depois: Plano 5 (marca visual + instalador + CI).

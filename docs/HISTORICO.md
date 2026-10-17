@@ -72,3 +72,88 @@ automaticamente; consultar sob demanda. Detalhes de cada plano: `docs/superpower
   salvos; atalho do holofote (Ctrl+Shift+H) com eventos no manifesto; `mouse` no `projeto.voltz`.
 - 126 casos de teste + `tools/voltz-smoke-mouse.ps1`. Revisão final: a contagem de Voltz Mouse mostradas vazava ao
   apagar a fonte/trocar de coleção (corrigido no `destroy`). Pendências em `docs/voltz/backlog-plano-4.md`.
+
+## Poda do Plano 4B (texto que saiu do CLAUDE.md, 2026-10-16)
+
+### Stack & estrutura: smokes
+  - Smoke: `powershell -ExecutionPolicy Bypass -File tools/voltz-smoke.ps1`; gravação real:
+    `tools/voltz-smoke-record.ps1` (grava ~15 s em `Vídeos\Voltz Studio` e apaga a pasta do projeto de teste);
+    projeto: `tools/voltz-smoke-project.ps1 -OutDir <pasta vazia>` (websocket + UIA + ffprobe; guarda/restaura a config);
+    mouse: `tools/voltz-smoke-mouse.ps1 -OutDir <pasta vazia>` (presets com substitutas, render, migração)
+
+### Estado atual
+- Planos 1–3B concluídos (fundação, casca, presets, tema, gravação em projeto com manifesto/marcadores/cursor/ISO
+  tela.mkv+camera.mkv); relato em `docs/HISTORICO.md`; pendências em `docs/voltz/backlog-plano-2.md` e
+  `backlog-plano-3.md`; patches no OBS em `docs/voltz/upstream-patches.md`.
+- Plano 4A concluído: plugin voltz-sources (Voltz Mouse: halo/onda/holofote), mouse ao vivo sem gancho, grupo 'Tela
+  Voltz' nos presets + migração, Ajustes › Mouse com prévia e estilos salvos, atalho do holofote, mouse no manifesto.
+  Testes: 126 casos + `tools/voltz-smoke-mouse.ps1`. Pendências: `docs/voltz/backlog-plano-4.md`.
+
+### Decisões: gravação em projeto e ISO
+- Gravação em projeto sem patch: `ProfileOverride` troca pasta e `FilenameFormatting=programa` no RECORDING_STARTING e
+  desfaz no giro seguinte; 3 faixas no Simples (RecTracks=7 + mixers, só se ainda padrão); manifesto em `ordered_json`
+  (preserva desconhecidos); padrões uma vez por perfil (`[Voltz] ProjectDefaults`).
+- ISO sem patch: `IsoTrack` = canvas privado (canal 0 = fonte compartilhada) → encoder próprio + AAC da faixa 1 →
+  ffmpeg_muxer; fps do programa; programa em H.264, ISO em HEVC.
+
+### Decisões: Tela Voltz
+- Tela Voltz = um grupo por cena (Tela + Voltz Mouse compartilhadas, travadas em (0,0)); migração uma vez por coleção
+  (`voltz_tela_migrada` na Tela; `voltz_tela_camadas` no grupo, para o 4B); o ISO continua na captura.
+
+### Armadilhas arquivadas
+- Build Tools precisa do componente **ATL** (`Microsoft.VisualStudio.Component.VC.ATL`) — sem ele falham virtualcam, qsv11 e frontend-tools.
+- Instalar componente do VS falha com 8006 se houver `MSBuild.exe` vivo → matar processos ou usar `-nodeReuse:false`.
+- Nada de IO, log, lock ou alocação dentro do gancho `WH_MOUSE_LL` (o Windows remove gancho lento).
+- nlohmann em alvo estático: `target_link_libraries PRIVATE` quebra o configurar → `target_include_directories(SYSTEM
+  PRIVATE $<TARGET_PROPERTY:nlohmann_json::nlohmann_json,INTERFACE_INCLUDE_DIRECTORIES>)`.
+- `ffmpeg_muxer`/`mp4_output` são `OBS_OUTPUT_AV`: saída só de vídeo não inicia (o ISO leva um AAC). Mix/canvas
+  auxiliar herda o fps do canvas principal.
+- ISO: liberar saída → encoders → canvas, nessa ordem (destruir o canvas privado libera o mix na hora); nunca
+  `obs_canvas_remove` em canvas privado (o `OBSBasic` enfileira `RemoveCanvas` com uma ref).
+- `obs_output_start` que falha (ex. sessão de GPU esgotada) é síncrono e não emite `stop`: tentar o próximo encoder ali.
+- Os "skipped frames" do vídeo incluem o atraso de render (`lagged`): excesso do codificador = pulados − atrasados.
+- Sinal de saída enfileirado para a UI pode chegar depois de outro projeto começar: conferir a geração do projeto.
+
+### Armadilhas: fornecedor do obs-websocket
+- Fornecedor do obs-websocket só no `obs_module_post_load`; `CreateInput` recusa fontes `OBS_SOURCE_CAP_DISABLED`.
+
+### Armadilhas: PowerShell 5.1
+- PowerShell 5.1: `.ps1` com acento precisa de BOM; `Select-String` em log com caminho acentuado precisa de
+  `-Encoding UTF8`; função que devolve array de 1 elemento é desenrolada (`return ,@(...)`).
+
+### Próximos passos
+1. Escrever e executar o Plano 4B (overlay de desenho com WDA_EXCLUDEFROMCAPTURE, StrokeStore/anotacoes.jsonl, fonte
+   Voltz Anotações como camada 2 da Tela Voltz, atalhos de desenho, Ajustes › Anotações/Atalhos) a partir da spec
+   §6.2–§6.3 e do fim do plano 4A.
+2. Depois: Plano 5 (marca visual + instalador + CI).
+
+### Armadilhas de QSS
+- Especificidade QSS: `#voltzShell QFrame#x QWidget {}` vence `#voltzShell QPushButton#id` — estilo de botão dentro de
+  painel precisa de seletor tão específico quanto.
+- `#voltzShell QWidget { font-size }` vale para widgets do OBS dentro da casca (ex. `VolumeMeter`) — sobrescrever com regra própria.
+- `objectName` usado por regra QSS deve ser definido antes do `setStyleSheet` do pai.
+
+### Decisões arquivadas (2ª passada)
+- Plugins de terceiros: o Voltz procura plugins em `%ProgramData%\Voltz Studio\plugins` e `%APPDATA%\Voltz Studio\plugins` (isolado do OBS instalado, de propósito).
+- Anotações/mouse **ao vivo + editáveis**: overlay com `WDA_EXCLUDEFROMCAPTURE`, render no programa por fontes Voltz.
+- Fontes de áudio globais com o nome padrão do OBS viram 'Som do sistema'/'Microfone' (na coleção; nunca sobrescreve
+  nome personalizado).
+
+### Armadilhas arquivadas (2ª passada)
+- Log de módulos AJA/Decklink/NVENC falhando é esperado nesta máquina (sem hardware/GPU NVIDIA).
+- Interceptar só fechamentos `event->spontaneous()` no OBSBasic; `close()` programático (Sair, reiniciar) precisa seguir, senão o app relança depois.
+- O fechamento da casca deve chamar `OBSBasic::close()` via `Qt::QueuedConnection` (síncrono destrói a casca dentro do próprio closeEvent).
+- Sem coleção de cenas em disco o OBS ignora `--startrecording` (o smoke de gravação abre o app uma vez antes). Fechar
+  gravando não loga `==== Recording Stop` (upstream; o arquivo é finalizado).
+- `OBSBasic::AddSourceDialog` só abre se chamado por QAction → disparar `actionAddSource` com `trigger()`.
+- `blog` antes de `obs-main.cpp` abrir o log (AppInit, InitTheme) não chega ao `.txt`.
+- `QInputDialog`/`QMessageBox` abrem laço de eventos: um `refresh()` pode recriar a lista — ler tudo do item antes.
+
+## Plano 4B (2026-10-16)
+- Núcleo das anotações (modelo do traço, rasterizador por CPU em BGRA pré-multiplicado, `StrokeStore`, diário e
+  consolidação do `anotacoes.jsonl`) e manifesto com `arquivos.anotacoes`/`anotacoes_queimadas`.
+- Fonte Voltz Anotações no plugin (`AnnotationFeed` + procedimentos `voltz_annot_*`) como camada 2 da Tela Voltz
+  (grupos versão 1 migram para 2); sobreposição Win32 só de exibição, transparente a cliques e fora da captura;
+  "queimadas" no Windows < 10 2004; "somem após N s".
+- 153 casos de teste + `tools/voltz-smoke-annotations.ps1` + demo manual `tools/voltz-annot-demo.ps1`. Revisão final:
+  sobreposição que não voltava quando a Tela sumia e reaparecia (corrigido). Pendências em `docs/voltz/backlog-plano-4.md`.

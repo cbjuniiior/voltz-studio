@@ -5,6 +5,7 @@
 #include <voltz/core/atomic-file.hpp>
 #include <voltz/core/disk-space.hpp>
 #include <voltz/core/project-naming.hpp>
+#include <voltz/shell/MouseStyleStore.hpp>
 #include <voltz/shell/SharedSources.hpp>
 
 #include <OBSApp.hpp> // QTStr, App(), GetAppConfigPath
@@ -273,6 +274,11 @@ void ProjectRecorder::onStarting()
 	manifest_.program.height = static_cast<int>(ovi.output_height);
 	manifest_.program.fps = ovi.fps_den ? static_cast<double>(ovi.fps_num) / static_cast<double>(ovi.fps_den) : 0.0;
 	manifest_.program.audioTracks = RecordingConfig::recordingAudioTracks();
+	if (mouseStyles_) {
+		/* spec §6.1: o estilo usado vai para o manifesto (o editor pode trocar depois) */
+		manifest_.hasMouse = true;
+		manifest_.mouse = mouseStyles_->style();
+	}
 	timeline_ = ProjectTimeline{};
 	markers_.clear();
 	lowDiskStop_ = false;
@@ -757,8 +763,10 @@ void ProjectRecorder::startIsoTrack(SharedSource role, const char *trackName, co
 			entry.origin.scale = monitor.scale;
 		}
 	}
-	blog(LOG_INFO, "[voltz] iso %s: %dx%d @ %.3f fps, %s, offset %lld ms", trackName, entry.width, entry.height,
-	     entry.fps, entry.encoder.c_str(), static_cast<long long>(entry.offsetMs));
+	/* nome e tipo da fonte: a prova de que o ISO grava a captura, não o grupo "Tela Voltz" (spec §11, risco 3) */
+	blog(LOG_INFO, "[voltz] iso %s: fonte '%s' (%s), %dx%d @ %.3f fps, %s, offset %lld ms", trackName,
+	     obs_source_get_name(source), obs_source_get_unversioned_id(source), entry.width, entry.height, entry.fps,
+	     entry.encoder.c_str(), static_cast<long long>(entry.offsetMs));
 	isoTracks_.push_back(std::move(track));
 }
 
@@ -814,6 +822,26 @@ void ProjectRecorder::finishIsoTracks()
 		track->finish(kIsoStopTimeoutMs);
 	}
 	isoTracks_.clear();
+}
+
+void ProjectRecorder::setMouseStyleStore(MouseStyleStore *store)
+{
+	mouseStyles_ = store;
+	if (store) {
+		connect(store, &MouseStyleStore::spotlightToggled, this,
+			[this](bool active) { onSpotlightToggled(active); });
+	}
+}
+
+void ProjectRecorder::onSpotlightToggled(bool active)
+{
+	if (!active_ || !timeline_.started()) {
+		return;
+	}
+	const char *type = active ? "holofote_ligado" : "holofote_desligado";
+	manifest_.events.push_back(ManifestEvent{timeline_.relativeMs(nowNs()), type, "", 0});
+	writeManifest();
+	blog(LOG_INFO, "[voltz] evento %s no projeto", type);
 }
 
 } // namespace voltz

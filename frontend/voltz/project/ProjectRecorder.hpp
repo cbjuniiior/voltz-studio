@@ -27,6 +27,7 @@
 namespace voltz {
 
 class CursorTracker;
+class MouseStyleStore;
 
 // Caminho de pasta/arquivo do Qt → UTF-8 com separadores do Windows, para as funções do núcleo.
 inline std::string nativeUtf8Path(const QString &path)
@@ -62,6 +63,9 @@ public:
 
 	// Faixas ISO (tela.mkv/camera.mkv) gravando agora.
 	int runningIsoCount() const;
+	// Estilo do destaque do mouse: vai para o manifesto no início do projeto (spec §6.1) e o holofote ligado/desligado
+	// durante a gravação vira evento. Chamar uma vez, antes de gravar.
+	void setMouseStyleStore(MouseStyleStore *store);
 
 	// Espaço livre da pasta. VOLTZ_FAKE_FREE_BYTES (só para testes) substitui o valor real. Falso se não souber.
 	static bool freeBytes(const QString &folder, quint64 &out);
@@ -106,6 +110,7 @@ private:
 	void finishIsoTracks();
 	void onIsoFailed(uint64_t generation, const std::string &track, int code);
 	void checkIsoLoad();
+	void onSpotlightToggled(bool active);
 
 	bool registered_ = true;
 	bool active_ = false;
@@ -122,6 +127,7 @@ private:
 	// Falhas de início dos ISO, emitidas (isoFailed) depois do projectStarted.
 	std::vector<std::pair<QString, QString>> pendingIsoFailures_;
 	IsoOverloadMonitor overload_; // exige #include <voltz/core/iso-encoders.hpp> no .hpp
+	MouseStyleStore *mouseStyles_ = nullptr;
 	ProfileOverride override_;
 	QTimer heartbeat_;
 	obs_hotkey_id markerHotkey_ = OBS_INVALID_HOTKEY_ID;

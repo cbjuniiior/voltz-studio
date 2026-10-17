@@ -73,6 +73,7 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 	 * (OBSStudioAPI::on_event), então o projeto já está atualizado quando a ponte avisa a casca. */
 	recorder_ = new ProjectRecorder(this);
 	mouseStyles_ = new MouseStyleStore(this);
+	recorder_->setMouseStyleStore(mouseStyles_);
 	liveMouse_ = new LiveMouse(mouseStyles_, this);
 	/* A coleção já está carregada (a casca nasce depois do OBSBasic::OBSInit): Tela Voltz nas cenas de antes. */
 	ensureScreenGroups();

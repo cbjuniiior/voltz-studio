@@ -101,6 +101,9 @@ function Restore-Config {
 if ($Launch) {
     if (-not (Test-Path $exe)) { throw "executavel nao encontrado: $exe" }
     if (Test-Path $bak) { throw "ja existe $bak (rode -Close antes)" }
+    # backup pendente de outro script (smoke, demonstracao) na pasta da config portatil: nada e mexido
+    $oldBaks = @(Get-ChildItem -LiteralPath $rundir -Force -Filter "config.*bak*" -ErrorAction SilentlyContinue)
+    if ($oldBaks.Count -gt 0) { throw "backup de config pendente em $rundir ($(($oldBaks | ForEach-Object { $_.Name }) -join ', ')): restaure ou apague antes" }
     if (Launched) { throw "a demonstracao ja esta aberta (rode -Close antes)" }
     if ((Port-Owners).Count -gt 0) { throw "a porta $wsPort ja esta em uso (feche o OBS/Voltz que a usa antes)" }
     if (Test-Path $cfg) { Move-Item $cfg $bak }

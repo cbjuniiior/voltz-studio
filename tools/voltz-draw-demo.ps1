@@ -17,12 +17,16 @@
        (Ctrl+Z ou o botao), limpar e "tracos somem apos" ficam na barra.
     4. Rode -Log para ver o que o Voltz registrou e -Close para fechar e restaurar a config.
 
-  COMO SAIR DO MODO DESENHO: Esc, clique direito, o mesmo atalho (Ctrl+Shift+D), o botao Sair (X) da barra, clique
-    em outra janela ou outro monitor, Alt+Tab, tecla Windows, Alt+F4, 30 s sem mexer o mouse nem o teclado - e, se a
-    interface do Voltz travar, o modo sai sozinho em ~1 s.
+  COMO SAIR DO MODO DESENHO:
+    - Sempre: clique direito, o mesmo atalho (Ctrl+Shift+D), o botao Sair (X) da barra e 30 s sem mexer o mouse nem o
+      teclado - e, se a interface do Voltz travar, o modo sai sozinho em ~1 s.
+    - Esc, Alt+Tab, tecla Windows, clique em outra janela ou outro monitor e Alt+F4 tambem saem, MAS: se o modo foi
+      ligado pelo atalho, so depois do primeiro clique na tela (antes dele a janela do desenho ainda nao esta ativa e
+      essas teclas vao para o app em uso). A linha "modo desenho: ligado (...)" do -Log diz "ativa: sim" ou "ativa: nao".
 
   SE ALGO TRAVAR:
-    - Primeiro Esc ou clique direito; depois Alt+Tab ou a tecla Windows; ou espere 30 s parado (o modo sai sozinho).
+    - Primeiro clique direito ou Esc; depois Alt+Tab ou a tecla Windows (estes tres, ligado pelo atalho, so depois do
+      primeiro clique na tela); ou espere 30 s parado (o modo sai sozinho).
     - Ctrl+Alt+Del sempre funciona (Gerenciador de Tarefas).
     - Em outro PowerShell: powershell -ExecutionPolicy Bypass -File tools/voltz-draw-demo.ps1 -Close
       (fecha so o Voltz desta demonstracao; se ele nao fechar em 30 s, encerra o PID que o -Launch abriu).
@@ -107,8 +111,13 @@ function Restore-Videos {
 if ($Launch) {
     if (-not (Test-Path $exe)) { throw "executavel nao encontrado: $exe" }
     if (Test-Path $bak) { throw "ja existe $bak (rode -Close antes)" }
+    # backup pendente de outro script (smoke, demonstracao) na pasta da config portatil: nada e mexido
+    $oldBaks = @(Get-ChildItem -LiteralPath $rundir -Force -Filter "config.*bak*" -ErrorAction SilentlyContinue)
+    if ($oldBaks.Count -gt 0) { throw "backup de config pendente em $rundir ($(($oldBaks | ForEach-Object { $_.Name }) -join ', ')): restaure ou apague antes" }
     if (Launched) { throw "a demonstracao ja esta aberta (rode -Close antes)" }
     if (Test-Path $cfg) { Move-Item $cfg $bak }
+    # marca antiga de um -Launch que nao chegou ao -Close: nao vale para esta abertura
+    Remove-Item -LiteralPath $videosFlag -ErrorAction SilentlyContinue
     if (-not (Test-Path -LiteralPath $voltzVideos)) { Set-Content -LiteralPath $videosFlag -Value "Videos\Voltz Studio ausente antes do -Launch" }
     # o Voltz herda o ambiente deste PowerShell: nenhuma variavel de teste vai junto (o modo desenho seria recusado)
     $saved = @{}
@@ -145,8 +154,9 @@ if ($Launch) {
     Write-Host "Voltz aberto (PID $($proc.Id)), sem modo de teste."
     Write-Host "  1. Na tela Presets, aplique um preset com a Tela real (ex.: Tutorial)."
     Write-Host "  2. Ligue o modo desenho com Ctrl+Shift+D ou com o botao Desenhar da tela Gravar e desenhe com o botao esquerdo."
-    Write-Host "  Para sair do modo: Esc, clique direito, Ctrl+Shift+D de novo, o botao Sair (X) da barra ou 30 s parado."
-    Write-Host "  Se algo travar: Alt+Tab ou tecla Windows (sai do modo), Ctrl+Alt+Del, ou rode -Close em outro PowerShell."
+    Write-Host "  Para sair do modo (sempre): clique direito, Ctrl+Shift+D de novo, o botao Sair (X) da barra ou 30 s parado."
+    Write-Host "  Esc, Alt+Tab, tecla Windows, clique em outro monitor e Alt+F4 tambem saem - ligado pelo atalho, so depois do primeiro clique na tela."
+    Write-Host "  Se algo travar: clique direito ou Esc; Alt+Tab ou tecla Windows; Ctrl+Alt+Del; ou rode -Close em outro PowerShell."
     if ($Freeze) { Write-Host "  Depuracao: Ctrl+Shift+F12 trava a interface por 8 s (com o modo ligado, ele deve sair sozinho em ~1 s)." }
     Write-Host "  Depois: -Log mostra o que o Voltz registrou; -Close fecha o Voltz e restaura a config portatil."
     exit 0

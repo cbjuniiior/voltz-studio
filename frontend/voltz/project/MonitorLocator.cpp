@@ -1,5 +1,8 @@
 #include "MonitorLocator.hpp"
 
+#include <QGuiApplication>
+#include <QScreen>
+
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -83,6 +86,30 @@ MonitorDescription findMonitor(const std::string &monitorId)
 	(void)monitorId;
 #endif
 	return result;
+}
+
+QScreen *screenForMonitor(const std::string &deviceName)
+{
+#ifdef _WIN32
+	if (deviceName.empty()) {
+		return nullptr;
+	}
+	for (QScreen *screen : QGuiApplication::screens()) {
+		auto *native = screen->nativeInterface<QNativeInterface::QWindowsScreen>();
+		if (!native || !native->handle()) {
+			continue;
+		}
+		MONITORINFOEXA info = {};
+		info.cbSize = sizeof(info);
+		if (GetMonitorInfoA(native->handle(), reinterpret_cast<LPMONITORINFO>(&info)) &&
+		    deviceName == info.szDevice) {
+			return screen;
+		}
+	}
+#else
+	(void)deviceName;
+#endif
+	return nullptr;
 }
 
 } // namespace voltz

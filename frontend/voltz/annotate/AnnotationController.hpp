@@ -52,8 +52,11 @@ public:
 	bool drawTarget(CaptureMapping &mapping, std::string &deviceName) const;
 	// Estado do modo desenho no AnnotationState (testes): ligado, último motivo de recusa e de saída ("" = nenhum).
 	void setDrawStatus(bool active, const char *refusal, const char *exit);
-	// "N parcial(is) (media X us, max Y us), C completa(s) (max Z us)" da sobreposição, para o log do modo desenho.
+	// "N parcial(is) (media X us, max Y us), C completa(s) (max Z us)" da sobreposição, para o log do modo desenho. Os
+	// contadores acumulam desde a criação da sobreposição ou o último resetOverlayStats().
 	std::string overlayStatsText() const;
+	// Zera as medidas da sobreposição (o modo desenho chama no começo de cada sessão).
+	void resetOverlayStats();
 	// Só testes: guarda os pixels da sobreposição nesses pontos (pixels da janela) para o estado de teste.
 	void probeOverlay(const std::vector<StrokePoint> &points);
 	// Só testes (VOLTZ_TEST_LIVE): publica o estado para o pedido AnnotationState (inclui o tamanho atual da captura).

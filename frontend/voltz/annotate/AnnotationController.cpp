@@ -130,6 +130,31 @@ bool testOverlayRect(MonitorRect &rect)
 	return true;
 }
 
+// Tela compartilhada com tamanho de captura válido (nula sem Tela ou com tamanho 0).
+OBSSource sizedScreen(int &captureWidth, int &captureHeight)
+{
+	OBSSource screen = findSharedSource(SharedSource::Screen);
+	if (!screen) {
+		return OBSSource();
+	}
+	captureWidth = static_cast<int>(obs_source_get_width(screen));
+	captureHeight = static_cast<int>(obs_source_get_height(screen));
+	if (captureWidth <= 0 || captureHeight <= 0) {
+		return OBSSource();
+	}
+	return screen;
+}
+
+// Monitor de uma captura de monitor; found = false para outro tipo de fonte ou monitor que não existe mais.
+MonitorDescription capturedMonitor(obs_source_t *screen)
+{
+	if (strcmp(obs_source_get_unversioned_id(screen), "monitor_capture") != 0) {
+		return MonitorDescription{};
+	}
+	OBSDataAutoRelease settings = obs_source_get_settings(screen);
+	return findMonitor(obs_data_get_string(settings, "monitor_id"));
+}
+
 } // namespace
 
 AnnotationController::AnnotationController(QObject *parent) : QObject(parent)
@@ -317,23 +342,14 @@ void AnnotationController::expire()
 
 bool AnnotationController::overlayTarget(MonitorRect &rect, int &captureWidth, int &captureHeight) const
 {
-	OBSSource screen = findSharedSource(SharedSource::Screen);
+	OBSSource screen = sizedScreen(captureWidth, captureHeight);
 	if (!screen) {
-		return false;
-	}
-	captureWidth = static_cast<int>(obs_source_get_width(screen));
-	captureHeight = static_cast<int>(obs_source_get_height(screen));
-	if (captureWidth <= 0 || captureHeight <= 0) {
 		return false;
 	}
 	if (testOverlayRect(rect)) {
 		return true;
 	}
-	if (strcmp(obs_source_get_unversioned_id(screen), "monitor_capture") != 0) {
-		return false;
-	}
-	OBSDataAutoRelease settings = obs_source_get_settings(screen);
-	const MonitorDescription monitor = findMonitor(obs_data_get_string(settings, "monitor_id"));
+	const MonitorDescription monitor = capturedMonitor(screen);
 	if (!monitor.found) {
 		return false;
 	}
@@ -467,17 +483,13 @@ void AnnotationController::saveStyle()
 
 bool AnnotationController::drawTarget(CaptureMapping &mapping, std::string &deviceName) const
 {
-	OBSSource screen = findSharedSource(SharedSource::Screen);
-	if (!screen || strcmp(obs_source_get_unversioned_id(screen), "monitor_capture") != 0) {
+	int captureWidth = 0;
+	int captureHeight = 0;
+	OBSSource screen = sizedScreen(captureWidth, captureHeight);
+	if (!screen) {
 		return false;
 	}
-	const int captureWidth = static_cast<int>(obs_source_get_width(screen));
-	const int captureHeight = static_cast<int>(obs_source_get_height(screen));
-	if (captureWidth <= 0 || captureHeight <= 0) {
-		return false;
-	}
-	OBSDataAutoRelease settings = obs_source_get_settings(screen);
-	const MonitorDescription monitor = findMonitor(obs_data_get_string(settings, "monitor_id"));
+	const MonitorDescription monitor = capturedMonitor(screen);
 	if (!monitor.found) {
 		return false;
 	}
@@ -504,6 +516,14 @@ std::string AnnotationController::overlayStatsText() const
 		      info.partialRenders, average, static_cast<long long>(info.partialMaxNs / 1000), info.fullRenders,
 		      static_cast<long long>(info.fullMaxNs / 1000));
 	return text;
+}
+
+void AnnotationController::resetOverlayStats()
+{
+	if (overlay_) {
+		overlay_->resetStats();
+	}
+	publishTestState();
 }
 
 void AnnotationController::markBurned(const char *why)

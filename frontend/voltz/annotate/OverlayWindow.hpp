@@ -57,6 +57,8 @@ public:
 	// Pixel do último desenho como "#AARRGGBB" (pré-multiplicado); "" fora do buffer. Só para testes.
 	std::string pixelHex(int x, int y) const;
 	Info info() const;
+	// Zera as medidas de desenho (partialRenders etc.).
+	void resetStats();
 
 private:
 	void ensureClickThrough();
@@ -73,6 +75,7 @@ private:
 	int bufferHeight_ = 0;
 	MonitorRect rect_;
 	bool visible_ = false;
+	bool needsFull_ = false; // a última publicação falhou: o próximo desenho é completo
 	uint32_t partialRenders_ = 0;
 	uint32_t fullRenders_ = 0;
 	int64_t partialTotalNs_ = 0;

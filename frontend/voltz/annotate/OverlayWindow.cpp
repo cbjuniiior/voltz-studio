@@ -228,7 +228,7 @@ void OverlayWindow::render(const std::vector<const Stroke *> &strokes, int captu
 		return;
 	}
 	const bool sameBuffer = bits_ && bufferWidth_ == rect_.width && bufferHeight_ == rect_.height;
-	const bool partial = dirty && sameBuffer && visible_;
+	const bool partial = dirty && sameBuffer && visible_ && !needsFull_;
 	if (!ensureBuffer(rect_.width, rect_.height)) {
 		blog(LOG_WARNING, "[voltz] anotacoes: sem memoria para a sobreposicao %dx%d", rect_.width,
 		     rect_.height);
@@ -271,8 +271,10 @@ void OverlayWindow::render(const std::vector<const Stroke *> &strokes, int captu
 	update.prcDirty = partial ? &dirtyRect : nullptr;
 	if (!UpdateLayeredWindowIndirect(hwnd, &update)) {
 		blog(LOG_WARNING, "[voltz] anotacoes: UpdateLayeredWindowIndirect falhou (%lu)", GetLastError());
+		needsFull_ = true; /* a janela pode ter ficado com a imagem velha: o próximo desenho publica tudo */
 		return;
 	}
+	needsFull_ = false;
 	const int64_t elapsed = static_cast<int64_t>(os_gettime_ns()) - start;
 	if (partial) {
 		partialRenders_++;
@@ -305,6 +307,15 @@ std::string OverlayWindow::pixelHex(int x, int y) const
 	char text[16];
 	std::snprintf(text, sizeof(text), "#%02X%02X%02X%02X", pixel[3], pixel[2], pixel[1], pixel[0]);
 	return text;
+}
+
+void OverlayWindow::resetStats()
+{
+	partialRenders_ = 0;
+	fullRenders_ = 0;
+	partialTotalNs_ = 0;
+	partialMaxNs_ = 0;
+	fullMaxNs_ = 0;
 }
 
 OverlayWindow::Info OverlayWindow::info() const

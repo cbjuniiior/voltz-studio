@@ -10,6 +10,7 @@
 class QButtonGroup;
 class QFrame;
 class QLabel;
+class QScreen;
 class QToolButton;
 
 namespace voltz {
@@ -55,6 +56,7 @@ signals:
 protected:
 	void moveEvent(QMoveEvent *event) override;
 	void resizeEvent(QResizeEvent *event) override;
+	void paintEvent(QPaintEvent *event) override;
 
 private:
 	QToolButton *makeButton(QWidget *parent, const QString &hint);
@@ -62,6 +64,9 @@ private:
 	QFrame *separator();
 	void markColor(const RgbColor &color);
 	void updateFadeText();
+	// adjustSize e, se visível, de volta ao alto e ao centro do monitor em que está (aviso de "queimadas", "mais cores").
+	void resizeAndRecenter();
+	void placeOn(QScreen *screen);
 
 	QFrame *panel_ = nullptr;
 	QButtonGroup *tools_ = nullptr;

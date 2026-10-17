@@ -121,8 +121,9 @@ void setAnnotationStyle(obs_data_t *request, obs_data_t *response, void *)
 	obs_data_set_bool(response, "ok", ok);
 }
 
-void toolbarImage(obs_data_t *, obs_data_t *response, void *)
+void toolbarImage(obs_data_t *request, obs_data_t *response, void *)
 {
+	const bool forceBurned = obs_data_get_bool(request, "queimadas");
 	struct Result {
 		std::string png;
 		int width = 0;
@@ -132,11 +133,11 @@ void toolbarImage(obs_data_t *, obs_data_t *response, void *)
 	auto result = std::make_shared<Result>();
 	auto done = std::make_shared<std::promise<void>>();
 	std::future<void> ready = done->get_future();
-	bool ok = post([result, done](AnnotationController *controller) {
+	bool ok = post([result, done, forceBurned](AnnotationController *controller) {
 		/* nunca mostrada: o grab() desenha fora da tela, sem criar janela nativa */
 		DrawToolbar toolbar;
 		toolbar.setAnnotationStyle(controller->style());
-		toolbar.setBurned(controller->burned());
+		toolbar.setBurned(forceBurned || controller->burned());
 		toolbar.adjustSize();
 		const QImage image = toolbar.grab().toImage();
 		QByteArray bytes;

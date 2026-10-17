@@ -5,6 +5,8 @@
 
 #include <OBSApp.hpp> // QTStr
 
+#include <util/base.h>
+
 #include <QAbstractButton>
 #include <QButtonGroup>
 #include <QFrame>
@@ -12,6 +14,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMoveEvent>
+#include <QPaintEvent>
 #include <QPainter>
 #include <QPen>
 #include <QPixmap>
@@ -22,6 +25,7 @@
 #include <QWindow>
 
 #include <algorithm>
+#include <cmath>
 #include <iterator>
 
 #ifdef _WIN32
@@ -59,17 +63,23 @@ const ToolEntry kTools[] = {
 	{AnnotationTool::Ellipse, "circle", "Voltz.Draw.Tool.Ellipse"},
 };
 
+// Cores da barra que não estão na paleta da casca.
+const QColor kPanel(0x11, 0x11, 0x14);
+const QColor kBorder(0x2A, 0x2A, 0x30);
+const QColor kHover(0x1F, 0x1F, 0x24);
+
 // QSS próprio: a barra é uma janela fora do #voltzShell e o tema global do OBS tem regras de QToolButton (altura máxima,
-// cores) — tudo leva o prefixo #voltzDrawToolbar.
+// cores) — tudo leva o prefixo #voltzDrawToolbar. %1 painel · %2 borda/separador/apertado · %3 hover · %4 texto ·
+// %5 lima translúcido (marcado) · %6 lima mais forte (marcado e apertado) · %7 aviso.
 const char *kStyleSheet = R"(
 #voltzDrawToolbar QFrame#drawPanel {
-	background: #111114;
-	border: 1px solid #2A2A30;
+	background: %1;
+	border: 1px solid %2;
 	border-radius: 12px;
 }
 #voltzDrawToolbar QToolButton {
 	background: transparent;
-	color: #F2F2F3;
+	color: %4;
 	border: none;
 	border-radius: 8px;
 	padding: 0;
@@ -81,26 +91,44 @@ const char *kStyleSheet = R"(
 	font-size: 12px;
 }
 #voltzDrawToolbar QToolButton:hover {
-	background: #1F1F24;
+	background: %3;
+}
+#voltzDrawToolbar QToolButton:pressed {
+	background: %2;
 }
 #voltzDrawToolbar QToolButton:checked {
-	background: rgba(212, 245, 60, 40);
+	background: %5;
+}
+#voltzDrawToolbar QToolButton:checked:pressed {
+	background: %6;
 }
 #voltzDrawToolbar QToolButton#fadeButton {
 	padding: 0 8px;
 }
 #voltzDrawToolbar QFrame#drawSeparator {
-	background: #2A2A30;
+	background: %2;
 	border: none;
 	margin: 6px 4px;
 }
 #voltzDrawToolbar QLabel#drawBurned {
 	background: transparent;
-	color: #F5C83C;
+	color: %7;
 	font-family: "DM Sans", "Segoe UI";
 	font-size: 12px;
 }
 )";
+
+QString rgba(const QColor &color, int alpha)
+{
+	return QStringLiteral("rgba(%1, %2, %3, %4)").arg(color.red()).arg(color.green()).arg(color.blue()).arg(alpha);
+}
+
+QString toolbarStyleSheet()
+{
+	return QString::fromUtf8(kStyleSheet)
+		.arg(kPanel.name(), kBorder.name(), kHover.name(), palette::kText.name(), rgba(palette::kAccent, 40),
+		     rgba(palette::kAccent, 80), palette::kWarn.name());
+}
 
 QColor toQColor(const RgbColor &color)
 {
@@ -120,13 +148,13 @@ QIcon swatchIcon(const RgbColor &color, bool selected)
 		painter.setBrush(Qt::NoBrush);
 		painter.drawEllipse(QRectF(1.0, 1.0, 18.0, 18.0));
 	}
-	painter.setPen(QPen(QColor(0x3A, 0x3A, 0x42), 1.0));
+	painter.setPen(QPen(kBorder.lighter(140), 1.0));
 	painter.setBrush(toQColor(color));
 	painter.drawEllipse(QRectF(4.5, 4.5, 11.0, 11.0));
 	return QIcon(pixmap);
 }
 
-// Ponto do tamanho da espessura (3 a 15 px lógicos).
+// Traço horizontal da espessura (2 → 1,5 · 4 → 3 · 8 → 4,5 · 16 → 6 px lógicos): não se confunde com as bolinhas de cor.
 QIcon widthIcon(int width)
 {
 	QPixmap pixmap(40, 40);
@@ -134,10 +162,9 @@ QIcon widthIcon(int width)
 	pixmap.fill(Qt::transparent);
 	QPainter painter(&pixmap);
 	painter.setRenderHint(QPainter::Antialiasing);
-	painter.setPen(Qt::NoPen);
-	painter.setBrush(palette::kText);
-	const double diameter = std::clamp(2.0 + width * 0.8, 3.0, 15.0);
-	painter.drawEllipse(QRectF(10.0 - diameter / 2.0, 10.0 - diameter / 2.0, diameter, diameter));
+	const double thickness = std::clamp(1.5 * std::log2(static_cast<double>(std::max(width, 1))), 1.5, 6.5);
+	painter.setPen(QPen(palette::kText, thickness, Qt::SolidLine, Qt::RoundCap));
+	painter.drawLine(QPointF(4.0, 10.0), QPointF(16.0, 10.0));
 	return QIcon(pixmap);
 }
 
@@ -154,7 +181,7 @@ DrawToolbar::DrawToolbar(QWidget *parent)
 	setAttribute(Qt::WA_ShowWithoutActivating);
 	setAttribute(Qt::WA_TranslucentBackground);
 	setFocusPolicy(Qt::NoFocus);
-	setStyleSheet(QString::fromUtf8(kStyleSheet));
+	setStyleSheet(toolbarStyleSheet());
 
 	panel_ = new QFrame(this);
 	panel_->setObjectName("drawPanel");
@@ -244,7 +271,7 @@ DrawToolbar::DrawToolbar(QWidget *parent)
 	column->addWidget(extraColors_);
 	connect(moreColors_, &QToolButton::toggled, this, [this](bool on) {
 		extraColors_->setVisible(on);
-		adjustSize();
+		resizeAndRecenter();
 	});
 
 	burned_ = new QLabel(QTStr("Voltz.Draw.Burned"), panel_);
@@ -304,6 +331,11 @@ void DrawToolbar::markColor(const RgbColor &color)
 	for (const auto &entry : colors_) {
 		entry.first->setIcon(swatchIcon(entry.second, entry.second == color));
 	}
+	/* a cor marcada é uma das 8 extras: abre a linha delas para a marca ficar à vista */
+	const bool extra = std::find(std::begin(kMoreColors), std::end(kMoreColors), color) != std::end(kMoreColors);
+	if (extra && !moreColors_->isChecked()) {
+		moreColors_->setChecked(true);
+	}
 }
 
 void DrawToolbar::updateFadeText()
@@ -317,7 +349,23 @@ void DrawToolbar::updateFadeText()
 void DrawToolbar::setBurned(bool burned)
 {
 	burned_->setVisible(burned);
+	resizeAndRecenter();
+}
+
+void DrawToolbar::resizeAndRecenter()
+{
 	adjustSize();
+	if (isVisible()) {
+		placeOn(windowHandle() ? windowHandle()->screen() : screen());
+	}
+}
+
+void DrawToolbar::placeOn(QScreen *target)
+{
+	if (target) {
+		const QRect area = target->geometry();
+		move(area.x() + (area.width() - width()) / 2, area.y() + kTopMargin);
+	}
 }
 
 void DrawToolbar::setExitHint(const QString &shortcut)
@@ -338,19 +386,32 @@ void DrawToolbar::showOnScreen(const QString &deviceName, bool excludeFromCaptur
 	}
 	/* o OBSApp::notify não reaplica nela o "esconder da captura" do usuário (WDA_NONE com a opção desligada) */
 	windowHandle()->setProperty("isOBSProjectorWindow", true);
+#ifdef _WIN32
+	/* sem ativar e fora da captura ANTES do primeiro show: nenhum quadro ativo nem capturado */
+	const auto applyNativeStyle = [this]() {
+		HWND hwnd = reinterpret_cast<HWND>(winId());
+		const LONG_PTR wanted = WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST;
+		const LONG_PTR current = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+		if ((current & wanted) != wanted) {
+			SetWindowLongPtrW(hwnd, GWL_EXSTYLE, current | wanted);
+		}
+	};
+	applyNativeStyle();
+	if (!SetWindowDisplayAffinity(reinterpret_cast<HWND>(winId()),
+				      excludeFromCapture ? WDA_EXCLUDEFROMCAPTURE : WDA_NONE)) {
+		blog(LOG_WARNING, "[voltz] barra do modo desenho: SetWindowDisplayAffinity falhou (%lu)",
+		     GetLastError());
+	}
+#else
+	(void)excludeFromCapture;
+#endif
 	if (target) {
 		windowHandle()->setScreen(target);
-		const QRect area = target->geometry();
-		move(area.x() + (area.width() - width()) / 2, area.y() + kTopMargin);
+		placeOn(target);
 	}
 	show();
 #ifdef _WIN32
-	HWND hwnd = reinterpret_cast<HWND>(winId());
-	SetWindowLongPtrW(hwnd, GWL_EXSTYLE,
-			  GetWindowLongPtrW(hwnd, GWL_EXSTYLE) | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST);
-	SetWindowDisplayAffinity(hwnd, excludeFromCapture ? WDA_EXCLUDEFROMCAPTURE : WDA_NONE);
-#else
-	(void)excludeFromCapture;
+	applyNativeStyle(); /* o Qt pode refazer o estilo estendido no show: confere de novo */
 #endif
 	raiseWithoutActivating();
 	emit nativeRectChanged();
@@ -389,6 +450,17 @@ void DrawToolbar::moveEvent(QMoveEvent *event)
 	if (isVisible()) {
 		emit nativeRectChanged();
 	}
+}
+
+void DrawToolbar::paintEvent(QPaintEvent *event)
+{
+	/* alfa 1/255 em toda a janela (invisível): os cantos arredondados do painel não deixam o clique atravessar a barra
+	 * (e o buraco da janela de entrada) até o app de baixo, o que tiraria o Voltz do modo desenho */
+	QPainter painter(this);
+	painter.setCompositionMode(QPainter::CompositionMode_Source);
+	painter.fillRect(rect(), QColor(0, 0, 0, 1));
+	painter.end();
+	QWidget::paintEvent(event);
 }
 
 void DrawToolbar::resizeEvent(QResizeEvent *event)

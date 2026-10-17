@@ -70,10 +70,19 @@ obs_sceneitem_t *addFull(obs_scene_t *scene, obs_source_t *source, CanvasSize ca
 }
 
 // Configurações privadas (salvas na coleção): na Tela, se a migração já rodou; no grupo, a versão das camadas
-// (1 = Voltz Mouse; o Plano 4B sobe para 2 ao acrescentar a Voltz Anotações).
+// (1 = Tela + Voltz Mouse, do 4A; 2 = Tela + Voltz Anotações + Voltz Mouse, do 4B).
 constexpr const char *kScreenMigratedKey = "voltz_tela_migrada";
 constexpr const char *kScreenLayersKey = "voltz_tela_camadas";
-constexpr int kScreenLayersVersion = 1;
+constexpr int kScreenLayersMouseOnly = 1;
+constexpr int kScreenLayersVersion = 2;
+// Só testes (com VOLTZ_TEST_LIVE): "1" = os presets criam grupos versão 1 e a atualização não roda (testa a migração
+// 1 → 2 sem editar a coleção à mão).
+constexpr const char *kTestLayersEnv = "VOLTZ_TEST_SCREEN_LAYERS";
+
+bool testLayersV1()
+{
+	return live::testModeEnabled() && qEnvironmentVariable(kTestLayersEnv) == QStringLiteral("1");
+}
 
 // Nome livre a partir de `base` ("Tela Voltz", "Tela Voltz 2", …), no formato da deduplicação do libobs.
 QString uniqueSourceName(const QString &base)
@@ -103,22 +112,23 @@ void placeLayer(obs_sceneitem_t *item)
 	obs_sceneitem_set_info2(item, &info);
 }
 
-void syncMouseTarget(obs_source_t *mouse, obs_source_t *screen)
+// Aponta o "alvo" de uma camada Voltz (Voltz Mouse ou Voltz Anotações) para a Tela.
+void syncTarget(obs_source_t *layer, obs_source_t *screen)
 {
 	const char *uuid = obs_source_get_uuid(screen);
-	OBSDataAutoRelease settings = obs_source_get_settings(mouse);
+	OBSDataAutoRelease settings = obs_source_get_settings(layer);
 	if (strcmp(obs_data_get_string(settings, live::kTargetSetting), uuid) == 0) {
 		return;
 	}
 	OBSDataAutoRelease update = obs_data_create();
 	obs_data_set_string(update, live::kTargetSetting, uuid);
-	obs_source_update(mouse, update);
+	obs_source_update(layer, update);
 }
 
-// Põe `screenItem` (item direto da cena) num grupo "Tela Voltz" com a Voltz Mouse por cima. O grupo assume a
-// transformação, a ordem, a visibilidade e a trava do item; as camadas ficam em (0,0), escala 1, travadas e com o
-// mesmo recorte — o pixel (x,y) da captura cai no mesmo lugar nas duas. Devolve o item do grupo (null se não deu: sem
-// plugin ou o libobs recusou).
+// Põe `screenItem` (item direto da cena) num grupo "Tela Voltz" com as camadas Voltz por cima, de baixo para cima:
+// Voltz Anotações e Voltz Mouse (versão de camadas 2). O grupo assume a transformação, a ordem, a visibilidade e a trava
+// do item; as camadas ficam em (0,0), escala 1, travadas e com o mesmo recorte — o pixel (x,y) da captura cai no mesmo
+// lugar em todas. Devolve o item do grupo (null se não deu: sem plugin ou o libobs recusou).
 obs_sceneitem_t *wrapScreenItem(obs_scene_t *scene, obs_sceneitem_t *screenItem)
 {
 	if (!scene || !screenItem) {
@@ -128,7 +138,12 @@ obs_sceneitem_t *wrapScreenItem(obs_scene_t *scene, obs_sceneitem_t *screenItem)
 	if (!mouse) {
 		return nullptr;
 	}
-	syncMouseTarget(mouse, obs_sceneitem_get_source(screenItem));
+	OBSSource annotations = testLayersV1() ? OBSSource() : ensureSharedSource(SharedSource::Annotations);
+	obs_source_t *screen = obs_sceneitem_get_source(screenItem);
+	syncTarget(mouse, screen);
+	if (annotations) {
+		syncTarget(annotations, screen);
+	}
 
 	obs_transform_info info = {};
 	obs_sceneitem_get_info2(screenItem, &info);
@@ -138,29 +153,45 @@ obs_sceneitem_t *wrapScreenItem(obs_scene_t *scene, obs_sceneitem_t *screenItem)
 	const bool visible = obs_sceneitem_visible(screenItem);
 	const bool locked = obs_sceneitem_locked(screenItem);
 
+	obs_sceneitem_t *annotationsItem = annotations ? obs_scene_add(scene, annotations) : nullptr;
 	obs_sceneitem_t *mouseItem = obs_scene_add(scene, mouse);
 	if (!mouseItem) {
+		if (annotationsItem) {
+			obs_sceneitem_remove(annotationsItem);
+		}
 		return nullptr;
 	}
 	obs_sceneitem_set_visible(screenItem, true);
-	placeLayer(screenItem);
-	placeLayer(mouseItem);
-	obs_sceneitem_set_crop(mouseItem, &crop);
+	std::vector<obs_sceneitem_t *> items = {screenItem};
+	if (annotationsItem) {
+		items.push_back(annotationsItem);
+	}
+	items.push_back(mouseItem);
+	for (obs_sceneitem_t *layer : items) {
+		placeLayer(layer);
+		if (layer != screenItem) {
+			obs_sceneitem_set_crop(layer, &crop);
+		}
+	}
 
-	obs_sceneitem_t *items[] = {screenItem, mouseItem};
 	const QString name = uniqueSourceName(QTStr("Voltz.Source.ScreenGroup"));
-	obs_sceneitem_t *group = obs_scene_insert_group(scene, name.toUtf8().constData(), items, 2);
+	obs_sceneitem_t *group = obs_scene_insert_group(scene, name.toUtf8().constData(), items.data(), items.size());
 	if (!group) {
 		obs_sceneitem_remove(mouseItem);
+		if (annotationsItem) {
+			obs_sceneitem_remove(annotationsItem);
+		}
 		obs_sceneitem_set_info2(screenItem, &info);
 		obs_sceneitem_set_visible(screenItem, visible);
 		blog(LOG_WARNING, "[voltz] tela voltz: o libobs recusou o grupo; Tela mantida como estava");
 		return nullptr;
 	}
 	OBSDataAutoRelease privateSettings = obs_source_get_private_settings(obs_sceneitem_get_source(group));
-	obs_data_set_int(privateSettings, kScreenLayersKey, kScreenLayersVersion);
-	obs_sceneitem_set_locked(screenItem, true);
-	obs_sceneitem_set_locked(mouseItem, true);
+	obs_data_set_int(privateSettings, kScreenLayersKey,
+			 annotationsItem ? kScreenLayersVersion : kScreenLayersMouseOnly);
+	for (obs_sceneitem_t *layer : items) {
+		obs_sceneitem_set_locked(layer, true);
+	}
 	obs_sceneitem_set_info2(group, &info);
 	obs_sceneitem_set_order_position(group, order);
 	obs_sceneitem_set_visible(group, visible);
@@ -177,6 +208,84 @@ void markScreenMigrated()
 	}
 	OBSDataAutoRelease privateSettings = obs_source_get_private_settings(screen);
 	obs_data_set_bool(privateSettings, kScreenMigratedKey, true);
+}
+
+// Grupos "Tela Voltz" da versão 1 (Tela + Voltz Mouse, do 4A) ganham a Voltz Anotações entre as duas (versão 2), em
+// (0,0), escala 1, travada e com o recorte da Tela. Devolve quantos grupos mudaram.
+int upgradeScreenGroups(obs_source_t *screen)
+{
+	struct Found {
+		std::vector<OBSSceneItem> groups;
+	} found;
+	obs_frontend_source_list scenes = {};
+	obs_frontend_get_scenes(&scenes);
+	for (size_t i = 0; i < scenes.sources.num; i++) {
+		obs_scene_t *scene = obs_scene_from_source(scenes.sources.array[i]);
+		if (!scene) {
+			continue;
+		}
+		/* só coleta (com referência): mexer no grupo durante o enum travaria o lock da cena */
+		obs_scene_enum_items(
+			scene,
+			[](obs_scene_t *, obs_sceneitem_t *item, void *param) {
+				if (obs_sceneitem_is_group(item)) {
+					OBSDataAutoRelease privateSettings =
+						obs_source_get_private_settings(obs_sceneitem_get_source(item));
+					if (obs_data_get_int(privateSettings, kScreenLayersKey) ==
+					    kScreenLayersMouseOnly) {
+						static_cast<Found *>(param)->groups.emplace_back(item);
+					}
+				}
+				return true;
+			},
+			&found);
+	}
+	obs_frontend_source_list_free(&scenes);
+	if (found.groups.empty()) {
+		return 0;
+	}
+	OBSSource annotations = ensureSharedSource(SharedSource::Annotations);
+	if (!annotations) {
+		return 0;
+	}
+	syncTarget(annotations, screen);
+	int upgraded = 0;
+	for (const OBSSceneItem &group : found.groups) {
+		OBSDataAutoRelease privateSettings = obs_source_get_private_settings(obs_sceneitem_get_source(group));
+		/* o mesmo grupo pode estar em mais de uma cena (referência): só a primeira passagem acrescenta */
+		if (obs_data_get_int(privateSettings, kScreenLayersKey) != kScreenLayersMouseOnly) {
+			continue;
+		}
+		obs_scene_t *parent = obs_sceneitem_get_scene(group);
+		obs_scene_t *inner = obs_sceneitem_group_get_scene(group);
+		/* Como no OBS: o item nasce na cena-mãe e entra no grupo. Os ids dos itens de um grupo vêm do contador da
+		 * cena-mãe (o do grupo fica em 0); obs_scene_add direto no grupo repetiria o id da Tela e a lista de
+		 * Fontes, que acha as linhas por (grupo, id), mostraria a camada no lugar da Tela. */
+		obs_sceneitem_t *layer = parent && inner ? obs_scene_add(parent, annotations) : nullptr;
+		if (!layer) {
+			continue;
+		}
+		obs_sceneitem_defer_group_resize_begin(group);
+		obs_sceneitem_group_add_item(group, layer);
+		if (obs_sceneitem_get_scene(layer) != inner) {
+			obs_sceneitem_defer_group_resize_end(group);
+			obs_sceneitem_remove(layer);
+			continue;
+		}
+		placeLayer(layer);
+		if (obs_sceneitem_t *screenLayer = obs_scene_find_source(inner, obs_source_get_name(screen))) {
+			obs_sceneitem_crop crop = {};
+			obs_sceneitem_get_crop(screenLayer, &crop);
+			obs_sceneitem_set_crop(layer, &crop);
+		}
+		obs_sceneitem_set_order_position(layer, 1);
+		obs_sceneitem_set_locked(layer, true);
+		obs_sceneitem_defer_group_resize_end(group);
+		obs_data_set_int(privateSettings, kScreenLayersKey, kScreenLayersVersion);
+		upgraded++;
+	}
+	blog(LOG_INFO, "[voltz] tela voltz: %d grupo(s) com a camada de anotacoes", upgraded);
+	return upgraded;
 }
 
 void addRoundCamera(obs_scene_t *scene, obs_source_t *camera, CanvasSize canvas)
@@ -351,53 +460,58 @@ void ensureScreenGroups()
 		return;
 	}
 	if (OBSSource mouse = findSharedSource(SharedSource::Mouse)) {
-		syncMouseTarget(mouse, screen);
+		syncTarget(mouse, screen);
 	}
+	if (OBSSource annotations = findSharedSource(SharedSource::Annotations)) {
+		syncTarget(annotations, screen);
+	}
+	const bool plugin = obs_source_get_display_name(live::kMouseSourceId) != nullptr;
 	OBSDataAutoRelease privateSettings = obs_source_get_private_settings(screen);
-	if (obs_data_get_bool(privateSettings, kScreenMigratedKey)) {
-		return;
-	}
-	if (!obs_source_get_display_name(live::kMouseSourceId)) {
-		blog(LOG_WARNING, "[voltz] tela voltz: plugin voltz-sources ausente; migracao adiada");
-		return;
-	}
-
-	struct Found {
-		obs_source_t *screen = nullptr;
-		obs_scene_t *scene = nullptr;
-		std::vector<std::pair<OBSScene, OBSSceneItem>> items;
-	} found;
-	found.screen = screen;
-	obs_frontend_source_list scenes = {};
-	obs_frontend_get_scenes(&scenes);
-	for (size_t i = 0; i < scenes.sources.num; i++) {
-		found.scene = obs_scene_from_source(scenes.sources.array[i]);
-		if (!found.scene) {
-			continue;
-		}
-		/* só coleta (com referência): mexer na cena durante o enum travaria o lock dela */
-		obs_scene_enum_items(
-			found.scene,
-			[](obs_scene_t *, obs_sceneitem_t *item, void *param) {
-				auto *search = static_cast<Found *>(param);
-				if (!obs_sceneitem_is_group(item) && obs_sceneitem_get_source(item) == search->screen) {
-					search->items.emplace_back(OBSScene(search->scene), OBSSceneItem(item));
-				}
-				return true;
-			},
-			&found);
-	}
-	obs_frontend_source_list_free(&scenes);
-
 	int wrapped = 0;
-	for (auto &entry : found.items) {
-		if (wrapScreenItem(entry.first, entry.second)) {
-			wrapped++;
+	if (!obs_data_get_bool(privateSettings, kScreenMigratedKey)) {
+		if (!plugin) {
+			blog(LOG_WARNING, "[voltz] tela voltz: plugin voltz-sources ausente; migracao adiada");
+			return;
 		}
+		struct Found {
+			obs_source_t *screen = nullptr;
+			obs_scene_t *scene = nullptr;
+			std::vector<std::pair<OBSScene, OBSSceneItem>> items;
+		} found;
+		found.screen = screen;
+		obs_frontend_source_list scenes = {};
+		obs_frontend_get_scenes(&scenes);
+		for (size_t i = 0; i < scenes.sources.num; i++) {
+			found.scene = obs_scene_from_source(scenes.sources.array[i]);
+			if (!found.scene) {
+				continue;
+			}
+			/* só coleta (com referência): mexer na cena durante o enum travaria o lock dela */
+			obs_scene_enum_items(
+				found.scene,
+				[](obs_scene_t *, obs_sceneitem_t *item, void *param) {
+					auto *search = static_cast<Found *>(param);
+					if (!obs_sceneitem_is_group(item) &&
+					    obs_sceneitem_get_source(item) == search->screen) {
+						search->items.emplace_back(OBSScene(search->scene), OBSSceneItem(item));
+					}
+					return true;
+				},
+				&found);
+		}
+		obs_frontend_source_list_free(&scenes);
+		for (auto &entry : found.items) {
+			if (wrapScreenItem(entry.first, entry.second)) {
+				wrapped++;
+			}
+		}
+		obs_data_set_bool(privateSettings, kScreenMigratedKey, true);
+		blog(LOG_INFO, "[voltz] tela voltz: %d item(ns) migrado(s)", wrapped);
 	}
-	obs_data_set_bool(privateSettings, kScreenMigratedKey, true);
-	blog(LOG_INFO, "[voltz] tela voltz: %d item(ns) migrado(s)", wrapped);
-	if (wrapped > 0) {
+	/* versão de camadas: independe da migração (coleções migradas no 4A têm grupos versão 1) */
+	const bool annotationsPlugin = obs_source_get_display_name(live::kAnnotationsSourceId) != nullptr;
+	const int upgraded = plugin && annotationsPlugin && !testLayersV1() ? upgradeScreenGroups(screen) : 0;
+	if (wrapped > 0 || upgraded > 0) {
 		obs_frontend_save();
 	}
 }

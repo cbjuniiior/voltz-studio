@@ -2,7 +2,7 @@
   Teste de integracao do Plano 4A (destaque do mouse, plugin voltz-sources, grupo "Tela Voltz").
   Fase A: config limpa com VOLTZ_TEST_LIVE=1 (pedidos "voltz-teste" no obs-websocket; o mouse real nunca e lido) e
   VOLTZ_TEST_PRESET_STANDINS=1 (o preset cria Tela 2560x1440 e Camera 1280x720 de COR: nenhuma captura de tela nem
-  webcam). Aplica o preset "So tela / So camera" por UI Automation, confere o grupo "Tela Voltz" (Tela + Voltz Mouse),
+  webcam). Aplica o preset "So tela / So camera" por UI Automation, confere o grupo "Tela Voltz" (Tela + Voltz Anotacoes + Voltz Mouse),
   injeta o mouse e confere o desenho por GetSourceScreenshot da cena sintetica (halo lima no centro, holofote
   escurecendo o canto, onda do clique); grava ~6 s alternando o holofote pelo atalho e valida o projeto (mouse no
   manifesto, eventos do holofote, tela.mkv 2560x1440 da captura e nao do grupo).
@@ -169,7 +169,7 @@ try {
     $inner = @()
     if ($groupName) { $inner = @((Ws ('[{"requestType":"GetGroupSceneItemList","requestData":{"sceneName":' + (ConvertTo-Json $groupName) + '}}]'))[0].data.sceneItems) }
     Check "A: cena 'So tela' = um grupo 'Tela Voltz*' ($groupName)" ($top.Count -eq 1 -and $top[0].isGroup -and $groupName -like "Tela Voltz*")
-    Check "A: grupo = Tela (embaixo) + Voltz Mouse, travadas em (0,0)" ($inner.Count -eq 2 -and $inner[0].sourceName -eq "Tela" -and $inner[1].sourceName -eq "Voltz Mouse" -and $inner[1].inputKind -eq "voltz_mouse_source" -and $inner[0].sceneItemLocked -and $inner[1].sceneItemLocked -and $inner[1].sceneItemTransform.positionX -eq 0)
+    Check "A: grupo = Tela (embaixo) + Voltz Anotacoes + Voltz Mouse, travadas em (0,0)" ($inner.Count -eq 3 -and $inner[0].sourceName -eq "Tela" -and $inner[1].inputKind -eq "voltz_annotations_source" -and $inner[2].sourceName -eq "Voltz Mouse" -and $inner[2].inputKind -eq "voltz_mouse_source" -and $inner[0].sceneItemLocked -and $inner[1].sceneItemLocked -and $inner[2].sceneItemLocked -and $inner[2].sceneItemTransform.positionX -eq 0)
     [void](Ws ('[{"requestType":"SetCurrentProgramScene","requestData":{"sceneName":' + (ConvertTo-Json $sceneScreen) + '}}]'))
     Start-Sleep -Seconds 1
     $state = Vendor "MouseState"
@@ -259,7 +259,7 @@ try {
     $inner = @()
     if ($gname) { $inner = @((Ws ('[{"requestType":"GetGroupSceneItemList","requestData":{"sceneName":' + (ConvertTo-Json $gname) + '}}]'))[0].data.sceneItems) }
     Check "B2: Tela virou grupo no mesmo lugar (100,50; caixa 1600x900; travado; embaixo do Logo)" ($items.Count -eq 2 -and $items[0].sourceName -eq "Tela Voltz" -and $items[0].isGroup -and $items[0].sceneItemLocked -and $items[0].sceneItemTransform.positionX -eq 100 -and $items[0].sceneItemTransform.positionY -eq 50 -and $items[0].sceneItemTransform.boundsWidth -eq 1600 -and $items[0].sceneItemTransform.boundsHeight -eq 900 -and $items[1].sourceName -eq "Logo")
-    Check "B2: grupo com Tela + Voltz Mouse" ($inner.Count -eq 2 -and $inner[0].sourceName -eq "Tela" -and $inner[1].sourceName -eq "Voltz Mouse")
+    Check "B2: grupo com Tela + Voltz Anotacoes + Voltz Mouse" ($inner.Count -eq 3 -and $inner[0].sourceName -eq "Tela" -and $inner[1].inputKind -eq "voltz_annotations_source" -and $inner[2].sourceName -eq "Voltz Mouse")
     # grupo em (100,50) com escala 0,625: pixel (1280,720) da captura = (900,500) no canvas = (300,167) na imagem
     [void](Vendor "InjectMouse" '{"x":1280,"y":720}')
     Start-Sleep -Milliseconds 300
@@ -272,7 +272,7 @@ try {
     $i3 = @((Ws '[{"requestType":"GetSceneItemList","requestData":{"sceneName":"Antiga"}}]')[0].data.sceneItems)
     $g3 = if ($i3.Count -ge 1) { [string]$i3[0].sourceName } else { "" }
     $r = Ws ('[{"requestType":"GetGroupSceneItemList","requestData":{"sceneName":' + (ConvertTo-Json $g3) + '}}]')
-    Check "B3: cena com 2 itens e grupo intacto (2 camadas)" ($i3.Count -eq 2 -and $r.Count -eq 1 -and @($r[0].data.sceneItems).Count -eq 2)
+    Check "B3: cena com 2 itens e grupo intacto (3 camadas)" ($i3.Count -eq 2 -and $r.Count -eq 1 -and @($r[0].data.sceneItems).Count -eq 3)
     Check "B3: encerrou limpo" (Close-App "B3")
     Check "B3: nao migra de novo" (-not (LogHas "B3" "[voltz] tela voltz:"))
 } catch {

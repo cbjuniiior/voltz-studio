@@ -361,10 +361,16 @@ QWidget *SourcesPanel::buildRow(obs_sceneitem_t *item, const SourceRow &row, boo
 
 	auto *icon = new QLabel(widget);
 	const char *sourceId = obs_source_get_id(source);
-	const QIcon sourceIcon = row.isGroup ? phosphorIcon(QStringLiteral("stack"), palette::kMuted)
-				 : strcmp(sourceId, live::kMouseSourceId) == 0
-					 ? phosphorIcon(QStringLiteral("cursor-click"), palette::kMuted)
-					 : OBSBasic::Get()->GetSourceIcon(sourceId);
+	QIcon sourceIcon;
+	if (row.isGroup) {
+		sourceIcon = phosphorIcon(QStringLiteral("stack"), palette::kMuted);
+	} else if (strcmp(sourceId, live::kMouseSourceId) == 0) {
+		sourceIcon = phosphorIcon(QStringLiteral("cursor-click"), palette::kMuted);
+	} else if (strcmp(sourceId, live::kAnnotationsSourceId) == 0) {
+		sourceIcon = phosphorIcon(QStringLiteral("pencil-simple"), palette::kMuted);
+	} else {
+		sourceIcon = OBSBasic::Get()->GetSourceIcon(sourceId);
+	}
 	icon->setPixmap(sourceIcon.pixmap(16, 16));
 	auto *name = new QLabel(sourceName, widget);
 	name->setTextInteractionFlags(Qt::NoTextInteraction);

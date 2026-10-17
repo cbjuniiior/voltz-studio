@@ -25,6 +25,8 @@ const char *configKey(SharedSource which)
 		return "BackgroundSourceUuid";
 	case SharedSource::Mouse:
 		return "MouseSourceUuid";
+	case SharedSource::Annotations:
+		return "AnnotationsSourceUuid";
 	}
 	return "";
 }
@@ -102,6 +104,17 @@ OBSSource createShared(SharedSource which)
 		}
 		id = live::kMouseSourceId;
 		name = QTStr("Voltz.Source.Mouse");
+		OBSSource screen = findSharedSource(SharedSource::Screen);
+		obs_data_set_string(settings, live::kTargetSetting, screen ? obs_source_get_uuid(screen) : "");
+		break;
+	}
+	case SharedSource::Annotations: {
+		if (!obs_source_get_display_name(live::kAnnotationsSourceId)) {
+			blog(LOG_WARNING, "[voltz] plugin voltz-sources ausente: sem a fonte Voltz Anotacoes");
+			return {};
+		}
+		id = live::kAnnotationsSourceId;
+		name = QTStr("Voltz.Source.Annotations");
 		OBSSource screen = findSharedSource(SharedSource::Screen);
 		obs_data_set_string(settings, live::kTargetSetting, screen ? obs_source_get_uuid(screen) : "");
 		break;

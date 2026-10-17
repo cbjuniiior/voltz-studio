@@ -8,6 +8,7 @@ target_sources(
   voltz-core-tests
   PRIVATE
     test-main.cpp
+    test-annotation-model.cpp
     test-atomic-file.cpp
     test-cursor-track.cpp
     test-disk-space.cpp

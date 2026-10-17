@@ -9,6 +9,7 @@ add_library(Voltz::core ALIAS voltz-core)
 target_sources(
   voltz-core
   PRIVATE
+    annotation-model.cpp
     atomic-file.cpp
     cursor-track.cpp
     disk-space.cpp
@@ -30,6 +31,7 @@ target_sources(
     time-format.cpp
     voltz-version.cpp
   PUBLIC
+    annotation-model.hpp
     atomic-file.hpp
     cursor-track.hpp
     disk-space.hpp

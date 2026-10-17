@@ -51,10 +51,31 @@ inline MouseButton buttonFromCode(int code)
 	return MouseButton::Left;
 }
 
+// Anotações (Plano 4B): fonte Voltz Anotações e procedimentos frontend → plugin. `json` = strokeToJsonLine (vale o `id`
+// do procedimento); `points` = pointsToJson, acrescentados com appendStrokePoints (a mesma regra do StrokeStore).
+// `burned` = anotações "queimadas" na captura (spec §6.3): a fonte não desenha, para não duplicar.
+constexpr const char *kAnnotationsSourceId = "voltz_annotations_source";
+constexpr const char *kProcAnnotBegin = "voltz_annot_begin";
+constexpr const char *kDeclAnnotBegin = "void voltz_annot_begin(in int id, in string json)";
+constexpr const char *kProcAnnotExtend = "voltz_annot_extend";
+constexpr const char *kDeclAnnotExtend = "void voltz_annot_extend(in int id, in string points)";
+constexpr const char *kProcAnnotRemove = "voltz_annot_remove";
+constexpr const char *kDeclAnnotRemove = "void voltz_annot_remove(in int id)";
+constexpr const char *kProcAnnotClear = "voltz_annot_clear";
+constexpr const char *kDeclAnnotClear = "void voltz_annot_clear()";
+constexpr const char *kProcAnnotBurned = "voltz_annot_burned";
+constexpr const char *kDeclAnnotBurned = "void voltz_annot_burned(in bool burned)";
+
 // Só testes: com VOLTZ_TEST_LIVE o plugin registra o fornecedor "voltz-teste" no obs-websocket (InjectMouse,
-// MouseState, SetStyle) e o frontend não lê o mouse real.
+// MouseState, SetStyle, AddMouseSource e, no 4B, AnnotationFeedState, AddAnnotationSource, FeedStroke, FeedClear), o
+// frontend registra "voltz-teste-casca" (traços e estado das anotações) e o mouse real não é lido. As variáveis abaixo
+// só valem junto com VOLTZ_TEST_LIVE: retângulo da sobreposição "x,y,largura,altura" (pixels físicos) no lugar do
+// monitor da Tela; anotações "queimadas" forçadas (como num Windows < 10 2004).
 constexpr const char *kTestEnv = "VOLTZ_TEST_LIVE";
 constexpr const char *kTestVendor = "voltz-teste";
+constexpr const char *kTestVendorShell = "voltz-teste-casca";
+constexpr const char *kTestOverlayRectEnv = "VOLTZ_TEST_OVERLAY_RECT";
+constexpr const char *kTestBurnedEnv = "VOLTZ_TEST_ANNOT_BURNED";
 
 inline bool testModeEnabled()
 {

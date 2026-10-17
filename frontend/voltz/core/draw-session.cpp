@@ -125,7 +125,8 @@ std::vector<DrawCommand> DrawSession::handle(const DrawInput &input)
 	switch (input.kind) {
 	case DrawInputKind::Tick:
 		/* o vigia vem antes da inatividade: com a UI parada, sair é o que destrava o usuário */
-		if (input.tNs - input.uiHeartbeatNs >= heartbeatNs_) {
+		/* pulso nunca dado (<= 0) sai já, sem depender de o relógio ter passado de 1 s */
+		if (input.uiHeartbeatNs <= 0 || input.tNs - input.uiHeartbeatNs >= heartbeatNs_) {
 			return finish(DrawExit::Watchdog);
 		}
 		if (input.tNs - lastInputNs_ >= idleNs_) {

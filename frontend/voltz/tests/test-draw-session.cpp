@@ -178,6 +178,17 @@ TEST_CASE("DrawSession: 30 s sem entrada saem; qualquer entrada reinicia a conta
 	busy.handle(at(DrawInputKind::Move, kStart + 49999 * kMs, 600, 300));
 	CHECK(busy.handle(tick(kStart + 79998 * kMs, kStart + 79998 * kMs)).empty());
 	CHECK(describe(busy.handle(tick(kStart + 79999 * kMs, kStart + 79999 * kMs))) == "exit:inatividade");
+
+	DrawSession stroke(kMapping, kStart);
+	stroke.handle(at(DrawInputKind::LeftDown, kStart + 1 * kMs, 600, 300));
+	CHECK(describe(stroke.handle(tick(kStart + 30001 * kMs, kStart + 30001 * kMs))) == "end exit:inatividade");
+
+	// relógio que volta numa entrada não recua a conta dos 30 s
+	DrawSession back(kMapping, kStart);
+	back.handle(at(DrawInputKind::Move, kStart + 20000 * kMs, 600, 300));
+	back.handle(at(DrawInputKind::OtherKey, kStart + 5000 * kMs));
+	CHECK(back.handle(tick(kStart + 49999 * kMs, kStart + 49999 * kMs)).empty());
+	CHECK(describe(back.handle(tick(kStart + 50000 * kMs, kStart + 50000 * kMs))) == "exit:inatividade");
 }
 
 TEST_CASE("DrawSession: vigia sai com a UI 1 s sem pulsar, mesmo com entrada recente, e com pulso nunca dado")
@@ -189,6 +200,10 @@ TEST_CASE("DrawSession: vigia sai com a UI 1 s sem pulsar, mesmo com entrada rec
 
 	DrawSession never(kMapping, kStart);
 	CHECK(describe(never.handle(tick(kStart + 100 * kMs, 0))) == "exit:vigia");
+
+	// pulso nunca dado sai mesmo com o relógio ainda antes de 1 s
+	DrawSession early(kMapping, 0);
+	CHECK(describe(early.handle(tick(100 * kMs, 0))) == "exit:vigia");
 
 	DrawSession both(kMapping, kStart);
 	both.handle(at(DrawInputKind::LeftDown, kStart + 1 * kMs, 600, 300));
@@ -207,6 +222,10 @@ TEST_CASE("DrawSession: saída pedida de fora termina o traço; pedir de novo n�
 	CHECK(other.requestExit(DrawExit::None).empty());
 	CHECK(other.active());
 	CHECK(describe(other.requestExit(DrawExit::Button)) == "exit:botao");
+
+	DrawSession closing(kMapping, kStart);
+	CHECK(describe(closing.requestExit(DrawExit::Shutdown)) == "exit:saida");
+	CHECK_FALSE(closing.active());
 }
 
 TEST_CASE("DrawSession: Ctrl+Z desfaz (termina antes o traço em andamento, que não continua)")

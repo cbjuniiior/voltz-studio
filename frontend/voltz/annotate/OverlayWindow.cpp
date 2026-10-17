@@ -3,7 +3,9 @@
 #include <voltz/core/annotation-raster.hpp>
 
 #include <util/base.h>
+#include <util/platform.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
 
@@ -128,6 +130,11 @@ void OverlayWindow::ensureClickThrough()
 		SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | kClickThroughStyle);
 		blog(LOG_WARNING, "[voltz] anotacoes: estilo da sobreposicao refeito (transparente a cliques)");
 	}
+	if ((style & WS_EX_TOPMOST) == 0) {
+		/* o bit no estilo não muda a ordem Z: só o SetWindowPos com HWND_TOPMOST devolve o "sempre no topo" */
+		SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+		blog(LOG_WARNING, "[voltz] anotacoes: sobreposicao de volta ao topo");
+	}
 #endif
 }
 
@@ -207,7 +214,8 @@ void OverlayWindow::hide()
 #endif
 }
 
-void OverlayWindow::render(const std::vector<Stroke> &strokes, int captureWidth, int captureHeight)
+void OverlayWindow::render(const std::vector<const Stroke *> &strokes, int captureWidth, int captureHeight,
+			   const PixelRect *dirty)
 {
 #ifdef _WIN32
 	HWND hwnd = static_cast<HWND>(hwnd_);
@@ -219,28 +227,60 @@ void OverlayWindow::render(const std::vector<Stroke> &strokes, int captureWidth,
 		hide();
 		return;
 	}
+	const bool sameBuffer = bits_ && bufferWidth_ == rect_.width && bufferHeight_ == rect_.height;
+	const bool partial = dirty && sameBuffer && visible_;
 	if (!ensureBuffer(rect_.width, rect_.height)) {
 		blog(LOG_WARNING, "[voltz] anotacoes: sem memoria para a sobreposicao %dx%d", rect_.width,
 		     rect_.height);
 		hide();
 		return;
 	}
+	PixelRect area{0, 0, bufferWidth_, bufferHeight_};
+	if (partial) {
+		area = intersectRects(*dirty, area);
+		if (area.empty()) {
+			return; /* nada mudou na imagem */
+		}
+	}
+	const int64_t start = static_cast<int64_t>(os_gettime_ns());
 	const RasterImage image{bits_, bufferWidth_, bufferHeight_, bufferWidth_ * 4};
-	clearRaster(image);
 	const double scaleX = static_cast<double>(bufferWidth_) / static_cast<double>(captureWidth);
 	const double scaleY = static_cast<double>(bufferHeight_) / static_cast<double>(captureHeight);
-	for (const Stroke &stroke : strokes) {
-		rasterizeStroke(image, stroke, scaleX, scaleY);
+	if (partial) {
+		redrawRegion(image, strokes, scaleX, scaleY, area);
+	} else {
+		clearRaster(image);
+		for (const Stroke *stroke : strokes) {
+			rasterizeStroke(image, *stroke, scaleX, scaleY);
+		}
 	}
 	GdiFlush();
 	POINT position{rect_.left, rect_.top};
 	SIZE size{bufferWidth_, bufferHeight_};
 	POINT source{0, 0};
 	BLENDFUNCTION blend = {AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
-	if (!UpdateLayeredWindow(hwnd, nullptr, &position, &size, static_cast<HDC>(memoryDc_), &source, 0, &blend,
-				 ULW_ALPHA)) {
-		blog(LOG_WARNING, "[voltz] anotacoes: UpdateLayeredWindow falhou (%lu)", GetLastError());
+	RECT dirtyRect{area.left, area.top, area.right, area.bottom};
+	UPDATELAYEREDWINDOWINFO update = {};
+	update.cbSize = sizeof(update);
+	update.pptDst = &position;
+	update.psize = &size;
+	update.hdcSrc = static_cast<HDC>(memoryDc_);
+	update.pptSrc = &source;
+	update.pblend = &blend;
+	update.dwFlags = ULW_ALPHA;
+	update.prcDirty = partial ? &dirtyRect : nullptr;
+	if (!UpdateLayeredWindowIndirect(hwnd, &update)) {
+		blog(LOG_WARNING, "[voltz] anotacoes: UpdateLayeredWindowIndirect falhou (%lu)", GetLastError());
 		return;
+	}
+	const int64_t elapsed = static_cast<int64_t>(os_gettime_ns()) - start;
+	if (partial) {
+		partialRenders_++;
+		partialTotalNs_ += elapsed;
+		partialMaxNs_ = std::max(partialMaxNs_, elapsed);
+	} else {
+		fullRenders_++;
+		fullMaxNs_ = std::max(fullMaxNs_, elapsed);
 	}
 	if (!visible_) {
 		/* mostra SEM ativar: o foco do usuário não muda */
@@ -251,6 +291,7 @@ void OverlayWindow::render(const std::vector<Stroke> &strokes, int captureWidth,
 	(void)strokes;
 	(void)captureWidth;
 	(void)captureHeight;
+	(void)dirty;
 #endif
 }
 
@@ -270,6 +311,11 @@ OverlayWindow::Info OverlayWindow::info() const
 {
 	Info info;
 	info.rect = rect_;
+	info.partialRenders = partialRenders_;
+	info.fullRenders = fullRenders_;
+	info.partialTotalNs = partialTotalNs_;
+	info.partialMaxNs = partialMaxNs_;
+	info.fullMaxNs = fullMaxNs_;
 #ifdef _WIN32
 	HWND hwnd = static_cast<HWND>(hwnd_);
 	if (!hwnd) {

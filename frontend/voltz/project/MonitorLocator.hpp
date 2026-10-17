@@ -8,9 +8,10 @@ namespace voltz {
 
 struct MonitorDescription {
 	bool found = false;
-	std::string id;     // monitor_id da fonte
-	MonitorRect rect;   // pixels físicos do desktop virtual
-	double scale = 1.0; // DPI efetivo / 96
+	std::string id;         // monitor_id da fonte
+	MonitorRect rect;       // pixels físicos do desktop virtual
+	double scale = 1.0;     // DPI efetivo / 96
+	std::string deviceName; // nome GDI ("\\.\DISPLAY1"): o mesmo de QScreen::name() no Windows
 };
 
 // Monitor de uma fonte monitor_capture pelo "monitor_id" (mesma busca do plugin win-capture: DeviceID da interface

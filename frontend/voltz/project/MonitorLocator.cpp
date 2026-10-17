@@ -18,6 +18,7 @@ struct MonitorSearch {
 	bool byGdiName = false;
 	HMONITOR handle = nullptr;
 	RECT rect = {};
+	std::string device;
 };
 
 // Mesma busca de plugins/win-capture/duplicator-monitor-capture.c (enum_monitor / enum_monitor_fallback).
@@ -42,6 +43,7 @@ BOOL CALLBACK matchMonitor(HMONITOR handle, HDC, LPRECT rect, LPARAM param)
 	if (match) {
 		search->handle = handle;
 		search->rect = *rect;
+		search->device = info.szDevice;
 	}
 	return match ? FALSE : TRUE;
 }
@@ -68,6 +70,7 @@ MonitorDescription findMonitor(const std::string &monitorId)
 	}
 	result.found = true;
 	result.id = monitorId;
+	result.deviceName = search.device;
 	result.rect = MonitorRect{static_cast<int>(search.rect.left), static_cast<int>(search.rect.top),
 				  static_cast<int>(search.rect.right - search.rect.left),
 				  static_cast<int>(search.rect.bottom - search.rect.top)};

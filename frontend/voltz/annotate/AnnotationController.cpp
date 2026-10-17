@@ -20,6 +20,7 @@
 #include <QStringList>
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <utility>
 
@@ -32,6 +33,7 @@ namespace {
 constexpr int kOverlayPollMs = 1000;
 constexpr int64_t kNsPerMs = 1000000;
 constexpr int64_t kMaxTimerMs = 3600000;
+constexpr int kStyleSaveDelayMs = 400;
 
 int64_t nowNs()
 {
@@ -152,6 +154,9 @@ AnnotationController::AnnotationController(QObject *parent) : QObject(parent)
 	connect(&expiry_, &QTimer::timeout, this, [this]() { expire(); });
 	overlayPoll_.setInterval(kOverlayPollMs);
 	connect(&overlayPoll_, &QTimer::timeout, this, [this]() { refreshOverlay(false); });
+	saveTimer_.setSingleShot(true);
+	saveTimer_.setInterval(kStyleSaveDelayMs);
+	connect(&saveTimer_, &QTimer::timeout, this, [this]() { saveStyle(); });
 	if (testMode_) {
 		AnnotationTestVendor::start(this);
 	}
@@ -171,6 +176,9 @@ void AnnotationController::shutdown()
 	shutdown_ = true;
 	if (testMode_) {
 		AnnotationTestVendor::stop();
+	}
+	if (saveTimer_.isActive()) {
+		saveStyle();
 	}
 	expiry_.stop();
 	overlayPoll_.stop();
@@ -193,18 +201,35 @@ int AnnotationController::beginStroke(AnnotationTool tool, const RgbColor &color
 	if (id == 0) {
 		return 0;
 	}
-	sendBegin(store_.visible().back().stroke);
-	refreshOverlay(true);
+	const Stroke &stroke = store_.visible().back().stroke;
+	sendBegin(stroke);
+	std::optional<PixelRect> dirty;
+	double scaleX = 0.0;
+	double scaleY = 0.0;
+	if (overlayScale(scaleX, scaleY)) {
+		dirty = strokeBounds(stroke, scaleX, scaleY);
+	}
+	refreshOverlay(true, dirty);
 	return id;
 }
 
 void AnnotationController::extendStroke(const std::vector<StrokePoint> &points)
 {
-	if (shutdown_ || !store_.extend(points)) {
+	if (shutdown_ || points.empty() || store_.openId() == 0) {
+		return;
+	}
+	const StrokeTail tail = strokeTail(store_.visible().back().stroke);
+	if (!store_.extend(points)) {
 		return;
 	}
 	sendExtend(store_.openId(), points);
-	refreshOverlay(true);
+	std::optional<PixelRect> dirty;
+	double scaleX = 0.0;
+	double scaleY = 0.0;
+	if (overlayScale(scaleX, scaleY)) {
+		dirty = appendDirtyRect(tail, store_.visible().back().stroke, scaleX, scaleY);
+	}
+	refreshOverlay(true, dirty);
 }
 
 void AnnotationController::endStroke()
@@ -248,9 +273,19 @@ void AnnotationController::removed(const std::vector<RemovedStroke> &strokes, bo
 			sendRemove(stroke.live.stroke.id);
 		}
 	}
+	std::optional<PixelRect> dirty;
+	double scaleX = 0.0;
+	double scaleY = 0.0;
+	if (overlayScale(scaleX, scaleY)) {
+		PixelRect area;
+		for (const RemovedStroke &stroke : strokes) {
+			area = uniteRects(area, strokeBounds(stroke.live.stroke, scaleX, scaleY));
+		}
+		dirty = area;
+	}
 	emit strokesRemoved(strokes);
 	scheduleExpiry();
-	refreshOverlay(true);
+	refreshOverlay(true, dirty);
 	blog(LOG_INFO, "[voltz] anotacoes: %d traco(s) removido(s), %d na tela", static_cast<int>(strokes.size()),
 	     static_cast<int>(store_.visible().size()));
 }
@@ -306,7 +341,7 @@ bool AnnotationController::overlayTarget(MonitorRect &rect, int &captureWidth, i
 	return true;
 }
 
-void AnnotationController::refreshOverlay(bool strokesChanged)
+void AnnotationController::refreshOverlay(bool strokesChanged, const std::optional<PixelRect> &dirty)
 {
 	if (shutdown_) {
 		return;
@@ -325,7 +360,7 @@ void AnnotationController::refreshOverlay(bool strokesChanged)
 			blog(LOG_INFO, "[voltz] anotacoes: sem captura de monitor; sem sobreposicao");
 		}
 	}
-	const std::vector<Stroke> strokes = store_.strokes();
+	const std::vector<const Stroke *> strokes = strokePointers();
 	if (!hasTarget) {
 		if (overlay_) {
 			overlay_->render({}, 0, 0);
@@ -357,6 +392,7 @@ void AnnotationController::refreshOverlay(bool strokesChanged)
 		publishTestState();
 		return;
 	}
+	bool created = false;
 	if (!overlay_) {
 		auto overlay = std::make_unique<OverlayWindow>();
 		if (!overlay->create(rect)) {
@@ -365,6 +401,7 @@ void AnnotationController::refreshOverlay(bool strokesChanged)
 			return;
 		}
 		overlay_ = std::move(overlay);
+		created = true;
 		if (!burned_ && !overlay_->excludeFromCapture()) {
 			markBurned("afinidade recusada");
 		}
@@ -373,13 +410,100 @@ void AnnotationController::refreshOverlay(bool strokesChanged)
 	} else {
 		overlay_->setRect(rect);
 	}
-	overlay_->render(strokes, captureWidth, captureHeight);
+	/* só a região que mudou, se o alvo é o mesmo; senão (criada, movida, tamanho novo) a imagem inteira */
+	const bool partial = !moved && !created && dirty.has_value();
+	overlay_->render(strokes, captureWidth, captureHeight, partial ? &*dirty : nullptr);
 	if (strokes.empty()) {
 		overlayPoll_.stop();
 	} else if (!overlayPoll_.isActive()) {
 		overlayPoll_.start();
 	}
 	publishTestState();
+}
+
+bool AnnotationController::overlayScale(double &scaleX, double &scaleY) const
+{
+	if (!overlay_ || overlayRect_.width <= 0 || overlayRect_.height <= 0 || captureWidth_ <= 0 ||
+	    captureHeight_ <= 0) {
+		return false;
+	}
+	scaleX = static_cast<double>(overlayRect_.width) / static_cast<double>(captureWidth_);
+	scaleY = static_cast<double>(overlayRect_.height) / static_cast<double>(captureHeight_);
+	return true;
+}
+
+std::vector<const Stroke *> AnnotationController::strokePointers() const
+{
+	std::vector<const Stroke *> out;
+	out.reserve(store_.visible().size());
+	for (const LiveStroke &live : store_.visible()) {
+		out.push_back(&live.stroke);
+	}
+	return out;
+}
+
+void AnnotationController::setStyle(const AnnotationStyle &style)
+{
+	if (shutdown_) {
+		return;
+	}
+	const int fadeBefore = style_.fadeSeconds;
+	style_ = clampAnnotationStyle(style);
+	saveTimer_.start();
+	if (style_.fadeSeconds != fadeBefore) {
+		blog(LOG_INFO, "[voltz] anotacoes: somem apos %d s", style_.fadeSeconds);
+		scheduleExpiry();
+	}
+	emit styleChanged();
+	publishTestState();
+}
+
+void AnnotationController::saveStyle()
+{
+	saveTimer_.stop();
+	config_set_string(App()->GetUserConfig(), "Voltz", "AnnotationStyle", annotationStyleToJson(style_).c_str());
+	config_save_safe(App()->GetUserConfig(), "tmp", nullptr);
+}
+
+bool AnnotationController::drawTarget(CaptureMapping &mapping, std::string &deviceName) const
+{
+	OBSSource screen = findSharedSource(SharedSource::Screen);
+	if (!screen || strcmp(obs_source_get_unversioned_id(screen), "monitor_capture") != 0) {
+		return false;
+	}
+	const int captureWidth = static_cast<int>(obs_source_get_width(screen));
+	const int captureHeight = static_cast<int>(obs_source_get_height(screen));
+	if (captureWidth <= 0 || captureHeight <= 0) {
+		return false;
+	}
+	OBSDataAutoRelease settings = obs_source_get_settings(screen);
+	const MonitorDescription monitor = findMonitor(obs_data_get_string(settings, "monitor_id"));
+	if (!monitor.found) {
+		return false;
+	}
+	mapping = CaptureMapping{monitor.rect, captureWidth, captureHeight};
+	deviceName = monitor.deviceName;
+	return true;
+}
+
+void AnnotationController::setDrawStatus(bool active, const char *refusal, const char *exit)
+{
+	drawActive_ = active;
+	drawRefusal_ = refusal ? refusal : "";
+	drawExit_ = exit ? exit : "";
+	publishTestState();
+}
+
+std::string AnnotationController::overlayStatsText() const
+{
+	const OverlayWindow::Info info = overlay_ ? overlay_->info() : OverlayWindow::Info{};
+	const long long average =
+		info.partialRenders ? static_cast<long long>(info.partialTotalNs / info.partialRenders / 1000) : 0;
+	char text[192];
+	std::snprintf(text, sizeof(text), "%u parcial(is) (media %lld us, max %lld us), %u completa(s) (max %lld us)",
+		      info.partialRenders, average, static_cast<long long>(info.partialMaxNs / 1000), info.fullRenders,
+		      static_cast<long long>(info.fullMaxNs / 1000));
+	return text;
 }
 
 void AnnotationController::markBurned(const char *why)
@@ -420,6 +544,13 @@ void AnnotationController::publishTestState()
 	overlay.insert(QStringLiteral("afinidade"), static_cast<int>(info.affinity));
 	overlay.insert(QStringLiteral("retangulo"),
 		       QJsonArray{info.rect.left, info.rect.top, info.rect.width, info.rect.height});
+	overlay.insert(QStringLiteral("parciais"), static_cast<qint64>(info.partialRenders));
+	overlay.insert(QStringLiteral("completas"), static_cast<qint64>(info.fullRenders));
+	overlay.insert(QStringLiteral("parcial_us_media"),
+		       info.partialRenders ? static_cast<qint64>(info.partialTotalNs / info.partialRenders / 1000)
+					   : qint64(0));
+	overlay.insert(QStringLiteral("parcial_us_max"), static_cast<qint64>(info.partialMaxNs / 1000));
+	overlay.insert(QStringLiteral("completa_us_max"), static_cast<qint64>(info.fullMaxNs / 1000));
 	QJsonArray samples;
 	for (const std::string &sample : samples_) {
 		samples.append(QString::fromStdString(sample));
@@ -439,7 +570,9 @@ void AnnotationController::publishTestState()
 	state.insert(QStringLiteral("captura"), QJsonArray{captureWidth, captureHeight});
 	state.insert(QStringLiteral("sobreposicao"), overlay);
 	state.insert(QStringLiteral("amostras"), samples);
-	state.insert(QStringLiteral("modo_desenho"), false);
+	state.insert(QStringLiteral("modo_desenho"), drawActive_);
+	state.insert(QStringLiteral("desenho_recusa"), QString::fromStdString(drawRefusal_));
+	state.insert(QStringLiteral("desenho_saida"), QString::fromStdString(drawExit_));
 	AnnotationTestVendor::publish(QJsonDocument(state).toJson(QJsonDocument::Compact).toStdString());
 }
 

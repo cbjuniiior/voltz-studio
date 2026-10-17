@@ -12,6 +12,7 @@ class AnnotationController;
 //   InjectStroke {ferr?, cor?, esp?, pts:"[[x,y],...]", aberto?} — começa, estende e (sem "aberto") termina um traço;
 //   ExtendStroke {pts}, EndStroke, UndoStroke, ClearStrokes;
 //   ProbeOverlay {pts} — guarda os pixels da sobreposição nesses pontos (lidos no próximo AnnotationState);
+//   SetAnnotationStyle {estilo:"{...}"} — AnnotationController::setStyle (o que a barra do modo desenho faz);
 //   AnnotationState → {"estado": texto JSON publicado pelo AnnotationController (republicado na thread da UI antes de
 //   responder, até 2 s), "ok"}.
 // O callback roda na thread do websocket, sem lock do obs-websocket: os pedidos que mudam algo são ENFILEIRADOS para a

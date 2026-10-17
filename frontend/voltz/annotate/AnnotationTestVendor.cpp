@@ -25,8 +25,8 @@ AnnotationController *gTarget = nullptr; // protegido por gMutex
 std::string gState = "{}";               // protegido por gMutex
 obs_websocket_vendor gVendor = nullptr;  // só na thread da UI
 
-constexpr const char *kRequests[] = {"InjectStroke", "ExtendStroke", "EndStroke",      "UndoStroke",
-				     "ClearStrokes", "ProbeOverlay", "AnnotationState"};
+constexpr const char *kRequests[] = {"InjectStroke", "ExtendStroke", "EndStroke",       "UndoStroke",
+				     "ClearStrokes", "ProbeOverlay", "AnnotationState", "SetAnnotationStyle"};
 
 // Entrega `work` na thread da UI sem esperar; falso se o controlador já saiu (EXIT). O mutex é segurado enquanto o evento
 // é postado: o stop() (que anula gTarget antes de o controlador morrer) espera; evento de objeto destruído o Qt descarta.
@@ -107,6 +107,14 @@ void probeOverlay(obs_data_t *request, obs_data_t *response, void *)
 			  post([points](AnnotationController *controller) { controller->probeOverlay(points); }));
 }
 
+void setAnnotationStyle(obs_data_t *request, obs_data_t *response, void *)
+{
+	AnnotationStyle style;
+	const bool parsed = annotationStyleFromJson(obs_data_get_string(request, "estilo"), style);
+	const bool ok = parsed && post([style](AnnotationController *controller) { controller->setStyle(style); });
+	obs_data_set_bool(response, "ok", ok);
+}
+
 void annotationState(obs_data_t *, obs_data_t *response, void *)
 {
 	/* Republica o estado na thread da UI antes de responder (a captura pode ter mudado sem traço novo) e espera até
@@ -147,6 +155,7 @@ void AnnotationTestVendor::start(AnnotationController *controller)
 	obs_websocket_vendor_register_request(gVendor, "ClearStrokes", clearStrokes, nullptr);
 	obs_websocket_vendor_register_request(gVendor, "ProbeOverlay", probeOverlay, nullptr);
 	obs_websocket_vendor_register_request(gVendor, "AnnotationState", annotationState, nullptr);
+	obs_websocket_vendor_register_request(gVendor, "SetAnnotationStyle", setAnnotationStyle, nullptr);
 	blog(LOG_WARNING, "[voltz] modo de teste (%s): pedidos '%s' ligados", live::kTestEnv, live::kTestVendorShell);
 }
 

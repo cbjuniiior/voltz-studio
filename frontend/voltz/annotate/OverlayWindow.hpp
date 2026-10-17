@@ -1,6 +1,7 @@
 #pragma once
 
 #include <voltz/core/annotation-model.hpp>
+#include <voltz/core/annotation-raster.hpp>
 #include <voltz/core/cursor-track.hpp>
 
 #include <cstdint>
@@ -16,6 +17,9 @@ namespace voltz {
 // tire o WS_EX_TRANSPARENT (o modo desenho do Plano 4C é outro código, com saídas garantidas); cada render reconfere os
 // bits obrigatórios. Desenha com o rasterizador do núcleo num DIB BGRA pré-multiplicado e publica com
 // UpdateLayeredWindow. Thread da UI (as mensagens da janela chegam pelo laço de eventos do Qt).
+// Plano 4C: redesenha só a região que mudou (UpdateLayeredWindowIndirect com prcDirty), mede cada desenho e, se o
+// "sempre no topo" sumir, devolve-o (o bit no estilo sozinho não muda a ordem Z). Continua sem modo clicável: a entrada
+// do modo desenho é outra janela (DrawInputWindow).
 class OverlayWindow {
 public:
 	struct Info {
@@ -25,6 +29,11 @@ public:
 		int64_t exStyle = 0;
 		uint32_t affinity = 0;
 		MonitorRect rect;
+		uint32_t partialRenders = 0;
+		uint32_t fullRenders = 0;
+		int64_t partialTotalNs = 0;
+		int64_t partialMaxNs = 0;
+		int64_t fullMaxNs = 0;
 	};
 
 	OverlayWindow() = default;
@@ -41,8 +50,10 @@ public:
 	// Novo retângulo (vale no próximo render).
 	void setRect(const MonitorRect &rect);
 	// Desenha `strokes` (pixels da captura captureWidth×captureHeight, esticados para o retângulo) e mostra sem ativar;
-	// sem traços, limpa e esconde.
-	void render(const std::vector<Stroke> &strokes, int captureWidth, int captureHeight);
+	// sem traços, limpa e esconde. `dirty` (pixels do buffer) = só essa região mudou — vale com o buffer do mesmo tamanho
+	// e a janela já visível; senão desenha tudo. Região vazia = nada a fazer.
+	void render(const std::vector<const Stroke *> &strokes, int captureWidth, int captureHeight,
+		    const PixelRect *dirty = nullptr);
 	// Pixel do último desenho como "#AARRGGBB" (pré-multiplicado); "" fora do buffer. Só para testes.
 	std::string pixelHex(int x, int y) const;
 	Info info() const;
@@ -62,6 +73,11 @@ private:
 	int bufferHeight_ = 0;
 	MonitorRect rect_;
 	bool visible_ = false;
+	uint32_t partialRenders_ = 0;
+	uint32_t fullRenders_ = 0;
+	int64_t partialTotalNs_ = 0;
+	int64_t partialMaxNs_ = 0;
+	int64_t fullMaxNs_ = 0;
 };
 
 } // namespace voltz

@@ -37,7 +37,24 @@ struct MouseSource {
 	int retryTicks = 0;
 	std::atomic<uint32_t> width{0};
 	std::atomic<uint32_t> height{0};
+	// Se esta fonte está contada em MouseFeed::showing. O libobs só chama hide no tick, e fonte removida (apagada,
+	// troca de coleção) não tem mais tick: o destroy desconta o que o hide não descontou.
+	std::atomic<bool> counted{false};
 };
+
+void mouseShow(void *data)
+{
+	if (!static_cast<MouseSource *>(data)->counted.exchange(true)) {
+		MouseFeed::instance().addShowing(1);
+	}
+}
+
+void mouseHide(void *data)
+{
+	if (static_cast<MouseSource *>(data)->counted.exchange(false)) {
+		MouseFeed::instance().addShowing(-1);
+	}
+}
 
 // Com targetMutex preso. A Tela pode carregar depois desta fonte: o tick tenta de novo a cada kTargetRetryTicks.
 void resolveTarget(MouseSource *ctx)
@@ -101,6 +118,7 @@ void *mouseCreate(obs_data_t *settings, obs_source_t *source)
 void mouseDestroy(void *data)
 {
 	auto *ctx = static_cast<MouseSource *>(data);
+	mouseHide(ctx);
 	if (ctx->effect) {
 		obs_enter_graphics();
 		gs_effect_destroy(ctx->effect);
@@ -263,12 +281,8 @@ void registerMouseSource()
 	info.get_height = mouseHeight;
 	info.video_tick = mouseTick;
 	info.video_render = mouseRender;
-	info.show = [](void *) {
-		MouseFeed::instance().addShowing(1);
-	};
-	info.hide = [](void *) {
-		MouseFeed::instance().addShowing(-1);
-	};
+	info.show = mouseShow;
+	info.hide = mouseHide;
 	info.icon_type = OBS_ICON_TYPE_CUSTOM;
 	obs_register_source(&info);
 }

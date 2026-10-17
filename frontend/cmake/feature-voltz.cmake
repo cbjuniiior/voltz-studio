@@ -30,6 +30,8 @@ target_sources(
     voltz/annotate/AnnotationController.hpp
     voltz/annotate/AnnotationTestVendor.cpp
     voltz/annotate/AnnotationTestVendor.hpp
+    voltz/annotate/DrawInputWindow.cpp
+    voltz/annotate/DrawInputWindow.hpp
     voltz/annotate/OverlayWindow.cpp
     voltz/annotate/OverlayWindow.hpp
     voltz/project/CursorTracker.cpp
@@ -52,6 +54,8 @@ target_sources(
     voltz/shell/ExitDialog.hpp
     voltz/shell/FrontendBridge.cpp
     voltz/shell/FrontendBridge.hpp
+    voltz/shell/HotkeyBinding.cpp
+    voltz/shell/HotkeyBinding.hpp
     voltz/shell/Icons.cpp
     voltz/shell/Icons.hpp
     voltz/shell/MousePreview.cpp

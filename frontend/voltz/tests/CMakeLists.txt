@@ -14,6 +14,7 @@ target_sources(
     test-atomic-file.cpp
     test-cursor-track.cpp
     test-disk-space.cpp
+    test-draw-session.cpp
     test-iso-encoders.cpp
     test-mouse-effects.cpp
     test-mouse-style.cpp

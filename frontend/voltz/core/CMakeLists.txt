@@ -15,6 +15,7 @@ target_sources(
     atomic-file.cpp
     cursor-track.cpp
     disk-space.cpp
+    draw-session.cpp
     iso-encoders.cpp
     mouse-effects.cpp
     mouse-style.cpp
@@ -40,6 +41,7 @@ target_sources(
     atomic-file.hpp
     cursor-track.hpp
     disk-space.hpp
+    draw-session.hpp
     iso-encoders.hpp
     live-protocol.hpp
     mouse-effects.hpp

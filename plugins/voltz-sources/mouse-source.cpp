@@ -1,5 +1,6 @@
 #include "mouse-source.hpp"
 #include "mouse-feed.hpp"
+#include "target-size.hpp"
 
 #include <voltz/core/live-protocol.hpp>
 #include <voltz/core/mouse-effects.hpp>
@@ -19,8 +20,6 @@ namespace voltz {
 
 namespace {
 
-constexpr int kTargetRetryTicks = 60;
-
 struct MouseSource {
 	obs_source_t *self = nullptr;
 	gs_effect_t *effect = nullptr;
@@ -30,13 +29,7 @@ struct MouseSource {
 	gs_eparam_t *centerPx = nullptr;
 	gs_eparam_t *radiusPx = nullptr;
 	gs_eparam_t *featherPx = nullptr;
-	// Alvo: escrito no update (thread de quem atualiza) e lido no tick (thread gráfica).
-	std::mutex targetMutex;
-	std::string targetUuid;
-	obs_weak_source_t *target = nullptr;
-	int retryTicks = 0;
-	std::atomic<uint32_t> width{0};
-	std::atomic<uint32_t> height{0};
+	TargetSize target;
 	// Se esta fonte está contada em MouseFeed::showing. O libobs só chama hide no tick, e fonte removida (apagada,
 	// troca de coleção) não tem mais tick: o destroy desconta o que o hide não descontou.
 	std::atomic<bool> counted{false};
@@ -56,23 +49,6 @@ void mouseHide(void *data)
 	}
 }
 
-// Com targetMutex preso. A Tela pode carregar depois desta fonte: o tick tenta de novo a cada kTargetRetryTicks.
-void resolveTarget(MouseSource *ctx)
-{
-	if (ctx->target) {
-		obs_weak_source_release(ctx->target);
-		ctx->target = nullptr;
-	}
-	if (ctx->targetUuid.empty()) {
-		return;
-	}
-	obs_source_t *target = obs_get_source_by_uuid(ctx->targetUuid.c_str());
-	if (target) {
-		ctx->target = obs_source_get_weak_source(target);
-		obs_source_release(target);
-	}
-}
-
 const char *mouseName(void *)
 {
 	return obs_module_text("VoltzMouse");
@@ -80,15 +56,7 @@ const char *mouseName(void *)
 
 void mouseUpdate(void *data, obs_data_t *settings)
 {
-	auto *ctx = static_cast<MouseSource *>(data);
-	const std::string uuid = obs_data_get_string(settings, live::kTargetSetting);
-	std::lock_guard<std::mutex> lock(ctx->targetMutex);
-	if (uuid == ctx->targetUuid && ctx->target) {
-		return;
-	}
-	ctx->targetUuid = uuid;
-	ctx->retryTicks = 0;
-	resolveTarget(ctx);
+	static_cast<MouseSource *>(data)->target.setUuid(obs_data_get_string(settings, live::kTargetSetting));
 }
 
 void *mouseCreate(obs_data_t *settings, obs_source_t *source)
@@ -124,14 +92,7 @@ void mouseDestroy(void *data)
 		gs_effect_destroy(ctx->effect);
 		obs_leave_graphics();
 	}
-	{
-		std::lock_guard<std::mutex> lock(ctx->targetMutex);
-		if (ctx->target) {
-			obs_weak_source_release(ctx->target);
-			ctx->target = nullptr;
-		}
-	}
-	delete ctx;
+	delete ctx; /* o TargetSize solta a referência fraca da Tela */
 }
 
 void mouseDefaults(obs_data_t *settings)
@@ -141,42 +102,17 @@ void mouseDefaults(obs_data_t *settings)
 
 uint32_t mouseWidth(void *data)
 {
-	return static_cast<MouseSource *>(data)->width.load();
+	return static_cast<MouseSource *>(data)->target.width();
 }
 
 uint32_t mouseHeight(void *data)
 {
-	return static_cast<MouseSource *>(data)->height.load();
+	return static_cast<MouseSource *>(data)->target.height();
 }
 
 void mouseTick(void *data, float)
 {
-	auto *ctx = static_cast<MouseSource *>(data);
-	obs_source_t *target = nullptr;
-	{
-		std::lock_guard<std::mutex> lock(ctx->targetMutex);
-		if (!ctx->target && !ctx->targetUuid.empty() && ++ctx->retryTicks >= kTargetRetryTicks) {
-			ctx->retryTicks = 0;
-			resolveTarget(ctx);
-		}
-		if (ctx->target) {
-			target = obs_weak_source_get_source(ctx->target);
-			if (!target) {
-				/* a Tela foi removida: solta e volta a procurar pelo UUID */
-				obs_weak_source_release(ctx->target);
-				ctx->target = nullptr;
-			}
-		}
-	}
-	uint32_t width = 0;
-	uint32_t height = 0;
-	if (target) {
-		width = obs_source_get_width(target);
-		height = obs_source_get_height(target);
-		obs_source_release(target);
-	}
-	ctx->width.store(width);
-	ctx->height.store(height);
+	static_cast<MouseSource *>(data)->target.tick();
 }
 
 // Cor do núcleo → vetor linear (o desenho roda com gs_enable_framebuffer_srgb, como o color_source com transparência).
@@ -233,8 +169,8 @@ void drawSpotlight(MouseSource *ctx, const MouseSnapshot &snap, uint32_t width, 
 void mouseRender(void *data, gs_effect_t *)
 {
 	auto *ctx = static_cast<MouseSource *>(data);
-	const uint32_t width = ctx->width.load();
-	const uint32_t height = ctx->height.load();
+	const uint32_t width = ctx->target.width();
+	const uint32_t height = ctx->target.height();
 	if (!ctx->effect || !width || !height) {
 		return;
 	}

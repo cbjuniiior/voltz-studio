@@ -1,3 +1,5 @@
+#include "annotation-feed.hpp"
+#include "annotation-source.hpp"
 #include "mouse-feed.hpp"
 #include "mouse-source.hpp"
 #include "test-vendor.hpp"
@@ -11,13 +13,15 @@ OBS_MODULE_USE_DEFAULT_LOCALE("voltz-sources", "en-US")
 
 MODULE_EXPORT const char *obs_module_description(void)
 {
-	return "Voltz Studio: fontes Voltz (destaque do mouse)";
+	return "Voltz Studio: fontes Voltz (destaque do mouse e anotacoes)";
 }
 
 bool obs_module_load(void)
 {
 	voltz::registerMouseSource();
 	voltz::registerMouseProcs(obs_get_proc_handler());
+	voltz::registerAnnotationsSource();
+	voltz::registerAnnotationProcs(obs_get_proc_handler());
 	blog(LOG_INFO, "[voltz-sources] carregado");
 	return true;
 }

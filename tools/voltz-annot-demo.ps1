@@ -6,7 +6,7 @@
   -Action desenhar: seta, retangulo, elipse, caneta (onda) e marca-texto, em pixels da captura da Tela.
   -Action desfazer | limpar | estado.
   -Close: fecha o Voltz aberto pelo -Launch (pelo PID salvo, com WM_CLOSE na janela da casca) e restaura a config
-    portatil.
+    portatil - ou apaga a da demonstracao (obs-websocket sem senha), se nao havia config portatil antes do -Launch.
   O desenho aparece por cima do monitor capturado (janela transparente a cliques: clique e digite normalmente por baixo
   dela) e no programa (fonte Voltz Anotacoes); a captura da Tela NAO o contem.
   Seguranca: este script so INJETA tracos pelos pedidos "voltz-teste-casca" (InjectStroke, UndoStroke, ClearStrokes,
@@ -32,6 +32,7 @@ $ws = Join-Path $PSScriptRoot "voltz-ws.ps1"
 $cfg = Join-Path $rundir "config"
 $bak = Join-Path $rundir "config.annotdemo-bak"
 $pidFile = Join-Path $env:TEMP "voltz-annot-demo.pid"
+$marker = Join-Path $cfg "voltz-annot-demo.marker"
 $wsPort = 4455
 
 # P/Invoke de leitura; a unica escrita e PostMessage(WM_CLOSE) na janela da casca do PID aberto pelo -Launch
@@ -91,6 +92,9 @@ function Restore-Config {
     if (Test-Path $bak) {
         if (Test-Path $cfg) { Remove-Item -Recurse -Force $cfg }
         Move-Item $bak $cfg
+    } elseif (Test-Path -LiteralPath $marker) {
+        # nao havia config portatil antes do -Launch: a da demonstracao (websocket sem senha na 4455) sai inteira
+        Remove-Item -Recurse -Force $cfg
     }
 }
 
@@ -107,6 +111,8 @@ if ($Launch) {
         New-Item -ItemType Directory -Force $wsDir | Out-Null
         [IO.File]::WriteAllText((Join-Path $wsDir "config.json"), '{"alerts_enabled":false,"auth_required":false,"first_load":false,"server_enabled":true,"server_password":"","server_port":' + $wsPort + '}')
         [IO.File]::WriteAllText((Join-Path $voltzCfg "user.ini"), "[General]`r`nLanguage=pt-BR`r`nConfirmOnExit=false`r`n", (New-Object Text.UTF8Encoding $false))
+        # marca: esta config e da demonstracao (o -Close a apaga se nao havia config portatil antes)
+        Set-Content -LiteralPath $marker -Value "config criada pelo -Launch da demonstracao das anotacoes"
         $env:VOLTZ_TEST_LIVE = "1"
         $proc = Start-Process -FilePath $exe -ArgumentList '--portable', '--multi' -WorkingDirectory $bin -PassThru
         if (-not $hadLive) { Remove-Item Env:VOLTZ_TEST_LIVE -ErrorAction SilentlyContinue }

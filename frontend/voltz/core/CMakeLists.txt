@@ -9,6 +9,7 @@ add_library(Voltz::core ALIAS voltz-core)
 target_sources(
   voltz-core
   PRIVATE
+    annotation-journal.cpp
     annotation-model.cpp
     annotation-raster.cpp
     atomic-file.cpp
@@ -28,10 +29,12 @@ target_sources(
     recording-files.cpp
     recording-settings.cpp
     source-tree.cpp
+    stroke-store.cpp
     svg-recolor.cpp
     time-format.cpp
     voltz-version.cpp
   PUBLIC
+    annotation-journal.hpp
     annotation-model.hpp
     annotation-raster.hpp
     atomic-file.hpp
@@ -52,6 +55,7 @@ target_sources(
     recording-files.hpp
     recording-settings.hpp
     source-tree.hpp
+    stroke-store.hpp
     svg-recolor.hpp
     time-format.hpp
     voltz-version.hpp

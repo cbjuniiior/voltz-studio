@@ -8,6 +8,7 @@ target_sources(
   voltz-core-tests
   PRIVATE
     test-main.cpp
+    test-annotation-journal.cpp
     test-annotation-model.cpp
     test-annotation-raster.cpp
     test-atomic-file.cpp
@@ -27,6 +28,7 @@ target_sources(
     test-recording-files.cpp
     test-recording-settings.cpp
     test-source-tree.cpp
+    test-stroke-store.cpp
     test-svg-recolor.cpp
     test-time-format.cpp
     test-version.cpp

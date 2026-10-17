@@ -17,6 +17,7 @@
 #include <voltz/core/voltz-version.hpp>
 #include <voltz/project/ProjectRecorder.hpp>
 #include <voltz/project/LiveMouse.hpp>
+#include <voltz/annotate/AnnotationController.hpp>
 
 #include <obs.h>
 
@@ -75,6 +76,9 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 	mouseStyles_ = new MouseStyleStore(this);
 	recorder_->setMouseStyleStore(mouseStyles_);
 	liveMouse_ = new LiveMouse(mouseStyles_, this);
+	/* Anotações (4B): só exibe; os traços vêm do fornecedor de teste até o modo desenho do 4C. */
+	annotations_ = new AnnotationController(this);
+	recorder_->setAnnotationController(annotations_);
 	/* A coleção já está carregada (a casca nasce depois do OBSBasic::OBSInit): Tela Voltz nas cenas de antes. */
 	ensureScreenGroups();
 	connect(bridge_, &FrontendBridge::sceneCollectionChanged, this, []() { ensureScreenGroups(); });
@@ -101,7 +105,9 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 	}
 
 	connect(bridge_, &FrontendBridge::exiting, this, [this]() {
-		/* antes de o libobs descarregar o plugin: nada de chamar os procedimentos dele depois daqui */
+		/* antes de o libobs descarregar o plugin: nada de chamar os procedimentos dele depois daqui; a sobreposição
+		 * das anotações é destruída aqui */
+		annotations_->shutdown();
 		liveMouse_->shutdown();
 		exiting_ = true;
 		hide();

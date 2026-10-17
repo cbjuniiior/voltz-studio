@@ -17,7 +17,7 @@ if(ENABLE_VOLTZ_TESTS)
   add_subdirectory(voltz/tests)
 endif()
 
-target_link_libraries(obs-studio PRIVATE Voltz::core)
+target_link_libraries(obs-studio PRIVATE Voltz::core OBS::websocket-api)
 target_compile_definitions(
   obs-studio
   PRIVATE VOLTZ_STUDIO "VOLTZ_VERSION=\"${VOLTZ_VERSION}\"" "VOLTZ_CONFIG_DIR=\"Voltz Studio\""
@@ -26,6 +26,10 @@ target_compile_definitions(
 target_sources(
   obs-studio
   PRIVATE
+    voltz/annotate/AnnotationController.cpp
+    voltz/annotate/AnnotationController.hpp
+    voltz/annotate/AnnotationTestVendor.cpp
+    voltz/annotate/AnnotationTestVendor.hpp
     voltz/annotate/OverlayWindow.cpp
     voltz/annotate/OverlayWindow.hpp
     voltz/project/CursorTracker.cpp

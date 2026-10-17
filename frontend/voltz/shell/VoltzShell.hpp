@@ -8,6 +8,7 @@ class QStackedWidget;
 namespace voltz {
 
 class FrontendBridge;
+class AnnotationController;
 class LiveMouse;
 class MouseStyleStore;
 class ProjectRecorder;
@@ -43,6 +44,7 @@ private:
 	ProjectRecorder *recorder_ = nullptr;
 	MouseStyleStore *mouseStyles_ = nullptr;
 	LiveMouse *liveMouse_ = nullptr;
+	AnnotationController *annotations_ = nullptr;
 	QStackedWidget *pages_ = nullptr;
 	QButtonGroup *navGroup_ = nullptr;
 	bool exiting_ = false;

@@ -844,4 +844,9 @@ void ProjectRecorder::onSpotlightToggled(bool active)
 	blog(LOG_INFO, "[voltz] evento %s no projeto", type);
 }
 
+void ProjectRecorder::setAnnotationController(AnnotationController *controller)
+{
+	(void)controller;
+}
+
 } // namespace voltz

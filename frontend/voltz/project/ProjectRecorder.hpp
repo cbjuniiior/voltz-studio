@@ -28,6 +28,7 @@ namespace voltz {
 
 class CursorTracker;
 class MouseStyleStore;
+class AnnotationController;
 
 // Caminho de pasta/arquivo do Qt → UTF-8 com separadores do Windows, para as funções do núcleo.
 inline std::string nativeUtf8Path(const QString &path)
@@ -66,6 +67,9 @@ public:
 	// Estilo do destaque do mouse: vai para o manifesto no início do projeto (spec §6.1) e o holofote ligado/desligado
 	// durante a gravação vira evento. Chamar uma vez, antes de gravar.
 	void setMouseStyleStore(MouseStyleStore *store);
+	// Anotações (Plano 4B): durante a gravação, os traços vão para anotacoes.jsonl (diário consolidado no fim) e o
+	// "queimadas" vai para o manifesto. Chamar uma vez, antes de gravar.
+	void setAnnotationController(AnnotationController *controller);
 
 	// Espaço livre da pasta. VOLTZ_FAKE_FREE_BYTES (só para testes) substitui o valor real. Falso se não souber.
 	static bool freeBytes(const QString &folder, quint64 &out);

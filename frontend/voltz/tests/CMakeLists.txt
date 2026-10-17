@@ -10,6 +10,7 @@ target_sources(
     test-main.cpp
     test-annotation-journal.cpp
     test-annotation-model.cpp
+    test-annotation-dirty.cpp
     test-annotation-raster.cpp
     test-atomic-file.cpp
     test-cursor-track.cpp

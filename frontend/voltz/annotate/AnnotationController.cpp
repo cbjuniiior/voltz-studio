@@ -330,7 +330,17 @@ void AnnotationController::refreshOverlay(bool strokesChanged)
 		if (overlay_) {
 			overlay_->render({}, 0, 0);
 		}
-		overlayPoll_.stop();
+		/* Sem alvo agora (Tela trocada, captura reiniciando com tamanho 0): esquece o alvo, para redesenhar quando ele
+		 * voltar, e continua conferindo enquanto houver traço — senão a sobreposição ficaria escondida até o próximo
+		 * traço. */
+		overlayRect_ = MonitorRect{};
+		captureWidth_ = 0;
+		captureHeight_ = 0;
+		if (strokes.empty()) {
+			overlayPoll_.stop();
+		} else if (!overlayPoll_.isActive()) {
+			overlayPoll_.start();
+		}
 		publishTestState();
 		return;
 	}

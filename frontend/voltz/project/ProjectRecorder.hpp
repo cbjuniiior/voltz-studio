@@ -17,6 +17,7 @@
 #include <QDir>
 #include <QFile>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QTimer>
 
@@ -139,7 +140,8 @@ private:
 	std::vector<std::pair<QString, QString>> pendingIsoFailures_;
 	IsoOverloadMonitor overload_; // exige #include <voltz/core/iso-encoders.hpp> no .hpp
 	MouseStyleStore *mouseStyles_ = nullptr;
-	AnnotationController *annotations_ = nullptr;
+	/* QPointer: o controlador é filho da casca e pode morrer antes do recorder (no fim do app) */
+	QPointer<AnnotationController> annotations_;
 	std::unique_ptr<AnnotationJournal> journal_;
 	std::unique_ptr<QFile> annotationsFile_;
 	ProfileOverride override_;

@@ -2,6 +2,7 @@
 
 #include "DeviceSelector.hpp"
 #include "FrontendBridge.hpp"
+#include "MouseSettings.hpp"
 #include "RecordingConfig.hpp"
 #include "SharedSources.hpp"
 
@@ -140,7 +141,9 @@ private:
 	QString fullText_;
 };
 
-SettingsPage::SettingsPage(FrontendBridge *bridge, QWidget *parent) : QWidget(parent), bridge_(bridge)
+SettingsPage::SettingsPage(FrontendBridge *bridge, MouseStyleStore *mouseStyles, QWidget *parent)
+	: QWidget(parent),
+	  bridge_(bridge)
 {
 	auto *heading = new QLabel(QTStr("Voltz.Settings.Title"), this);
 	heading->setObjectName("pageTitle");
@@ -152,6 +155,9 @@ SettingsPage::SettingsPage(FrontendBridge *bridge, QWidget *parent) : QWidget(pa
 	sections_->addWidget(heading);
 	sections_->addWidget(buildRecordingSection());
 	sections_->addWidget(buildCaptureSection());
+	mouse_ = new MouseSettingsSection(mouseStyles, content);
+	formLabels_.append(mouse_->formLabels());
+	sections_->addWidget(mouse_);
 	sections_->addWidget(buildAboutSection());
 	sections_->addStretch(1);
 
@@ -369,6 +375,7 @@ void SettingsPage::showEvent(QShowEvent *event)
 	monitor_->reload();
 	camera_->reload();
 	microphone_->reload();
+	mouse_->reload();
 	{
 		/* Pode ter mudado pelas Configurações do OBS: relê sem disparar o toggled. */
 		const QSignalBlocker blocker(hideFromCapture_);

@@ -490,3 +490,37 @@
 #voltzShell VolumeControl QPushButton.btn-mute.mute-warning {
 	qproperty-icon: url(:/voltz/icons/qss/warning-circle-warn.svg);
 }
+
+/* Ajustes › Mouse: sliders no visual dos do Áudio; botão de cor com amostra */
+#voltzShell QSlider#mouseSlider::groove:horizontal {
+	background: #1F1F24;
+	height: 4px;
+	border: none;
+	border-radius: 2px;
+}
+
+#voltzShell QSlider#mouseSlider::sub-page:horizontal {
+	background: #D4F53C;
+	border-radius: 2px;
+}
+
+#voltzShell QSlider#mouseSlider::sub-page:horizontal:disabled {
+	background: #3A3A42;
+}
+
+#voltzShell QSlider#mouseSlider::handle:horizontal {
+	background: #F2F2F3;
+	width: 12px;
+	height: 12px;
+	margin: -4px 0;
+	border-radius: 6px;
+}
+
+#voltzShell QSlider#mouseSlider::handle:horizontal:hover {
+	background: #FFFFFF;
+}
+
+#voltzShell QPushButton#colorButton {
+	padding: 5px 12px;
+	text-align: left;
+}

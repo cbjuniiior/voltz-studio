@@ -48,6 +48,10 @@ target_sources(
     voltz/shell/FrontendBridge.hpp
     voltz/shell/Icons.cpp
     voltz/shell/Icons.hpp
+    voltz/shell/MousePreview.cpp
+    voltz/shell/MousePreview.hpp
+    voltz/shell/MouseSettings.cpp
+    voltz/shell/MouseSettings.hpp
     voltz/shell/MouseStyleStore.cpp
     voltz/shell/MouseStyleStore.hpp
     voltz/shell/PresetBuilder.cpp

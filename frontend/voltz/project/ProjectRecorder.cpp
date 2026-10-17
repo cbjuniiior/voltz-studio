@@ -1,6 +1,7 @@
 #include "ProjectRecorder.hpp"
 #include "CursorTracker.hpp"
 #include "MonitorLocator.hpp"
+#include <voltz/annotate/AnnotationController.hpp>
 
 #include <voltz/core/atomic-file.hpp>
 #include <voltz/core/disk-space.hpp>
@@ -165,6 +166,7 @@ ProjectRecorder::ProjectRecorder(QObject *parent) : QObject(parent)
 ProjectRecorder::~ProjectRecorder()
 {
 	stopCursor();
+	stopAnnotations(nowNs());
 	finishIsoTracks();
 	if (registered_) {
 		obs_frontend_remove_event_callback(&ProjectRecorder::handleEvent, this);
@@ -279,6 +281,8 @@ void ProjectRecorder::onStarting()
 		manifest_.hasMouse = true;
 		manifest_.mouse = mouseStyles_->style();
 	}
+	/* spec §6.3: com a sobreposição na captura, os traços já estão em tela.mkv e no programa */
+	manifest_.annotationsBurned = annotations_ && annotations_->burned();
 	timeline_ = ProjectTimeline{};
 	markers_.clear();
 	lowDiskStop_ = false;
@@ -338,6 +342,7 @@ void ProjectRecorder::onStarted()
 		}
 	}
 	startCursor();
+	startAnnotations();
 	startIsoTracks();
 	writeManifest();
 	heartbeat_.start();
@@ -414,6 +419,7 @@ void ProjectRecorder::finish(ProjectStatus status, const char *eventType, int co
 	manifest_.status = status;
 	heartbeat_.stop();
 	stopCursor();
+	stopAnnotations(end);
 	finishIsoTracks();
 	writeManifest();
 	startSignal_.Disconnect();
@@ -846,7 +852,121 @@ void ProjectRecorder::onSpotlightToggled(bool active)
 
 void ProjectRecorder::setAnnotationController(AnnotationController *controller)
 {
-	(void)controller;
+	annotations_ = controller;
+	if (!controller) {
+		return;
+	}
+	connect(controller, &AnnotationController::strokeEnded, this, [this](const LiveStroke &stroke) {
+		if (journal_) {
+			appendAnnotationLines({journal_->strokeFinished(stroke)});
+		}
+	});
+	connect(controller, &AnnotationController::strokesRemoved, this,
+		[this](const std::vector<RemovedStroke> &removed) {
+			if (!journal_) {
+				return;
+			}
+			std::vector<std::string> lines;
+			lines.reserve(removed.size());
+			for (const RemovedStroke &stroke : removed) {
+				lines.push_back(journal_->strokeRemoved(stroke));
+			}
+			appendAnnotationLines(lines);
+		});
+	connect(controller, &AnnotationController::burnedChanged, this, [this](bool burned) {
+		if (burned && active_ && !manifest_.annotationsBurned) {
+			manifest_.annotationsBurned = true;
+			writeManifest();
+		}
+	});
+}
+
+void ProjectRecorder::startAnnotations()
+{
+	manifest_.annotations = AnnotationsFile{};
+	if (!annotations_) {
+		return;
+	}
+	/* coordenadas = pixels da captura da Tela compartilhada (as de tela.mkv e da Voltz Anotações) */
+	OBSSource screen = findSharedSource(SharedSource::Screen);
+	const int width = screen ? static_cast<int>(obs_source_get_width(screen)) : 0;
+	const int height = screen ? static_cast<int>(obs_source_get_height(screen)) : 0;
+	if (width <= 0 || height <= 0) {
+		blog(LOG_INFO, "[voltz] anotacoes: sem Tela compartilhada; sem anotacoes.jsonl");
+		return;
+	}
+	auto file = std::make_unique<QFile>(QDir(projectDir_).filePath(QString::fromUtf8(kAnnotationsFileName)));
+	if (!file->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+		blog(LOG_WARNING, "[voltz] anotacoes: nao foi possivel criar anotacoes.jsonl");
+		return;
+	}
+	annotationsFile_ = std::move(file);
+	journal_ = std::make_unique<AnnotationJournal>(timeline_.t0Ns());
+	manifest_.annotations.present = true;
+	manifest_.annotations.file = kAnnotationsFileName;
+	manifest_.annotations.width = width;
+	manifest_.annotations.height = height;
+	if (strcmp(obs_source_get_unversioned_id(screen), "monitor_capture") == 0) {
+		OBSDataAutoRelease settings = obs_source_get_settings(screen);
+		const std::string monitorId = obs_data_get_string(settings, "monitor_id");
+		const MonitorDescription monitor = findMonitor(monitorId);
+		if (monitor.found) {
+			manifest_.annotations.hasOrigin = true;
+			manifest_.annotations.origin.type = "monitor";
+			manifest_.annotations.origin.id = monitorId;
+			manifest_.annotations.origin.rect[0] = monitor.rect.left;
+			manifest_.annotations.origin.rect[1] = monitor.rect.top;
+			manifest_.annotations.origin.rect[2] = monitor.rect.width;
+			manifest_.annotations.origin.rect[3] = monitor.rect.height;
+			manifest_.annotations.origin.scale = monitor.scale;
+		}
+	}
+	const std::vector<std::string> initial = journal_->initialLines(annotations_->visibleStrokes());
+	appendAnnotationLines(initial);
+	blog(LOG_INFO, "[voltz] anotacoes: %dx%d, %d traco(s) ja na tela", width, height,
+	     static_cast<int>(initial.size()));
+}
+
+void ProjectRecorder::appendAnnotationLines(const std::vector<std::string> &lines)
+{
+	if (!annotationsFile_) {
+		return;
+	}
+	bool wrote = false;
+	for (const std::string &line : lines) {
+		if (line.empty()) {
+			continue;
+		}
+		annotationsFile_->write(line.data(), static_cast<qint64>(line.size()));
+		annotationsFile_->write("\n", 1);
+		wrote = true;
+	}
+	if (wrote) {
+		annotationsFile_->flush(); /* sobrevive a uma queda */
+	}
+}
+
+void ProjectRecorder::stopAnnotations(int64_t endNs)
+{
+	if (!annotationsFile_) {
+		journal_.reset();
+		return;
+	}
+	if (journal_ && annotations_) {
+		appendAnnotationLines(journal_->finishOpen(annotations_->visibleStrokes(), endNs));
+	}
+	const size_t strokes = journal_ ? journal_->strokeCount() : 0;
+	const std::string path = nativeUtf8Path(annotationsFile_->fileName());
+	annotationsFile_->close();
+	annotationsFile_.reset();
+	journal_.reset();
+	/* o diário vira o formato da spec: uma linha por traço, com t_limpo */
+	std::string text;
+	std::string error;
+	if (readFileText(path, text) && !writeFileAtomically(path, consolidateAnnotations(text), &error)) {
+		blog(LOG_WARNING, "[voltz] anotacoes: nao foi possivel consolidar: %s", error.c_str());
+	}
+	blog(LOG_INFO, "[voltz] anotacoes: %zu traco(s) em anotacoes.jsonl", strokes);
 }
 
 } // namespace voltz

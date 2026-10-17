@@ -3,6 +3,7 @@
 #include "ProjectRecorder.hpp" // nativeUtf8Path
 
 #include <voltz/core/atomic-file.hpp>
+#include <voltz/core/annotation-journal.hpp>
 #include <voltz/core/recording-files.hpp>
 
 #include <QDir>
@@ -155,6 +156,15 @@ bool ProjectLibrary::recover(const QString &projectDir)
 		return !file.empty() && info.exists() && info.size() > 0;
 	});
 	recoverManifest(manifest, fileElapsedMs);
+	/* anotacoes.jsonl que ficou só como diário (linhas curtas de t_limpo): junta no formato da spec */
+	if (manifest.annotations.present && !manifest.annotations.file.empty()) {
+		const std::string annotationsPath =
+			nativeUtf8Path(dir.filePath(QString::fromStdString(manifest.annotations.file)));
+		std::string journal;
+		if (readFileText(annotationsPath, journal)) {
+			writeFileAtomically(annotationsPath, consolidateAnnotations(journal));
+		}
+	}
 	const bool ok = writeFileAtomically(nativeUtf8Path(manifestPath(projectDir)), serializeManifest(manifest));
 	blog(LOG_INFO, "[voltz] recuperar projeto (%s, %lld ms, %d ISO sem arquivo): %s", ok ? "ok" : "falhou",
 	     static_cast<long long>(manifest.durationMs), dropped, qUtf8Printable(projectDir));

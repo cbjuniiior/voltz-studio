@@ -3,6 +3,8 @@
 #include "IsoTrack.hpp"
 
 #include <voltz/core/iso-encoders.hpp>
+#include <voltz/core/annotation-journal.hpp>
+#include <voltz/core/stroke-store.hpp>
 #include <voltz/core/project-manifest.hpp>
 #include <voltz/core/project-markers.hpp>
 #include <voltz/core/project-timeline.hpp>
@@ -13,6 +15,7 @@
 #include <obs.hpp>
 
 #include <QDir>
+#include <QFile>
 #include <QObject>
 #include <QString>
 #include <QTimer>
@@ -38,8 +41,8 @@ inline std::string nativeUtf8Path(const QString &path)
 
 // Gravação em projeto (spec §5). Toda gravação — pela casca, modo clássico, atalho, obs-websocket ou
 // --startrecording — vira a pasta "<pasta de gravações>/AAAA-MM-DD HHhMM · Nome" com programa.mp4, projeto.voltz,
-// marcadores.json, cursor.jsonl e, por fonte de papel Tela/Câmera, tela.mkv/camera.mkv (ISO, Plano 3B). Não conhece a
-// casca: reage aos eventos do frontend do OBS e emite sinais (thread da UI).
+// marcadores.json, cursor.jsonl, anotacoes.jsonl e, por fonte de papel Tela/Câmera, tela.mkv/camera.mkv (ISO, Plano
+// 3B). Não conhece a casca: reage aos eventos do frontend do OBS e emite sinais (thread da UI).
 class ProjectRecorder : public QObject {
 	Q_OBJECT
 
@@ -115,6 +118,10 @@ private:
 	void onIsoFailed(uint64_t generation, const std::string &track, int code);
 	void checkIsoLoad();
 	void onSpotlightToggled(bool active);
+	void startAnnotations();
+	// Fecha o diário (traços em andamento terminam em `endNs`) e o consolida no formato da spec.
+	void stopAnnotations(int64_t endNs);
+	void appendAnnotationLines(const std::vector<std::string> &lines);
 
 	bool registered_ = true;
 	bool active_ = false;
@@ -132,6 +139,9 @@ private:
 	std::vector<std::pair<QString, QString>> pendingIsoFailures_;
 	IsoOverloadMonitor overload_; // exige #include <voltz/core/iso-encoders.hpp> no .hpp
 	MouseStyleStore *mouseStyles_ = nullptr;
+	AnnotationController *annotations_ = nullptr;
+	std::unique_ptr<AnnotationJournal> journal_;
+	std::unique_ptr<QFile> annotationsFile_;
 	ProfileOverride override_;
 	QTimer heartbeat_;
 	obs_hotkey_id markerHotkey_ = OBS_INVALID_HOTKEY_ID;

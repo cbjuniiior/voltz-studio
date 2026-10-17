@@ -13,6 +13,8 @@ class AnnotationController;
 //   ExtendStroke {pts}, EndStroke, UndoStroke, ClearStrokes;
 //   ProbeOverlay {pts} — guarda os pixels da sobreposição nesses pontos (lidos no próximo AnnotationState);
 //   SetAnnotationStyle {estilo:"{...}"} — AnnotationController::setStyle (o que a barra do modo desenho faz);
+//   ToolbarImage → {png (base64), largura, altura, janela_nativa} — uma DrawToolbar NUNCA mostrada, desenhada por
+//   QWidget::grab() com o estilo atual (janela_nativa tem de ser false: nenhuma janela nasce);
 //   AnnotationState → {"estado": texto JSON publicado pelo AnnotationController (republicado na thread da UI antes de
 //   responder, até 2 s), "ok"}.
 // O callback roda na thread do websocket, sem lock do obs-websocket: os pedidos que mudam algo são ENFILEIRADOS para a

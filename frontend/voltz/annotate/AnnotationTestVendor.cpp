@@ -1,12 +1,17 @@
 #include "AnnotationTestVendor.hpp"
 #include "AnnotationController.hpp"
+#include "DrawToolbar.hpp"
 
 #include <voltz/core/annotation-model.hpp>
 #include <voltz/core/live-protocol.hpp>
 
 #include <obs-websocket-api.h>
 
+#include <QBuffer>
+#include <QByteArray>
+#include <QImage>
 #include <QMetaObject>
+#include <QPixmap>
 
 #include <chrono>
 #include <functional>
@@ -25,8 +30,9 @@ AnnotationController *gTarget = nullptr; // protegido por gMutex
 std::string gState = "{}";               // protegido por gMutex
 obs_websocket_vendor gVendor = nullptr;  // só na thread da UI
 
-constexpr const char *kRequests[] = {"InjectStroke", "ExtendStroke", "EndStroke",       "UndoStroke",
-				     "ClearStrokes", "ProbeOverlay", "AnnotationState", "SetAnnotationStyle"};
+constexpr const char *kRequests[] = {"InjectStroke",    "ExtendStroke",       "EndStroke",
+				     "UndoStroke",      "ClearStrokes",       "ProbeOverlay",
+				     "AnnotationState", "SetAnnotationStyle", "ToolbarImage"};
 
 // Entrega `work` na thread da UI sem esperar; falso se o controlador já saiu (EXIT). O mutex é segurado enquanto o evento
 // é postado: o stop() (que anula gTarget antes de o controlador morrer) espera; evento de objeto destruído o Qt descarta.
@@ -115,6 +121,47 @@ void setAnnotationStyle(obs_data_t *request, obs_data_t *response, void *)
 	obs_data_set_bool(response, "ok", ok);
 }
 
+void toolbarImage(obs_data_t *, obs_data_t *response, void *)
+{
+	struct Result {
+		std::string png;
+		int width = 0;
+		int height = 0;
+		bool native = true;
+	};
+	auto result = std::make_shared<Result>();
+	auto done = std::make_shared<std::promise<void>>();
+	std::future<void> ready = done->get_future();
+	bool ok = post([result, done](AnnotationController *controller) {
+		/* nunca mostrada: o grab() desenha fora da tela, sem criar janela nativa */
+		DrawToolbar toolbar;
+		toolbar.setAnnotationStyle(controller->style());
+		toolbar.setBurned(controller->burned());
+		toolbar.adjustSize();
+		const QImage image = toolbar.grab().toImage();
+		QByteArray bytes;
+		QBuffer buffer(&bytes);
+		buffer.open(QIODevice::WriteOnly);
+		image.save(&buffer, "PNG");
+		result->png = bytes.toBase64().toStdString();
+		result->width = image.width();
+		result->height = image.height();
+		result->native = toolbar.testAttribute(Qt::WA_WState_Created);
+		done->set_value();
+	});
+	if (ok) {
+		done.reset();
+		ok = ready.wait_for(std::chrono::seconds(3)) == std::future_status::ready && result->width > 0;
+	}
+	if (ok) {
+		obs_data_set_string(response, "png", result->png.c_str());
+		obs_data_set_int(response, "largura", result->width);
+		obs_data_set_int(response, "altura", result->height);
+		obs_data_set_bool(response, "janela_nativa", result->native);
+	}
+	obs_data_set_bool(response, "ok", ok);
+}
+
 void annotationState(obs_data_t *, obs_data_t *response, void *)
 {
 	/* Republica o estado na thread da UI antes de responder (a captura pode ter mudado sem traço novo) e espera até
@@ -156,6 +203,7 @@ void AnnotationTestVendor::start(AnnotationController *controller)
 	obs_websocket_vendor_register_request(gVendor, "ProbeOverlay", probeOverlay, nullptr);
 	obs_websocket_vendor_register_request(gVendor, "AnnotationState", annotationState, nullptr);
 	obs_websocket_vendor_register_request(gVendor, "SetAnnotationStyle", setAnnotationStyle, nullptr);
+	obs_websocket_vendor_register_request(gVendor, "ToolbarImage", toolbarImage, nullptr);
 	blog(LOG_WARNING, "[voltz] modo de teste (%s): pedidos '%s' ligados", live::kTestEnv, live::kTestVendorShell);
 }
 

@@ -84,5 +84,21 @@
     <file>icons/qss/speaker-high-text.svg</file>
     <file>icons/qss/speaker-slash-rec.svg</file>
     <file>icons/qss/warning-circle-warn.svg</file>
+    <file>icons/regular/pen.svg</file>
+    <file>icons/regular/highlighter-circle.svg</file>
+    <file>icons/regular/line-segment.svg</file>
+    <file>icons/regular/arrow-up-right.svg</file>
+    <file>icons/regular/rectangle.svg</file>
+    <file>icons/regular/circle.svg</file>
+    <file>icons/regular/arrow-counter-clockwise.svg</file>
+    <file>icons/regular/palette.svg</file>
+    <file>icons/regular/timer.svg</file>
+    <file>icons/fill/pen-fill.svg</file>
+    <file>icons/fill/highlighter-circle-fill.svg</file>
+    <file>icons/fill/line-segment-fill.svg</file>
+    <file>icons/fill/arrow-up-right-fill.svg</file>
+    <file>icons/fill/rectangle-fill.svg</file>
+    <file>icons/fill/circle-fill.svg</file>
+    <file>icons/fill/pencil-simple-fill.svg</file>
   </qresource>
 </RCC>

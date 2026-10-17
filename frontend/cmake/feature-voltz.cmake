@@ -32,6 +32,8 @@ target_sources(
     voltz/annotate/AnnotationTestVendor.hpp
     voltz/annotate/DrawInputWindow.cpp
     voltz/annotate/DrawInputWindow.hpp
+    voltz/annotate/DrawToolbar.cpp
+    voltz/annotate/DrawToolbar.hpp
     voltz/annotate/OverlayWindow.cpp
     voltz/annotate/OverlayWindow.hpp
     voltz/project/CursorTracker.cpp

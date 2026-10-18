@@ -100,5 +100,8 @@
     <file>icons/fill/rectangle-fill.svg</file>
     <file>icons/fill/circle-fill.svg</file>
     <file>icons/fill/pencil-simple-fill.svg</file>
+    <file>icons/regular/text-b.svg</file>
+    <file>icons/fill/text-b-fill.svg</file>
+    <file>icons/regular/eyedropper.svg</file>
   </qresource>
 </RCC>

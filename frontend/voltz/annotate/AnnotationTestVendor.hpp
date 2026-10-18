@@ -15,8 +15,9 @@ class AnnotationController;
 //   SetAnnotationStyle {estilo:"{...}"} — AnnotationController::setStyle (o que a barra do modo desenho faz);
 //   InjectText {pts:"[[x,y]]", texto, aberto?} — começa um texto (estilo atual) na âncora, troca o texto e (sem
 //   "aberto") confirma; TypeText {texto} troca o texto em andamento (o que a digitação faz); CommitText, CancelText;
-//   ToolbarImage {queimadas?} → {png (base64), largura, altura, janela_nativa} — uma DrawToolbar NUNCA mostrada,
-//   desenhada por QWidget::grab() com o estilo atual e o aviso de "queimadas" se o controlador está queimado ou se
+//   ToolbarImage {queimadas?, ferramenta?, seletor?} → {png (base64), largura, altura, janela_nativa} — uma DrawToolbar
+//   NUNCA mostrada, desenhada por QWidget::grab() com o estilo atual (a ferramenta trocada por "ferramenta", ex.
+//   "texto", e o seletor de cor aberto com "seletor":true) e o aviso de "queimadas" se o controlador está queimado ou se
 //   "queimadas" vem true (só no desenho; nada muda no controlador) (janela_nativa tem de ser false: nenhuma janela nasce);
 //   AnnotationState → {"estado": texto JSON publicado pelo AnnotationController (republicado na thread da UI antes de
 //   responder, até 2 s), "ok"}.

@@ -231,6 +231,16 @@ void DrawModeController::createToolbar()
 		style.width = width;
 		annotations_->setStyle(style);
 	});
+	connect(toolbar_, &DrawToolbar::textSizeChosen, this, [this](int size) {
+		AnnotationStyle style = annotations_->style();
+		style.textSize = size;
+		annotations_->setStyle(style);
+	});
+	connect(toolbar_, &DrawToolbar::textFontChosen, this, [this](TextFont font) {
+		AnnotationStyle style = annotations_->style();
+		style.textFont = font;
+		annotations_->setStyle(style);
+	});
 	connect(toolbar_, &DrawToolbar::fadeChosen, this, [this](int seconds) {
 		AnnotationStyle style = annotations_->style();
 		style.fadeSeconds = seconds;

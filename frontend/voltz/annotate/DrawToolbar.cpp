@@ -1,4 +1,5 @@
 #include "DrawToolbar.hpp"
+#include "ColorPicker.hpp"
 
 #include <voltz/project/MonitorLocator.hpp>
 #include <voltz/shell/Icons.hpp>
@@ -9,6 +10,8 @@
 
 #include <QAbstractButton>
 #include <QButtonGroup>
+#include <QEvent>
+#include <QFont>
 #include <QFrame>
 #include <QGuiApplication>
 #include <QHBoxLayout>
@@ -44,6 +47,7 @@ namespace {
 constexpr int kTopMargin = 12;
 constexpr int kFadeSteps[] = {0, 3, 5, 10};
 constexpr int kWidths[] = {2, 4, 8, 16};
+constexpr int kTextSizes[] = {24, 36, 56, 80};
 const RgbColor kQuickColors[] = {{0xD4, 0xF5, 0x3C}, {0xFF, 0x4D, 0x4D}, {0x4D, 0xA3, 0xFF}, {0xFF, 0xE1, 0x4D}};
 const RgbColor kMoreColors[] = {{0xFF, 0xFF, 0xFF}, {0x09, 0x09, 0x0B}, {0xFF, 0x9F, 0x43}, {0x2E, 0xD5, 0x73},
 				{0xA5, 0x5E, 0xEA}, {0xFF, 0x6B, 0x9D}, {0x22, 0xD3, 0xEE}, {0x9C, 0xA3, 0xAF}};
@@ -61,6 +65,7 @@ const ToolEntry kTools[] = {
 	{AnnotationTool::Arrow, "arrow-up-right", "Voltz.Draw.Tool.Arrow"},
 	{AnnotationTool::Rectangle, "rectangle", "Voltz.Draw.Tool.Rectangle"},
 	{AnnotationTool::Ellipse, "circle", "Voltz.Draw.Tool.Ellipse"},
+	{AnnotationTool::Text, "text-t", "Voltz.Draw.Tool.Text"},
 };
 
 // Cores da barra que não estão na paleta da casca.
@@ -70,7 +75,7 @@ const QColor kHover(0x1F, 0x1F, 0x24);
 
 // QSS próprio: a barra é uma janela fora do #voltzShell e o tema global do OBS tem regras de QToolButton (altura máxima,
 // cores) — tudo leva o prefixo #voltzDrawToolbar. %1 painel · %2 borda/separador/apertado · %3 hover · %4 texto ·
-// %5 lima translúcido (marcado) · %6 lima mais forte (marcado e apertado) · %7 aviso.
+// %5 lima translúcido (marcado) · %6 lima mais forte (marcado e apertado) · %7 aviso · %8 texto secundário.
 const char *kStyleSheet = R"(
 #voltzDrawToolbar QFrame#drawPanel {
 	background: %1;
@@ -116,6 +121,13 @@ const char *kStyleSheet = R"(
 	font-family: "DM Sans", "Segoe UI";
 	font-size: 12px;
 }
+#voltzDrawToolbar QLabel#drawHint {
+	background: transparent;
+	color: %8;
+	font-family: "DM Sans", "Segoe UI";
+	font-size: 11px;
+	padding: 0 4px;
+}
 )";
 
 QString rgba(const QColor &color, int alpha)
@@ -127,12 +139,18 @@ QString toolbarStyleSheet()
 {
 	return QString::fromUtf8(kStyleSheet)
 		.arg(kPanel.name(), kBorder.name(), kHover.name(), palette::kText.name(), rgba(palette::kAccent, 40),
-		     rgba(palette::kAccent, 80), palette::kWarn.name());
+		     rgba(palette::kAccent, 80), palette::kWarn.name(), palette::kMuted.name());
 }
 
 QColor toQColor(const RgbColor &color)
 {
 	return QColor(color.r, color.g, color.b);
+}
+
+bool inPalette(const RgbColor &color)
+{
+	return std::find(std::begin(kQuickColors), std::end(kQuickColors), color) != std::end(kQuickColors) ||
+	       std::find(std::begin(kMoreColors), std::end(kMoreColors), color) != std::end(kMoreColors);
 }
 
 // Bolinha da cor (20 px lógicos desenhados a 2×); a escolhida ganha um anel lima por fora.
@@ -165,6 +183,23 @@ QIcon widthIcon(int width)
 	const double thickness = std::clamp(1.5 * std::log2(static_cast<double>(std::max(width, 1))), 1.5, 6.5);
 	painter.setPen(QPen(palette::kText, thickness, Qt::SolidLine, Qt::RoundCap));
 	painter.drawLine(QPointF(4.0, 10.0), QPointF(16.0, 10.0));
+	return QIcon(pixmap);
+}
+
+// "A" do tamanho do texto: 8, 11, 14 e 17 px lógicos (posição na lista, não o tamanho real).
+QIcon textSizeIcon(int index)
+{
+	QPixmap pixmap(40, 40);
+	pixmap.setDevicePixelRatio(2.0);
+	pixmap.fill(Qt::transparent);
+	QPainter painter(&pixmap);
+	painter.setRenderHint(QPainter::Antialiasing);
+	QFont font(QStringLiteral("DM Sans"));
+	font.setPixelSize(8 + 3 * index);
+	font.setBold(true);
+	painter.setFont(font);
+	painter.setPen(palette::kText);
+	painter.drawText(QRectF(0.0, 0.0, 20.0, 20.0), Qt::AlignCenter, QStringLiteral("A"));
 	return QIcon(pixmap);
 }
 
@@ -207,26 +242,54 @@ DrawToolbar::DrawToolbar(QWidget *parent)
 	}
 	connect(tools_, &QButtonGroup::idClicked, this,
 		[this](int id) { emit toolChosen(static_cast<AnnotationTool>(id)); });
-	row->addWidget(separator());
+	row->addWidget(separator(panel_));
 
 	for (const RgbColor &color : kQuickColors) {
-		row->addWidget(addColor(color));
+		row->addWidget(addColor(panel_, color));
 	}
 	moreColors_ = makeButton(panel_, QTStr("Voltz.Draw.MoreColors"));
 	moreColors_->setCheckable(true);
 	moreColors_->setIcon(voltz::phosphorIcon(QStringLiteral("palette"), voltz::palette::kText));
 	row->addWidget(moreColors_);
-	row->addWidget(separator());
+	row->addWidget(separator(panel_));
 
+	/* espessuras (traços) ou tamanhos + negrito (texto): um grupo de cada vez, conforme a ferramenta */
+	widthGroup_ = new QWidget(panel_);
+	auto *widthRow = new QHBoxLayout(widthGroup_);
+	widthRow->setContentsMargins(0, 0, 0, 0);
+	widthRow->setSpacing(2);
 	for (int width : kWidths) {
-		QToolButton *button = makeButton(panel_, QTStr("Voltz.Draw.Width").arg(width));
+		QToolButton *button = makeButton(widthGroup_, QTStr("Voltz.Draw.Width").arg(width));
 		button->setCheckable(true);
 		button->setIcon(widthIcon(width));
 		connect(button, &QToolButton::clicked, this, [this, width]() { emit widthChosen(width); });
 		widths_.append(qMakePair(button, width));
-		row->addWidget(button);
+		widthRow->addWidget(button);
 	}
-	row->addWidget(separator());
+	row->addWidget(widthGroup_);
+	textGroup_ = new QWidget(panel_);
+	auto *textRow = new QHBoxLayout(textGroup_);
+	textRow->setContentsMargins(0, 0, 0, 0);
+	textRow->setSpacing(2);
+	for (int i = 0; i < static_cast<int>(std::size(kTextSizes)); i++) {
+		const int size = kTextSizes[i];
+		QToolButton *button = makeButton(textGroup_, QTStr("Voltz.Draw.TextSize").arg(size));
+		button->setCheckable(true);
+		button->setIcon(textSizeIcon(i));
+		connect(button, &QToolButton::clicked, this, [this, size]() { emit textSizeChosen(size); });
+		textSizes_.append(qMakePair(button, size));
+		textRow->addWidget(button);
+	}
+	bold_ = makeButton(textGroup_, QTStr("Voltz.Draw.Bold"));
+	bold_->setCheckable(true);
+	bold_->setIcon(
+		voltz::phosphorToggleIcon(QStringLiteral("text-b"), voltz::palette::kText, voltz::palette::kAccent));
+	connect(bold_, &QToolButton::clicked, this,
+		[this](bool on) { emit textFontChosen(on ? TextFont::Bold : TextFont::Regular); });
+	textRow->addWidget(bold_);
+	textGroup_->hide();
+	row->addWidget(textGroup_);
+	row->addWidget(separator(panel_));
 
 	QToolButton *undo = makeButton(panel_, QTStr("Voltz.Draw.Undo"));
 	undo->setIcon(voltz::phosphorIcon(QStringLiteral("arrow-counter-clockwise"), voltz::palette::kText));
@@ -236,7 +299,7 @@ DrawToolbar::DrawToolbar(QWidget *parent)
 	clear->setIcon(voltz::phosphorIcon(QStringLiteral("trash"), voltz::palette::kText));
 	connect(clear, &QToolButton::clicked, this, [this]() { emit clearClicked(); });
 	row->addWidget(clear);
-	row->addWidget(separator());
+	row->addWidget(separator(panel_));
 
 	fade_ = makeButton(panel_, QString());
 	fade_->setObjectName("fadeButton");
@@ -251,28 +314,42 @@ DrawToolbar::DrawToolbar(QWidget *parent)
 		emit fadeChosen(*next);
 	});
 	row->addWidget(fade_);
-	row->addWidget(separator());
+	row->addWidget(separator(panel_));
 
 	exit_ = makeButton(panel_, QString());
 	exit_->setIcon(voltz::phosphorIcon(QStringLiteral("x"), voltz::palette::kText));
 	connect(exit_, &QToolButton::clicked, this, [this]() { emit exitClicked(); });
 	row->addWidget(exit_);
-	setExitHint(QStringLiteral("Ctrl + Shift + D"));
 
+	/* "mais cores": as 8 cores, a cor personalizada e, aberto por ela, o seletor completo */
 	extraColors_ = new QWidget(panel_);
-	auto *extraRow = new QHBoxLayout(extraColors_);
-	extraRow->setContentsMargins(0, 0, 0, 0);
+	auto *extraColumn = new QVBoxLayout(extraColors_);
+	extraColumn->setContentsMargins(0, 0, 0, 0);
+	extraColumn->setSpacing(6);
+	auto *extraRow = new QHBoxLayout();
 	extraRow->setSpacing(2);
 	for (const RgbColor &color : kMoreColors) {
-		extraRow->addWidget(addColor(color));
+		extraRow->addWidget(addColor(extraColors_, color));
 	}
+	customColor_ = makeButton(extraColors_, QTStr("Voltz.Draw.CustomColor"));
+	customColor_->setCheckable(true);
+	extraRow->addWidget(customColor_);
 	extraRow->addStretch(1);
+	extraColumn->addLayout(extraRow);
+	picker_ = new ColorPicker(extraColors_);
+	picker_->hide();
+	extraColumn->addWidget(picker_, 0, Qt::AlignLeft);
 	extraColors_->hide();
 	column->addWidget(extraColors_);
 	connect(moreColors_, &QToolButton::toggled, this, [this](bool on) {
 		extraColors_->setVisible(on);
 		resizeAndRecenter();
 	});
+	connect(customColor_, &QToolButton::toggled, this, [this](bool on) {
+		picker_->setVisible(on);
+		resizeAndRecenter();
+	});
+	connect(picker_, &ColorPicker::colorPicked, this, [this](RgbColor color) { emit colorChosen(color); });
 
 	burned_ = new QLabel(QTStr("Voltz.Draw.Burned"), panel_);
 	burned_->setObjectName("drawBurned");
@@ -280,6 +357,13 @@ DrawToolbar::DrawToolbar(QWidget *parent)
 	burned_->hide();
 	column->addWidget(burned_);
 
+	/* linha de dica: o que o botão sob o mouse faz ou, sem botão, como sair (ou digitar) */
+	hint_ = new QLabel(panel_);
+	hint_->setObjectName("drawHint");
+	hint_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+	column->addWidget(hint_);
+
+	setExitHint(QStringLiteral("Ctrl + Shift + D"));
 	setAnnotationStyle(AnnotationStyle{});
 }
 
@@ -289,28 +373,39 @@ QToolButton *DrawToolbar::makeButton(QWidget *parent, const QString &hint)
 	button->setFocusPolicy(Qt::NoFocus);
 	button->setIconSize(QSize(20, 20));
 	button->setAutoRaise(true);
+	button->installEventFilter(this); /* a dica vai para a linha de dica */
 	if (!hint.isEmpty()) {
 		voltz::setButtonHint(button, hint);
 	}
 	return button;
 }
 
-QToolButton *DrawToolbar::addColor(const RgbColor &color)
+QToolButton *DrawToolbar::addColor(QWidget *parent, const RgbColor &color)
 {
 	QToolButton *button =
-		makeButton(panel_, QTStr("Voltz.Draw.Color").arg(QString::fromStdString(voltz::formatHexColor(color))));
+		makeButton(parent, QTStr("Voltz.Draw.Color").arg(QString::fromStdString(voltz::formatHexColor(color))));
 	button->setIcon(swatchIcon(color, false));
 	connect(button, &QToolButton::clicked, this, [this, color]() { emit colorChosen(color); });
 	colors_.append(qMakePair(button, color));
 	return button;
 }
 
-QFrame *DrawToolbar::separator()
+QFrame *DrawToolbar::separator(QWidget *parent)
 {
-	auto *line = new QFrame(panel_);
+	auto *line = new QFrame(parent);
 	line->setObjectName("drawSeparator");
 	line->setFixedWidth(1);
 	return line;
+}
+
+bool DrawToolbar::eventFilter(QObject *watched, QEvent *event)
+{
+	if (event->type() == QEvent::Enter || event->type() == QEvent::Leave) {
+		auto *button = qobject_cast<QToolButton *>(watched);
+		hovered_ = (event->type() == QEvent::Enter && button) ? button->toolTip() : QString();
+		updateHint();
+	}
+	return QWidget::eventFilter(watched, event);
 }
 
 void DrawToolbar::setAnnotationStyle(const AnnotationStyle &style)
@@ -320,10 +415,22 @@ void DrawToolbar::setAnnotationStyle(const AnnotationStyle &style)
 		button->setChecked(true);
 	}
 	markColor(style.color);
+	picker_->setColor(style.color);
 	for (const auto &entry : widths_) {
 		entry.first->setChecked(entry.second == style.width);
 	}
+	for (const auto &entry : textSizes_) {
+		entry.first->setChecked(entry.second == style.textSize);
+	}
+	bold_->setChecked(style.textFont == TextFont::Bold);
+	const bool text = style.tool == AnnotationTool::Text;
+	if (textGroup_->isHidden() == text) {
+		widthGroup_->setVisible(!text);
+		textGroup_->setVisible(text);
+		resizeAndRecenter();
+	}
 	updateFadeText();
+	updateHint();
 }
 
 void DrawToolbar::markColor(const RgbColor &color)
@@ -331,9 +438,13 @@ void DrawToolbar::markColor(const RgbColor &color)
 	for (const auto &entry : colors_) {
 		entry.first->setIcon(swatchIcon(entry.second, entry.second == color));
 	}
-	/* a cor marcada é uma das 8 extras: abre a linha delas para a marca ficar à vista */
+	/* cor fora da paleta: o botão da cor personalizada mostra a cor, marcada; senão, o conta-gotas */
+	const bool custom = !inPalette(color);
+	customColor_->setIcon(custom ? swatchIcon(color, true)
+				     : voltz::phosphorIcon(QStringLiteral("eyedropper"), voltz::palette::kText));
+	/* a cor marcada é uma das 8 extras (ou a personalizada): abre a linha delas para a marca ficar à vista */
 	const bool extra = std::find(std::begin(kMoreColors), std::end(kMoreColors), color) != std::end(kMoreColors);
-	if (extra && !moreColors_->isChecked()) {
+	if ((extra || custom) && !moreColors_->isChecked()) {
 		moreColors_->setChecked(true);
 	}
 }
@@ -344,6 +455,23 @@ void DrawToolbar::updateFadeText()
 						     : QTStr("Voltz.Draw.Fade.Never");
 	fade_->setText(value);
 	voltz::setButtonHint(fade_, QTStr("Voltz.Draw.Fade").arg(value));
+}
+
+void DrawToolbar::updateHint()
+{
+	if (!hovered_.isEmpty()) {
+		hint_->setText(hovered_);
+	} else if (style_.tool == AnnotationTool::Text) {
+		hint_->setText(QTStr("Voltz.Draw.Hint.Text"));
+	} else {
+		hint_->setText(QTStr("Voltz.Draw.Hint.Exit").arg(shortcut_));
+	}
+}
+
+void DrawToolbar::showColorPicker(bool show)
+{
+	moreColors_->setChecked(show || moreColors_->isChecked());
+	customColor_->setChecked(show);
 }
 
 void DrawToolbar::setBurned(bool burned)
@@ -370,7 +498,9 @@ void DrawToolbar::placeOn(QScreen *target)
 
 void DrawToolbar::setExitHint(const QString &shortcut)
 {
+	shortcut_ = shortcut;
 	voltz::setButtonHint(exit_, QTStr("Voltz.Draw.Exit").arg(shortcut));
+	updateHint();
 }
 
 void DrawToolbar::showOnScreen(const QString &deviceName, bool excludeFromCapture)

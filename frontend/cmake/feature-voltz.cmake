@@ -35,6 +35,8 @@ target_sources(
     voltz/annotate/AnnotationController.hpp
     voltz/annotate/AnnotationTestVendor.cpp
     voltz/annotate/AnnotationTestVendor.hpp
+    voltz/annotate/ColorPicker.cpp
+    voltz/annotate/ColorPicker.hpp
     voltz/annotate/DrawInputWindow.cpp
     voltz/annotate/DrawInputWindow.hpp
     voltz/annotate/DrawModeController.cpp

@@ -19,6 +19,7 @@ target_sources(
     test-disk-space.cpp
     test-draw-session.cpp
     test-draw-text.cpp
+    test-hotkey-bindings.cpp
     test-iso-encoders.cpp
     test-mouse-effects.cpp
     test-mouse-style.cpp

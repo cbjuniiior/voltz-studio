@@ -18,6 +18,7 @@ target_sources(
     cursor-track.cpp
     disk-space.cpp
     draw-session.cpp
+    hotkey-bindings.cpp
     iso-encoders.cpp
     mouse-effects.cpp
     mouse-style.cpp
@@ -47,6 +48,7 @@ target_sources(
     cursor-track.hpp
     disk-space.hpp
     draw-session.hpp
+    hotkey-bindings.hpp
     iso-encoders.hpp
     live-protocol.hpp
     mouse-effects.hpp

@@ -65,6 +65,8 @@ target_sources(
     voltz/shell/ErrorBanner.hpp
     voltz/shell/ExitDialog.cpp
     voltz/shell/ExitDialog.hpp
+    voltz/shell/FormFields.cpp
+    voltz/shell/FormFields.hpp
     voltz/shell/FrontendBridge.cpp
     voltz/shell/FrontendBridge.hpp
     voltz/shell/HotkeyBinding.cpp

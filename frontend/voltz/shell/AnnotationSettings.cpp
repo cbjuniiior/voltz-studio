@@ -1,5 +1,6 @@
 #include "AnnotationSettings.hpp"
 
+#include "FormFields.hpp"
 #include "Icons.hpp"
 
 #include <voltz/annotate/AnnotationController.hpp>
@@ -24,6 +25,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <initializer_list>
 #include <iterator>
 
 namespace voltz {
@@ -31,6 +33,12 @@ namespace voltz {
 namespace {
 
 constexpr int kFadeChoices[] = {0, 3, 5, 10, 30, 60};
+
+bool isFadeChoice(int seconds)
+{
+	return std::find(std::begin(kFadeChoices), std::end(kFadeChoices), seconds) != std::end(kFadeChoices);
+}
+
 // Texto da prévia, nunca maior que isto (pixels lógicos), para caber.
 constexpr int kPreviewTextMax = 40;
 
@@ -209,6 +217,7 @@ AnnotationSettingsSection::AnnotationSettingsSection(AnnotationController *annot
 		line->addWidget(value);
 		grid->addWidget(formLabel(label), row, 0, Qt::AlignLeft | Qt::AlignVCenter);
 		grid->addLayout(line, row, 1);
+		grid->setRowMinimumHeight(row, kFormRowHeight); /* a altura das linhas de caixa */
 		row++;
 	};
 	addRow(QTStr("Voltz.Annot.Tool"), tool_);
@@ -217,6 +226,9 @@ AnnotationSettingsSection::AnnotationSettingsSection(AnnotationController *annot
 	addValueRow(QTStr("Voltz.Annot.TextSize"), textSize_, textSizeValue_);
 	addRow(QTStr("Voltz.Annot.TextFont"), font_);
 	addRow(QTStr("Voltz.Annot.Fade"), fade_);
+	for (QWidget *field : std::initializer_list<QWidget *>{tool_, width_, textSize_, font_, fade_}) {
+		guardWheel(field); /* a roda sem foco rola a página de Ajustes e não muda o estilo */
+	}
 
 	preview_ = new AnnotationPreview(this);
 	auto *columns = new QHBoxLayout();
@@ -274,11 +286,20 @@ void AnnotationSettingsSection::updateValueLabels()
 
 void AnnotationSettingsSection::selectFade(int seconds)
 {
+	/* valor de antes (ou do user.ini) fora da lista: entra na lista, em ordem, e só um por vez (sai o anterior) */
+	for (int i = fade_->count() - 1; i >= 0; i--) {
+		const int value = fade_->itemData(i).toInt();
+		if (value != seconds && !isFadeChoice(value)) {
+			fade_->removeItem(i);
+		}
+	}
 	int index = fade_->findData(seconds);
 	if (index < 0) {
-		/* valor de antes (ou do user.ini) fora da lista: entra na lista */
-		fade_->addItem(QTStr("Voltz.Annot.Fade.Seconds").arg(seconds), seconds);
-		index = fade_->count() - 1;
+		index = 0;
+		while (index < fade_->count() && fade_->itemData(index).toInt() < seconds) {
+			index++;
+		}
+		fade_->insertItem(index, QTStr("Voltz.Annot.Fade.Seconds").arg(seconds), seconds);
 	}
 	fade_->setCurrentIndex(index);
 }

@@ -1,5 +1,6 @@
 #include "MouseSettings.hpp"
 
+#include "FormFields.hpp"
 #include "MousePreview.hpp"
 #include "MouseStyleStore.hpp"
 
@@ -76,6 +77,7 @@ MouseSettingsSection::MouseSettingsSection(MouseStyleStore *store, QWidget *pare
 	haloOpacityValue_ = new QLabel(this);
 	haloShape_ = new QComboBox(this);
 	haloShape_->setAccessibleName(QTStr("Voltz.Mouse.Shape"));
+	guardWheel(haloShape_);
 	haloShape_->addItem(QTStr("Voltz.Mouse.Shape.Filled"), static_cast<int>(HaloShape::Filled));
 	haloShape_->addItem(QTStr("Voltz.Mouse.Shape.Ring"), static_cast<int>(HaloShape::Ring));
 	clickActive_ = new QCheckBox(QTStr("Voltz.Mouse.ClickShow"), this);
@@ -109,6 +111,7 @@ MouseSettingsSection::MouseSettingsSection(MouseStyleStore *store, QWidget *pare
 		line->addWidget(value);
 		grid->addWidget(formLabel(label), row, 0, Qt::AlignLeft | Qt::AlignVCenter);
 		grid->addLayout(line, row, 1);
+		grid->setRowMinimumHeight(row, kFormRowHeight); /* a altura das linhas de caixa */
 		row++;
 	};
 	addRow(QTStr("Voltz.Mouse.Halo"), haloActive_);
@@ -137,6 +140,7 @@ MouseSettingsSection::MouseSettingsSection(MouseStyleStore *store, QWidget *pare
 
 	saved_ = new QComboBox(this);
 	saved_->setAccessibleName(QTStr("Voltz.Mouse.Styles"));
+	guardWheel(saved_);
 	applySaved_ = new QPushButton(QTStr("Voltz.Mouse.StyleApply"), this);
 	auto *saveButton = new QPushButton(QTStr("Voltz.Mouse.StyleSave"), this);
 	removeSaved_ = new QPushButton(QTStr("Voltz.Mouse.StyleDelete"), this);
@@ -205,6 +209,7 @@ QSlider *MouseSettingsSection::makeSlider(int minimum, int maximum, const QStrin
 	slider->setRange(minimum, maximum);
 	slider->setAccessibleName(accessibleName);
 	slider->setMinimumWidth(160);
+	guardWheel(slider);
 	return slider;
 }
 

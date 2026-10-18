@@ -6,6 +6,7 @@
 #include <voltz/core/atomic-file.hpp>
 #include <voltz/core/disk-space.hpp>
 #include <voltz/core/project-naming.hpp>
+#include <voltz/shell/HotkeyBinding.hpp>
 #include <voltz/shell/MouseStyleStore.hpp>
 #include <voltz/shell/SharedSources.hpp>
 
@@ -580,25 +581,8 @@ void ProjectRecorder::loadHotkeyBinding()
 	if (markerHotkey_ == OBS_INVALID_HOTKEY_ID) {
 		return;
 	}
-	/* Mesmo formato do OBS (OBSBasic::InitHotkeys / OBSBasicSettings::SaveHotkeySettings): perfil
-	 * [Hotkeys] <nome> = {"bindings":[...]}. Nada salvo: Ctrl+Shift+M. Lista vazia salva = sem atalho. */
-	config_t *profile = obs_frontend_get_profile_config();
-	const char *json = profile ? config_get_string(profile, "Hotkeys", kMarkerHotkeyName) : nullptr;
-	OBSDataArrayAutoRelease bindings;
-	if (json && *json) {
-		OBSDataAutoRelease data = obs_data_create_from_json(json);
-		if (data) {
-			bindings = obs_data_get_array(data, "bindings");
-		}
-	} else {
-		bindings = obs_data_array_create();
-		OBSDataAutoRelease combo = obs_data_create();
-		obs_data_set_bool(combo, "control", true);
-		obs_data_set_bool(combo, "shift", true);
-		obs_data_set_string(combo, "key", "OBS_KEY_M");
-		obs_data_array_push_back(bindings, combo);
-	}
-	obs_hotkey_load(markerHotkey_, bindings);
+	/* perfil [Hotkeys] (formato do OBS); nada salvo: Ctrl+Shift+M (tabela do núcleo, hotkey-bindings) */
+	voltz::loadHotkeyBinding(markerHotkey_, kMarkerHotkeyName);
 }
 
 void ProjectRecorder::unregisterHotkey()

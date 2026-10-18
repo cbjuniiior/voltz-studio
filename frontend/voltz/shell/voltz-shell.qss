@@ -529,3 +529,25 @@
 	padding: 5px 12px;
 	text-align: left;
 }
+
+/* Ajustes › Atalhos (Plano 4D): o campo de teclas do OBS (OBSHotkeyEdit) e o aviso de cada atalho */
+#voltzShell QLineEdit#hotkeyEdit {
+	background: #18181C;
+	color: #F2F2F3;
+	border: 1px solid #1F1F24;
+	border-radius: 8px;
+	padding: 5px 10px;
+	min-width: 200px;
+}
+
+#voltzShell QLineEdit#hotkeyEdit:focus {
+	border-color: #D4F53C;
+}
+
+#voltzShell QLabel#hotkeyStatus {
+	color: #82828C;
+}
+
+#voltzShell QLabel#hotkeyStatus[warn="true"] {
+	color: #F5C83C;
+}

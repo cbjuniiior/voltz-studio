@@ -452,12 +452,13 @@ void DrawModeController::registerHotkeys()
 
 void DrawModeController::loadHotkeyBindings()
 {
-	/* Desfazer e limpar sem tecla padrão: atalhos do OBS não consomem a tecla (Ctrl+Shift+Z iria também para o app em
-	 * uso). Dentro do modo desenho, Ctrl+Z desfaz pela janela de entrada. */
-	voltz::loadHotkeyBinding(drawHotkey_, kDrawHotkeyName, "OBS_KEY_D");
-	voltz::loadHotkeyBinding(undoHotkey_, kUndoHotkeyName, nullptr);
-	voltz::loadHotkeyBinding(clearHotkey_, kClearHotkeyName, nullptr);
-	voltz::loadHotkeyBinding(freezeHotkey_, kFreezeHotkeyName, "OBS_KEY_F12");
+	/* Padrões na tabela do núcleo (hotkey-bindings): Ctrl+Shift+D e Ctrl+Shift+F12; desfazer e limpar sem tecla —
+	 * atalhos do OBS não consomem a tecla (Ctrl+Shift+Z iria também para o app em uso). Dentro do modo desenho, Ctrl+Z
+	 * desfaz pela janela de entrada. */
+	voltz::loadHotkeyBinding(drawHotkey_, kDrawHotkeyName);
+	voltz::loadHotkeyBinding(undoHotkey_, kUndoHotkeyName);
+	voltz::loadHotkeyBinding(clearHotkey_, kClearHotkeyName);
+	voltz::loadHotkeyBinding(freezeHotkey_, kFreezeHotkeyName);
 }
 
 void DrawModeController::unregisterHotkeys()

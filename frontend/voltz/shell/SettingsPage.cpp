@@ -2,6 +2,7 @@
 
 #include "DeviceSelector.hpp"
 #include "FrontendBridge.hpp"
+#include "HotkeySettings.hpp"
 #include "MouseSettings.hpp"
 #include "RecordingConfig.hpp"
 #include "SharedSources.hpp"
@@ -158,6 +159,9 @@ SettingsPage::SettingsPage(FrontendBridge *bridge, MouseStyleStore *mouseStyles,
 	mouse_ = new MouseSettingsSection(mouseStyles, content);
 	formLabels_.append(mouse_->formLabels());
 	sections_->addWidget(mouse_);
+	hotkeys_ = new HotkeySettingsSection(content);
+	formLabels_.append(hotkeys_->formLabels());
+	sections_->addWidget(hotkeys_);
 	sections_->addWidget(buildAboutSection());
 	sections_->addStretch(1);
 
@@ -376,6 +380,7 @@ void SettingsPage::showEvent(QShowEvent *event)
 	camera_->reload();
 	microphone_->reload();
 	mouse_->reload();
+	hotkeys_->reload(); /* podem ter mudado nas Configurações do OBS ou com a troca de perfil */
 	{
 		/* Pode ter mudado pelas Configurações do OBS: relê sem disparar o toggled. */
 		const QSignalBlocker blocker(hideFromCapture_);

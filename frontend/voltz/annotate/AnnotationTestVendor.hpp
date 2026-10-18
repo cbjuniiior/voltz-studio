@@ -20,7 +20,9 @@ class AnnotationController;
 //   "texto", e o seletor de cor aberto com "seletor":true) e o aviso de "queimadas" se o controlador está queimado ou se
 //   "queimadas" vem true (só no desenho; nada muda no controlador) (janela_nativa tem de ser false: nenhuma janela nasce);
 //   AnnotationState → {"estado": texto JSON publicado pelo AnnotationController (republicado na thread da UI antes de
-//   responder, até 2 s), "ok"}.
+//   responder, até 2 s), "ok"};
+//   HotkeyState → {"atalhos": texto JSON {"VoltzStudio.Draw":{"bindings":[...]},...} com as teclas de agora de cada
+//   atalho do Voltz registrado (lidas na thread da UI, até 2 s)}.
 // O callback roda na thread do websocket, sem lock do obs-websocket: os pedidos que mudam algo são ENFILEIRADOS para a
 // thread da UI e respondem na hora (quem testa espera ~400 ms antes de ler o estado). Nada mexe no mouse nem no teclado.
 class AnnotationTestVendor {

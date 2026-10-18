@@ -67,6 +67,8 @@ target_sources(
     voltz/shell/FrontendBridge.hpp
     voltz/shell/HotkeyBinding.cpp
     voltz/shell/HotkeyBinding.hpp
+    voltz/shell/HotkeySettings.cpp
+    voltz/shell/HotkeySettings.hpp
     voltz/shell/Icons.cpp
     voltz/shell/Icons.hpp
     voltz/shell/MousePreview.cpp

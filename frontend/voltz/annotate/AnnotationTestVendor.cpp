@@ -3,7 +3,9 @@
 #include "DrawToolbar.hpp"
 
 #include <voltz/core/annotation-model.hpp>
+#include <voltz/core/hotkey-bindings.hpp>
 #include <voltz/core/live-protocol.hpp>
+#include <voltz/shell/HotkeyBinding.hpp>
 
 #include <obs-websocket-api.h>
 
@@ -33,7 +35,7 @@ obs_websocket_vendor gVendor = nullptr;  // só na thread da UI
 constexpr const char *kRequests[] = {"InjectStroke", "ExtendStroke", "EndStroke",       "UndoStroke",
 				     "ClearStrokes", "ProbeOverlay", "InjectText",      "TypeText",
 				     "CommitText",   "CancelText",   "AnnotationState", "SetAnnotationStyle",
-				     "ToolbarImage"};
+				     "ToolbarImage", "HotkeyState"};
 
 // Entrega `work` na thread da UI sem esperar; falso se o controlador já saiu (EXIT). O mutex é segurado enquanto o evento
 // é postado: o stop() (que anula gTarget antes de o controlador morrer) espera; evento de objeto destruído o Qt descarta.
@@ -203,6 +205,37 @@ void toolbarImage(obs_data_t *request, obs_data_t *response, void *)
 	obs_data_set_bool(response, "ok", ok);
 }
 
+void hotkeyState(obs_data_t *, obs_data_t *response, void *)
+{
+	auto text = std::make_shared<std::string>();
+	auto done = std::make_shared<std::promise<void>>();
+	std::future<void> ready = done->get_future();
+	bool ok = post([text, done](AnnotationController *) {
+		std::string json = "{";
+		for (const VoltzHotkey &hotkey : voltzHotkeys()) {
+			const obs_hotkey_id id = findHotkey(hotkey.name);
+			if (id == OBS_INVALID_HOTKEY_ID) {
+				continue;
+			}
+			if (json.size() > 1) {
+				json += ',';
+			}
+			json += std::string("\"") + hotkey.name +
+				"\":" + hotkeyBindingsToJson(currentHotkeyBindings(id));
+		}
+		*text = json + "}";
+		done->set_value();
+	});
+	if (ok) {
+		done.reset();
+		ok = ready.wait_for(std::chrono::seconds(2)) == std::future_status::ready;
+	}
+	if (ok) {
+		obs_data_set_string(response, "atalhos", text->c_str());
+	}
+	obs_data_set_bool(response, "ok", ok);
+}
+
 void annotationState(obs_data_t *, obs_data_t *response, void *)
 {
 	/* Republica o estado na thread da UI antes de responder (a captura pode ter mudado sem traço novo) e espera até
@@ -249,6 +282,7 @@ void AnnotationTestVendor::start(AnnotationController *controller)
 	obs_websocket_vendor_register_request(gVendor, "AnnotationState", annotationState, nullptr);
 	obs_websocket_vendor_register_request(gVendor, "SetAnnotationStyle", setAnnotationStyle, nullptr);
 	obs_websocket_vendor_register_request(gVendor, "ToolbarImage", toolbarImage, nullptr);
+	obs_websocket_vendor_register_request(gVendor, "HotkeyState", hotkeyState, nullptr);
 	blog(LOG_WARNING, "[voltz] modo de teste (%s): pedidos '%s' ligados", live::kTestEnv, live::kTestVendorShell);
 }
 

@@ -15,10 +15,11 @@ namespace voltz {
 class DeviceSelector;
 class ElidedLabel;
 class FrontendBridge;
+class HotkeySettingsSection;
 class MouseSettingsSection;
 class MouseStyleStore;
 
-// Tela "Ajustes": Gravação, Captura, Mouse (destaque do mouse) e Sobre.
+// Tela "Ajustes": Gravação, Captura, Mouse (destaque do mouse), Atalhos e Sobre.
 // Aplica cada mudança na hora; trava a seção Gravação enquanto grava.
 class SettingsPage : public QWidget {
 	Q_OBJECT
@@ -55,6 +56,7 @@ private:
 	QLabel *captureHint_ = nullptr;
 	QCheckBox *hideFromCapture_ = nullptr;
 	MouseSettingsSection *mouse_ = nullptr;
+	HotkeySettingsSection *hotkeys_ = nullptr;
 	// Rótulos dos formulários de todas as seções: recebem a mesma largura para alinhar as colunas dos campos.
 	QList<QLabel *> formLabels_;
 	bool loading_ = false;

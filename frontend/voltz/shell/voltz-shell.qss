@@ -557,3 +557,12 @@
 #voltzShell QLabel#hotkeyStatus[warn="true"] {
 	color: #F5C83C;
 }
+
+/* Ajustes › Anotações (Plano 4D): estado das anotações (fora da gravação da tela; "queimadas" e fonte em amarelo) */
+#voltzShell QLabel#annotStatus {
+	color: #82828C;
+}
+
+#voltzShell QLabel#annotStatus[warn="true"] {
+	color: #F5C83C;
+}

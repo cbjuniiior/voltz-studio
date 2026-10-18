@@ -57,6 +57,8 @@ target_sources(
     voltz/project/ProjectLibrary.hpp
     voltz/project/ProjectRecorder.cpp
     voltz/project/ProjectRecorder.hpp
+    voltz/shell/AnnotationSettings.cpp
+    voltz/shell/AnnotationSettings.hpp
     voltz/shell/AudioPanel.cpp
     voltz/shell/AudioPanel.hpp
     voltz/shell/ErrorBanner.cpp

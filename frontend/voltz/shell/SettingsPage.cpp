@@ -1,5 +1,6 @@
 #include "SettingsPage.hpp"
 
+#include "AnnotationSettings.hpp"
 #include "DeviceSelector.hpp"
 #include "FrontendBridge.hpp"
 #include "HotkeySettings.hpp"
@@ -142,7 +143,8 @@ private:
 	QString fullText_;
 };
 
-SettingsPage::SettingsPage(FrontendBridge *bridge, MouseStyleStore *mouseStyles, QWidget *parent)
+SettingsPage::SettingsPage(FrontendBridge *bridge, MouseStyleStore *mouseStyles, AnnotationController *annotations,
+			   DrawModeController *drawMode, QWidget *parent)
 	: QWidget(parent),
 	  bridge_(bridge)
 {
@@ -159,6 +161,9 @@ SettingsPage::SettingsPage(FrontendBridge *bridge, MouseStyleStore *mouseStyles,
 	mouse_ = new MouseSettingsSection(mouseStyles, content);
 	formLabels_.append(mouse_->formLabels());
 	sections_->addWidget(mouse_);
+	annotations_ = new AnnotationSettingsSection(annotations, drawMode, content);
+	formLabels_.append(annotations_->formLabels());
+	sections_->addWidget(annotations_);
 	hotkeys_ = new HotkeySettingsSection(content);
 	formLabels_.append(hotkeys_->formLabels());
 	sections_->addWidget(hotkeys_);
@@ -380,7 +385,8 @@ void SettingsPage::showEvent(QShowEvent *event)
 	camera_->reload();
 	microphone_->reload();
 	mouse_->reload();
-	hotkeys_->reload(); /* podem ter mudado nas Configurações do OBS ou com a troca de perfil */
+	annotations_->reload(); /* o atalho de desenhar pode ter mudado */
+	hotkeys_->reload();     /* podem ter mudado nas Configurações do OBS ou com a troca de perfil */
 	{
 		/* Pode ter mudado pelas Configurações do OBS: relê sem disparar o toggled. */
 		const QSignalBlocker blocker(hideFromCapture_);

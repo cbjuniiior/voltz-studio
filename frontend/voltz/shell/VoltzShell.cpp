@@ -106,7 +106,7 @@ VoltzShell::VoltzShell(QWidget *parent) : QMainWindow(parent)
 	pages_->addWidget(new ProjectsPage(bridge_, recorder_, pages_));
 	auto *presets = new PresetsPage(pages_);
 	pages_->addWidget(presets);
-	pages_->addWidget(new SettingsPage(bridge_, mouseStyles_, pages_));
+	pages_->addWidget(new SettingsPage(bridge_, mouseStyles_, annotations_, drawMode_, pages_));
 
 	auto *central = new QWidget(this);
 	auto *layout = new QHBoxLayout(central);

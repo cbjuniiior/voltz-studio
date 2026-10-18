@@ -149,11 +149,32 @@ if (-not $ffprobe) {
         Select-Object -First 1 -ExpandProperty FullName
 }
 
-if (Test-Path $cfg) { Move-Item $cfg $bak }
-if (Test-Path $logDir) { Remove-Item -Recurse -Force $logDir }
-New-Item -ItemType Directory -Force $logDir | Out-Null
+# Passo de limpeza isolado: a falha de um nao impede os outros (a config portatil e restaurada de qualquer jeito)
+function Cleanup([string]$what, [scriptblock]$step) {
+    try { & $step } catch { Write-Host "FALHOU limpeza ($what): $($_.Exception.Message)"; Check "limpeza: $what ($($_.Exception.Message))" $false }
+}
+# Apaga a config de teste e devolve o backup SO se este script guardou a do usuario (ou ela nao existia)
+function Restore-Config {
+    if (-not $script:cfgOwned) { Write-Host "config portatil nao foi guardada por este script: nada apagado nem restaurado"; return }
+    Start-Sleep -Seconds 5
+    if (Test-Path $cfg) {
+        try { Remove-Item -Recurse -Force $cfg } catch { Start-Sleep -Seconds 5; Remove-Item -Recurse -Force $cfg }
+    }
+    if (Test-Path $bak) {
+        if (Test-Path $cfg) { throw "a config de teste nao saiu; backup mantido em $bak" }
+        Move-Item $bak $cfg
+    }
+}
+
+$script:cfgOwned = $false
 $proc = $null
 try {
+    # Backup dentro do try: qualquer falha daqui em diante ainda restaura a config no finally
+    if (Test-Path $cfg) { Move-Item $cfg $bak }
+    $script:cfgOwned = $true
+    if (Test-Path $logDir) { Remove-Item -Recurse -Force $logDir }
+    New-Item -ItemType Directory -Force $logDir | Out-Null
+
     # ---------------- Fase A: preset com substitutas, desenho e gravacao ----------------
     New-CleanConfig ("MouseStyle=$testStyle`r`nNextProjectName=Smoke mouse`r`n")
     New-Item -ItemType Directory -Force $OutDir | Out-Null
@@ -278,19 +299,22 @@ try {
 } catch {
     Check "sem excecao ($($_.Exception.Message))" $false
 } finally {
-    if ($proc -and -not $proc.HasExited) {
-        $proc.Refresh()
-        [void]$proc.CloseMainWindow()
-        if (-not $proc.WaitForExit(30000)) { Stop-Process -Id $proc.Id -Force }
+    Cleanup "fechar o app" {
+        if ($script:proc -and -not $script:proc.HasExited) {
+            $script:proc.Refresh()
+            [void]$script:proc.CloseMainWindow()
+            if (-not $script:proc.WaitForExit(30000)) { Stop-Process -Id $script:proc.Id -Force }
+        }
     }
-    Remove-Item Env:VOLTZ_TEST_LIVE, Env:VOLTZ_TEST_PRESET_STANDINS -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 5
-    if (Test-Path $cfg) { Remove-Item -Recurse -Force $cfg }
-    if (Test-Path $bak) { Move-Item $bak $cfg }
-    if (-not $Keep -and (Test-Path -LiteralPath $OutDir)) { Remove-Item -Recurse -Force -LiteralPath $OutDir; Write-Host "apagado: $OutDir" }
-    if (-not $hadVoltzVideos -and (Test-Path -LiteralPath $voltzVideos) -and -not (Get-ChildItem -Force -LiteralPath $voltzVideos)) {
-        Remove-Item -Force -LiteralPath $voltzVideos
-        Write-Host "apagado (vazio): $voltzVideos"
+    Cleanup "encerrar o PID lancado" { if ($script:proc -and -not $script:proc.HasExited) { Stop-Process -Id $script:proc.Id -Force; [void]$script:proc.WaitForExit(10000) } }
+    Cleanup "variaveis de teste" { Remove-Item Env:VOLTZ_TEST_LIVE, Env:VOLTZ_TEST_PRESET_STANDINS -ErrorAction SilentlyContinue }
+    Cleanup "restaurar a config portatil" { Restore-Config }
+    Cleanup "apagar -OutDir" { if (-not $Keep -and (Test-Path -LiteralPath $OutDir)) { Remove-Item -Recurse -Force -LiteralPath $OutDir; Write-Host "apagado: $OutDir" } }
+    Cleanup "Videos\Voltz Studio" {
+        if (-not $hadVoltzVideos -and (Test-Path -LiteralPath $voltzVideos) -and -not (Get-ChildItem -Force -LiteralPath $voltzVideos)) {
+            Remove-Item -Force -LiteralPath $voltzVideos
+            Write-Host "apagado (vazio): $voltzVideos"
+        }
     }
 }
 

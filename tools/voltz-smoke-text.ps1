@@ -391,14 +391,42 @@ function Profile-Ini {
     return [IO.File]::ReadAllText($ini.FullName, [Text.Encoding]::UTF8)
 }
 
-if (Test-Path $cfg) { Move-Item $cfg $bak }
-if (Test-Path $logDir) { Remove-Item -Recurse -Force $logDir }
-New-Item -ItemType Directory -Force $logDir | Out-Null
-New-Item -ItemType Directory -Force $OutDir | Out-Null
+# O log contem o texto? Bytes lidos como UTF-8 e como Windows-1252 (log gravado em ANSI); $false sem o arquivo
+function LogHasAnyEncoding([string]$tag, [string]$text) {
+    $file = Join-Path $logDir "$tag.txt"
+    if (-not (Test-Path -LiteralPath $file)) { return $false }
+    $bytes = [IO.File]::ReadAllBytes($file)
+    return ([Text.Encoding]::UTF8.GetString($bytes).Contains($text) -or [Text.Encoding]::GetEncoding(1252).GetString($bytes).Contains($text))
+}
+# Passo de limpeza isolado: a falha de um nao impede os outros (a config portatil e restaurada de qualquer jeito)
+function Cleanup([string]$what, [scriptblock]$step) {
+    try { & $step } catch { Write-Host "FALHOU limpeza ($what): $($_.Exception.Message)"; Check "limpeza: $what ($($_.Exception.Message))" $false }
+}
+# Apaga a config de teste e devolve o backup SO se este script guardou a do usuario (ou ela nao existia)
+function Restore-Config {
+    if (-not $script:cfgOwned) { Write-Host "config portatil nao foi guardada por este script: nada apagado nem restaurado"; return }
+    Start-Sleep -Seconds 5
+    if (Test-Path $cfg) {
+        try { Remove-Item -Recurse -Force $cfg } catch { Start-Sleep -Seconds 5; Remove-Item -Recurse -Force $cfg }
+    }
+    if (Test-Path $bak) {
+        if (Test-Path $cfg) { throw "a config de teste nao saiu; backup mantido em $bak" }
+        Move-Item $bak $cfg
+    }
+}
+
+$script:cfgOwned = $false
 $proc = $null
 $script:job = $null
 $textStyle = '{"ferr":"texto","cor":"#D4F53C","esp":4,"somem_apos_s":0,"tam":96,"fonte":"dm_sans_negrito"}'
 try {
+    # Backup dentro do try: qualquer falha daqui em diante ainda restaura a config no finally
+    if (Test-Path $cfg) { Move-Item $cfg $bak }
+    $script:cfgOwned = $true
+    if (Test-Path $logDir) { Remove-Item -Recurse -Force $logDir }
+    New-Item -ItemType Directory -Force $logDir | Out-Null
+    New-Item -ItemType Directory -Force $OutDir | Out-Null
+
     # ---------------- Fase A: texto ao vivo (sobreposicao 2560x1440, escala 1) e gravacao ----------------
     Set-TestRect 2560 1440
     New-CleanConfig "NextProjectName=Smoke texto`r`n"
@@ -490,7 +518,9 @@ try {
         Check "A: cancelado com algo tem t_limpo; o vazio nao entra" ($byText.ContainsKey("x") -and (Has $byText["x"] "t_limpo") -and -not $byText.ContainsKey(""))
     }
     Check "A: log - texto comecado/confirmado/cancelado" ((LogHas "A" "[voltz] anotacoes: texto comecado (tam 96, fonte dm_sans_negrito)") -and (LogHas "A" "[voltz] anotacoes: texto confirmado (12 caractere(s))") -and (LogHas "A" "[voltz] anotacoes: texto cancelado"))
-    Check "A: log sem o conteudo digitado (privacidade)" (-not (LogHas "A" "Aula 4D") -and -not (LogHas "A" "linha 2"))
+    $logA = Join-Path $logDir "A.txt"
+    $typedInLog = @(@("Aula 4D", "linha 2", "A${ccedil}${atilde}o 4D") | Where-Object { LogHasAnyEncoding "A" $_ })
+    Check "A: log existe e sem o conteudo digitado, nem acentuado em UTF-8/Windows-1252 (privacidade; achados: $($typedInLog -join ' | '))" ((Test-Path -LiteralPath $logA) -and $typedInLog.Count -eq 0)
     Check "A: log - o modo desenho nunca ligou" (-not (LogHas "A" "[voltz] modo desenho: ligado"))
 
     # ---------------- Fase B: Ajustes (atalhos e anotacoes) e a barra com o texto ----------------
@@ -526,16 +556,17 @@ try {
 } catch {
     Check "sem excecao ($($_.Exception.Message))" $false
 } finally {
-    if ($script:proc -and -not $script:proc.HasExited) { [void](Close-App "final") }
-    if ($script:job) { Stop-Watchdog "final" }
-    Remove-Item Env:VOLTZ_TEST_LIVE, Env:VOLTZ_TEST_PRESET_STANDINS, Env:VOLTZ_TEST_OVERLAY_RECT -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 5
-    if (Test-Path $cfg) { Remove-Item -Recurse -Force $cfg }
-    if (Test-Path $bak) { Move-Item $bak $cfg }
-    if (-not $Keep -and (Test-Path -LiteralPath $OutDir)) { Remove-Item -Recurse -Force -LiteralPath $OutDir; Write-Host "apagado: $OutDir" }
-    if (-not $hadVoltzVideos -and (Test-Path -LiteralPath $voltzVideos) -and -not (Get-ChildItem -Force -LiteralPath $voltzVideos)) {
-        Remove-Item -Force -LiteralPath $voltzVideos
-        Write-Host "apagado (vazio): $voltzVideos"
+    Cleanup "fechar o app" { if ($script:proc -and -not $script:proc.HasExited) { [void](Close-App "final") } }
+    Cleanup "encerrar o PID lancado" { if ($script:proc -and -not $script:proc.HasExited) { $script:forced++; Stop-Process -Id $script:proc.Id -Force; [void]$script:proc.WaitForExit(10000) } }
+    Cleanup "parar o vigia" { if ($script:job) { Stop-Watchdog "final" } }
+    Cleanup "variaveis de teste" { Remove-Item Env:VOLTZ_TEST_LIVE, Env:VOLTZ_TEST_PRESET_STANDINS, Env:VOLTZ_TEST_OVERLAY_RECT -ErrorAction SilentlyContinue }
+    Cleanup "restaurar a config portatil" { Restore-Config }
+    Cleanup "apagar -OutDir" { if (-not $Keep -and (Test-Path -LiteralPath $OutDir)) { Remove-Item -Recurse -Force -LiteralPath $OutDir; Write-Host "apagado: $OutDir" } }
+    Cleanup "Videos\Voltz Studio" {
+        if (-not $hadVoltzVideos -and (Test-Path -LiteralPath $voltzVideos) -and -not (Get-ChildItem -Force -LiteralPath $voltzVideos)) {
+            Remove-Item -Force -LiteralPath $voltzVideos
+            Write-Host "apagado (vazio): $voltzVideos"
+        }
     }
 }
 

@@ -336,12 +336,33 @@ function Apply-Preset([string]$tag) {
     Assert-DrawSafe "$tag preset"
 }
 
-if (Test-Path $cfg) { Move-Item $cfg $bak }
-if (Test-Path $logDir) { Remove-Item -Recurse -Force $logDir }
-New-Item -ItemType Directory -Force $logDir | Out-Null
+# Passo de limpeza isolado: a falha de um nao impede os outros (a config portatil e restaurada de qualquer jeito)
+function Cleanup([string]$what, [scriptblock]$step) {
+    try { & $step } catch { Write-Host "FALHOU limpeza ($what): $($_.Exception.Message)"; Check "limpeza: $what ($($_.Exception.Message))" $false }
+}
+# Apaga a config de teste e devolve o backup SO se este script guardou a do usuario (ou ela nao existia)
+function Restore-Config {
+    if (-not $script:cfgOwned) { Write-Host "config portatil nao foi guardada por este script: nada apagado nem restaurado"; return }
+    Start-Sleep -Seconds 5
+    if (Test-Path $cfg) {
+        try { Remove-Item -Recurse -Force $cfg } catch { Start-Sleep -Seconds 5; Remove-Item -Recurse -Force $cfg }
+    }
+    if (Test-Path $bak) {
+        if (Test-Path $cfg) { throw "a config de teste nao saiu; backup mantido em $bak" }
+        Move-Item $bak $cfg
+    }
+}
+
+$script:cfgOwned = $false
 $proc = $null
 $script:job = $null
 try {
+    # Backup dentro do try: qualquer falha daqui em diante ainda restaura a config no finally
+    if (Test-Path $cfg) { Move-Item $cfg $bak }
+    $script:cfgOwned = $true
+    if (Test-Path $logDir) { Remove-Item -Recurse -Force $logDir }
+    New-Item -ItemType Directory -Force $logDir | Out-Null
+
     # ---------------- Fase A: recusa, estilo, barra ----------------
     Set-TestRect 640 360
     New-CleanConfig
@@ -456,15 +477,16 @@ try {
 } catch {
     Check "sem excecao ($($_.Exception.Message))" $false
 } finally {
-    if ($script:proc -and -not $script:proc.HasExited) { [void](Close-App "final") }
-    if ($script:job) { Stop-Watchdog "final" }
-    Remove-Item Env:VOLTZ_TEST_LIVE, Env:VOLTZ_TEST_PRESET_STANDINS, Env:VOLTZ_TEST_OVERLAY_RECT, Env:VOLTZ_DEBUG_FREEZE_UI -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 5
-    if (Test-Path $cfg) { Remove-Item -Recurse -Force $cfg }
-    if (Test-Path $bak) { Move-Item $bak $cfg }
-    if (-not $hadVoltzVideos -and (Test-Path -LiteralPath $voltzVideos) -and -not (Get-ChildItem -Force -LiteralPath $voltzVideos)) {
-        Remove-Item -Force -LiteralPath $voltzVideos
-        Write-Host "apagado (vazio): $voltzVideos"
+    Cleanup "fechar o app" { if ($script:proc -and -not $script:proc.HasExited) { [void](Close-App "final") } }
+    Cleanup "encerrar o PID lancado" { if ($script:proc -and -not $script:proc.HasExited) { $script:forced++; Stop-Process -Id $script:proc.Id -Force; [void]$script:proc.WaitForExit(10000) } }
+    Cleanup "parar o vigia" { if ($script:job) { Stop-Watchdog "final" } }
+    Cleanup "variaveis de teste" { Remove-Item Env:VOLTZ_TEST_LIVE, Env:VOLTZ_TEST_PRESET_STANDINS, Env:VOLTZ_TEST_OVERLAY_RECT, Env:VOLTZ_DEBUG_FREEZE_UI -ErrorAction SilentlyContinue }
+    Cleanup "restaurar a config portatil" { Restore-Config }
+    Cleanup "Videos\Voltz Studio" {
+        if (-not $hadVoltzVideos -and (Test-Path -LiteralPath $voltzVideos) -and -not (Get-ChildItem -Force -LiteralPath $voltzVideos)) {
+            Remove-Item -Force -LiteralPath $voltzVideos
+            Write-Host "apagado (vazio): $voltzVideos"
+        }
     }
 }
 

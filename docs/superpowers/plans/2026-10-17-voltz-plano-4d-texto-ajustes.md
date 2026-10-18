@@ -7792,7 +7792,7 @@ if (-not (Test-Path $exe)) { Write-Host "FALHOU executavel nao encontrado: $exe"
 
 # Acentos montados por codigo: este arquivo e ASCII (o PowerShell 5.1 le .ps1 sem BOM como ANSI)
 $o = [string][char]0xF3; $a = [string][char]0xE2; $dash = [string][char]0x2014; $ccedil = [string][char]0xE7
-$atilde = [string][char]0xE3; $eacute = [string][char]0xE9
+$atilde = [string][char]0xE3; $eacute = [string][char]0xE9; $otilde = [string][char]0xF5
 $presetScreen = "S${o} tela / S${o} c${a}mera $dash Aplicar"
 $sceneScreen = "S${o} tela"
 $drawTitle = "Ligar/desligar modo desenho"
@@ -7800,7 +7800,7 @@ $clearDraw = "Limpar atalho $dash $drawTitle"
 $resetDraw = "Restaurar padr${atilde}o $dash $drawTitle"
 $editDraw = "Atalho $dash $drawTitle"
 $textSizeName = "Tamanho do texto"
-$previewName = "Pr${eacute}via das anota${ccedil}${o}es"
+$previewName = "Pr${eacute}via das anota${ccedil}${otilde}es"
 $accentText = "A${ccedil}${atilde}o 4D`nlinha 2"
 
 $cfg = Join-Path $rundir "config"

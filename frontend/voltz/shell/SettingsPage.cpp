@@ -2,6 +2,7 @@
 
 #include "AnnotationSettings.hpp"
 #include "DeviceSelector.hpp"
+#include "FormFields.hpp"
 #include "FrontendBridge.hpp"
 #include "HotkeySettings.hpp"
 #include "MouseSettings.hpp"
@@ -35,6 +36,7 @@
 #include <QWindow>
 
 #include <algorithm>
+#include <initializer_list>
 
 #include "moc_SettingsPage.cpp"
 
@@ -244,6 +246,8 @@ QFrame *SettingsPage::buildRecordingSection()
 	quality_ = new QComboBox(recording_);
 	quality_->addItem(QTStr("Voltz.Settings.Quality.High"), int(RecordingQuality::High));
 	quality_->addItem(QTStr("Voltz.Settings.Quality.Compact"), int(RecordingQuality::Compact));
+	guardWheel(format_); /* a roda sem foco rola a página e não troca a gravação */
+	guardWheel(quality_);
 
 	encoder_ = new QLabel(recording_);
 	encoder_->setObjectName("muted");
@@ -304,6 +308,9 @@ QFrame *SettingsPage::buildCaptureSection()
 			return OBSSource(mic.Get());
 		},
 		"device_id", section);
+	for (DeviceSelector *selector : {monitor_, camera_, microphone_}) {
+		guardWheel(selector); /* a roda sem foco rola a página e não troca o dispositivo */
+	}
 
 	captureHint_ = new QLabel(QTStr("Voltz.Settings.NoSource"), section);
 	captureHint_->setObjectName("muted");

@@ -50,14 +50,17 @@ public:
 	void undo();
 	void clear();
 	// Texto (Plano 4D). Começa um texto VAZIO na âncora (pixels da captura) com a cor, o tamanho e a fonte do estilo
-	// (termina antes o traço em andamento); a sobreposição mostra o cursor. Devolve o id (0 se desligado).
+	// (termina antes o traço em andamento); a sobreposição mostra o cursor. O plugin só recebe o texto quando há algo a
+	// mostrar (updateText). Devolve o id (0 se desligado).
 	int beginText(const StrokePoint &anchor);
 	// Troca o texto em andamento (limpo e limitado pelo núcleo): o plugin recebe o traço inteiro de novo e a sobreposição
 	// redesenha o antes ∪ o depois (com o cursor).
 	void updateText(const std::string &text);
-	// Confirma o texto em andamento: vira um traço terminado (diário, "somem após"). Vazio = cancelText.
+	// Confirma o texto em andamento: vira um traço terminado (diário, "somem após"). Em branco (textIsBlank: vazio ou
+	// só espaços e quebras) = cancelText, sem registro.
 	void commitText();
-	// Cancela o texto em andamento: vazio sai sem registro (nunca apareceu); com algo, sai como um desfazer.
+	// Cancela o texto em andamento: em branco (textIsBlank) sai sem registro (nunca apareceu); com algo, sai como um
+	// desfazer.
 	void cancelText();
 	bool typingText() const;
 	// Ferramenta, cor e espessura do próximo traço, "somem após" e tamanho/fonte do texto (limitados). Valem na hora

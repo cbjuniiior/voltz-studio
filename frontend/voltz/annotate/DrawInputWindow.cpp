@@ -277,10 +277,10 @@ LRESULT CALLBACK inputProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam
 			kind = DrawInputKind::Escape;
 		} else if (wParam == 'Z' && (GetKeyState(VK_CONTROL) & 0x8000) != 0) {
 			kind = DrawInputKind::Undo;
-		} else if (wParam == VK_BACK) {
-			kind = DrawInputKind::Backspace;
-		} else if (wParam == VK_RETURN) {
-			kind = DrawInputKind::Enter;
+		} else if (message == WM_KEYDOWN && wParam == VK_BACK) {
+			kind = DrawInputKind::Backspace; /* Alt+Backspace (WM_SYSKEYDOWN) não apaga */
+		} else if (message == WM_KEYDOWN && wParam == VK_RETURN) {
+			kind = DrawInputKind::Enter; /* Alt+Enter (WM_SYSKEYDOWN) não confirma nem quebra a linha */
 		}
 		DrawInput input = eventAt(kind);
 		input.shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;

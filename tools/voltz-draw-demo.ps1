@@ -1,10 +1,14 @@
 <#
-  Demonstracao MANUAL do modo desenho (Plano 4C): o usuario abre, liga o modo desenho e desenha. Nao e teste automatico.
+  Demonstracao MANUAL do modo desenho (Planos 4C e 4D): o usuario abre, liga o modo desenho, desenha e escreve. Nao e
+  teste automatico.
   -Launch: guarda a config portatil (config.drawdemo-bak), cria uma limpa (pt-BR, sem confirmacao ao sair) e abre o
     Voltz portatil SEM nenhuma variavel de teste (com VOLTZ_TEST_LIVE o modo desenho e recusado). Com -Freeze, liga
     VOLTZ_DEBUG_FREEZE_UI: o atalho Ctrl+Shift+F12 trava a interface por 8 s (para ver o vigia do modo desenho).
-  -Log: mostra as linhas do log do Voltz aberto sobre o modo desenho, a barra, as anotacoes e a depuracao (as medidas de
-    redesenho aparecem na linha "modo desenho: desligado (...)", ao sair do modo).
+  -Log: mostra as linhas do log do Voltz aberto sobre o modo desenho, a barra, as anotacoes, os atalhos e a depuracao
+    (as medidas de redesenho aparecem na linha "modo desenho: desligado (...)", ao sair do modo). O texto digitado nunca
+    vai para o log: so o tamanho ("texto confirmado (N caractere(s))").
+  -Hotkeys: mostra os atalhos do Voltz gravados no perfil da config portatil ([Hotkeys] VoltzStudio.* do basic.ini; so
+    leitura). Atalho que nao aparece = ainda no padrao.
   -Close: fecha o Voltz aberto pelo -Launch (PID salvo, WM_CLOSE na janela da casca guardada) e restaura a config
     portatil (ou apaga a da demonstracao, se nao havia uma antes). Se a pasta Videos\Voltz Studio nao existia antes do
     -Launch e ficou vazia, ela e apagada; com gravacoes dentro, fica.
@@ -13,9 +17,18 @@
     1. Na tela Presets, aplique VOCE MESMO um preset com a Tela real (ex.: Tutorial).
     2. Ligue o modo desenho com Ctrl+Shift+D ou com o botao "Desenhar" da tela Gravar. A barra aparece no alto do
        monitor da Tela; o cursor vira uma cruz so nesse monitor (os outros continuam livres).
-    3. Desenhe com o botao esquerdo: caneta, marca-texto, linha, seta, retangulo e elipse; cores, espessura, desfazer
-       (Ctrl+Z ou o botao), limpar e "tracos somem apos" ficam na barra.
-    4. Rode -Log para ver o que o Voltz registrou e -Close para fechar e restaurar a config.
+    3. Desenhe com o botao esquerdo: caneta, marca-texto, linha, seta, retangulo e elipse; cores (4 + 8 + a cor
+       personalizada, com o seletor completo), espessura, desfazer (Ctrl+Z ou o botao), limpar e "tracos somem apos"
+       ficam na barra. A linha de baixo da barra mostra o que cada botao faz.
+    4. Texto: escolha a ferramenta Texto (T) na barra, clique onde o texto comeca e digite (acentos valem). Enter
+       confirma, Shift+Enter quebra a linha, Backspace apaga, Esc (ou Ctrl+Z) cancela so o texto - o Esc seguinte sai do
+       modo. Texto em branco (vazio ou so espacos e quebras) nao fica. Tamanho (4 botoes "A") e negrito ficam na barra
+       no lugar das espessuras.
+    5. Ajustes > Anotacoes (estilo com que o modo comeca, com previa) e Ajustes > Atalhos (clique no campo e aperte a
+       combinacao; enquanto o campo esta ativo os atalhos ficam pausados; clicar no fundo da secao tira o foco do
+       campo). Em Ajustes a roda do mouse rola a pagina: so muda uma caixa ou um slider depois de clicar nele.
+    6. Rode -Log para ver o que o Voltz registrou, -Hotkeys para ver os atalhos gravados e -Close para fechar e
+       restaurar a config.
 
   COMO SAIR DO MODO DESENHO:
     - Sempre: clique direito, o mesmo atalho (Ctrl+Shift+D), o botao Sair (X) da barra e 30 s sem mexer o mouse nem o
@@ -37,12 +50,14 @@
   manda a uma janela e WM_CLOSE na janela da casca do PID lancado.
   Uso: powershell -ExecutionPolicy Bypass -File tools/voltz-draw-demo.ps1 -Launch [-Freeze]
        powershell -ExecutionPolicy Bypass -File tools/voltz-draw-demo.ps1 -Log
+       powershell -ExecutionPolicy Bypass -File tools/voltz-draw-demo.ps1 -Hotkeys
        powershell -ExecutionPolicy Bypass -File tools/voltz-draw-demo.ps1 -Close
 #>
 param(
     [switch]$Launch,
     [switch]$Freeze,
     [switch]$Log,
+    [switch]$Hotkeys,
     [switch]$Close,
     [string]$Config = "RelWithDebInfo"
 )
@@ -154,11 +169,12 @@ if ($Launch) {
     Write-Host "Voltz aberto (PID $($proc.Id)), sem modo de teste."
     Write-Host "  1. Na tela Presets, aplique um preset com a Tela real (ex.: Tutorial)."
     Write-Host "  2. Ligue o modo desenho com Ctrl+Shift+D ou com o botao Desenhar da tela Gravar e desenhe com o botao esquerdo."
+    Write-Host "  3. Texto: ferramenta T na barra, clique e digite; Enter confirma, Shift+Enter quebra a linha, Esc cancela o texto."
     Write-Host "  Para sair do modo (sempre): clique direito, Ctrl+Shift+D de novo, o botao Sair (X) da barra ou 30 s parado."
     Write-Host "  Esc, Alt+Tab, tecla Windows, clique em outro monitor e Alt+F4 tambem saem - ligado pelo atalho, so depois do primeiro clique na tela."
     Write-Host "  Se algo travar: clique direito ou Esc; Alt+Tab ou tecla Windows; Ctrl+Alt+Del; ou rode -Close em outro PowerShell."
     if ($Freeze) { Write-Host "  Depuracao: Ctrl+Shift+F12 trava a interface por 8 s (com o modo ligado, ele deve sair sozinho em ~1 s)." }
-    Write-Host "  Depois: -Log mostra o que o Voltz registrou; -Close fecha o Voltz e restaura a config portatil."
+    Write-Host "  Depois: -Log mostra o que o Voltz registrou; -Hotkeys, os atalhos gravados; -Close fecha o Voltz e restaura a config portatil."
     exit 0
 }
 
@@ -167,7 +183,17 @@ if ($Log) {
     $last = Get-ChildItem -LiteralPath $logs -Filter *.txt -ErrorAction SilentlyContinue | Sort-Object LastWriteTime | Select-Object -Last 1
     if (-not $last) { throw "nenhum log em $logs (rode -Launch antes)" }
     Write-Host "log: $($last.FullName)"
-    Select-String -LiteralPath $last.FullName -Encoding UTF8 -Pattern '\[voltz\] (modo desenho|barra do modo desenho|anotacoes|janelas fantasma|depuracao)|\[voltz-sources\] anotacoes' | ForEach-Object { $_.Line }
+    Select-String -LiteralPath $last.FullName -Encoding UTF8 -Pattern '\[voltz\] (modo desenho|barra do modo desenho|anotacoes|atalhos|janelas fantasma|depuracao)|\[voltz-sources\] anotacoes' | ForEach-Object { $_.Line }
+    exit 0
+}
+
+if ($Hotkeys) {
+    $profiles = Join-Path $cfg "Voltz Studio\basic\profiles"
+    $ini = Get-ChildItem -LiteralPath $profiles -Recurse -Filter basic.ini -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $ini) { throw "nenhum perfil em $profiles (rode -Launch antes)" }
+    Write-Host "perfil: $($ini.FullName)"
+    $lines = @(Get-Content -LiteralPath $ini.FullName -Encoding UTF8 | Where-Object { $_ -like 'VoltzStudio.*' })
+    if ($lines.Count -eq 0) { Write-Host "(nenhum atalho do Voltz gravado: todos no padrao)" } else { $lines | ForEach-Object { Write-Host $_ } }
     exit 0
 }
 
@@ -187,4 +213,4 @@ if ($Close) {
     exit 0
 }
 
-Write-Host "use -Launch [-Freeze], -Log ou -Close (veja o comentario no topo do script)"
+Write-Host "use -Launch [-Freeze], -Log, -Hotkeys ou -Close (veja o comentario no topo do script)"

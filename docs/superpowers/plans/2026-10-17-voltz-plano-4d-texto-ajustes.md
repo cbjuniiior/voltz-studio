@@ -8632,7 +8632,8 @@ monitor e o buraco acompanhando; geometria no núcleo e monitores falsos fora do
 ## Testes manuais pendentes do 4D
 - Todo o "Roteiro de teste manual do Plano 4D" do fim do plano (digitar de verdade, teclas mortas e AltGr, Shift+Enter,
   Esc/Ctrl+Z só no texto, saídas com o texto aberto, seletor de cor arrastando, linha de dica, gravação com texto,
-  Ajustes › Anotações e › Atalhos com o teclado, atalho novo com outro app em foco, modo clássico, 125/150%, en-US).
+  Ajustes › Anotações e › Atalhos com o teclado, roda do mouse em Ajustes, atalho novo com outro app em foco, modo
+  clássico, 125/150%, en-US).
 ```
 - [ ] **Step 5: `CLAUDE.md` — atualização e poda** (depois `cp CLAUDE.md AGENTS.md`). O alvo é **≤ 12 000 bytes**
   (`wc -c CLAUDE.md`; hoje 11 993: a poda é obrigatória). Em `docs/HISTORICO.md`, acrescentar no fim a seção
@@ -8789,7 +8790,8 @@ nunca aparece: só `texto confirmado (N caractere(s))`).
 2. **Texto pelo botão:** clicar **Desenhar** na tela Gravar; na barra, escolher o **T** — sobre o monitor da Tela o
    cursor vira **I**; a linha de baixo da barra diz como digitar; no lugar das espessuras aparecem quatro "A" e o B. Clicar
    num ponto e digitar `Olá, ação, pão` (teclas mortas: ´ + a = á, ~ + a = ã; ç), um `/` com AltGr+Q, **Shift+Enter** e
-   uma segunda linha; **Backspace** apaga o último caractere. Enquanto digita: o texto aparece na **prévia** (programa)
+   uma segunda linha; **Backspace** apaga o último caractere; **Alt+Enter** e **Alt+Backspace** não fazem nada no texto
+   (não confirmam, não quebram a linha, não apagam, sem bipe). Enquanto digita: o texto aparece na **prévia** (programa)
    letra a letra; o cursor (barra vertical lima) só no monitor, nunca na prévia. **Enter** confirma: o cursor some. O texto
    começa exatamente onde foi o clique (canto de cima à esquerda).
 3. **Cancelar só o texto:** clicar, digitar algo e apertar **Esc** → o texto some e o modo continua (cursor em I); **Esc**
@@ -8798,9 +8800,10 @@ nunca aparece: só `texto confirmado (N caractere(s))`).
 4. **Clicar de novo:** com um texto aberto, clicar em outro ponto → o primeiro fica (confirmado) e começa outro; escolher
    a **caneta** com um texto aberto e desenhar → o texto fica e o traço começa.
 5. **Saídas com o texto aberto:** clique direito, Ctrl+Shift+D, o X da barra, Alt+Tab e 30 s parado — em todas o texto
-   **fica** (confirmado); com o texto vazio, nada fica. `-Log`: `texto confirmado (N caractere(s))`, nenhum conteúdo.
-6. **Estilo durante a digitação:** com um texto aberto, clicar nos "A" (24/36/48/72), no B e numa cor → o texto em
-   andamento muda na hora, sem perder o cursor; o Esc continua chegando (a barra nunca fica ativa).
+   **fica** (confirmado); com o texto vazio ou **em branco** (só espaços e quebras de linha), nada fica — nem ao apertar
+   Enter (`-Log`: `texto cancelado`). `-Log`: `texto confirmado (N caractere(s))`, nenhum conteúdo.
+6. **Estilo durante a digitação:** com um texto aberto, clicar nos "A" (24/36/48/72; o 48 vem marcado), no B e numa
+   cor → o texto em andamento muda na hora, sem perder o cursor; o Esc continua chegando (a barra nunca fica ativa).
 7. **Pelo atalho sem clique antes:** com o Bloco de Notas em foco, Ctrl+Shift+D, T e digitar sem clicar → as letras vão
    para o Bloco de Notas (limite conhecido); clicar no monitor e digitar → texto do Voltz.
 8. **Seletor de cor:** "mais cores" (paleta) → **conta-gotas** → aparece o quadrado e a faixa de matiz; arrastar no
@@ -8810,7 +8813,8 @@ nunca aparece: só `texto confirmado (N caractere(s))`).
    flutuante aparece; gravando, nem a barra nem a dica aparecem no vídeo.
 10. **Gravação:** gravar ~20 s escrevendo dois textos (um com acento e duas linhas) e cancelando um com Esc. No player:
     `programa.mp4` **com** os textos (sem cursor, sem barra); `tela.mkv` sem nada. No `anotacoes.jsonl`: linhas com
-    `"ferr":"texto"`, o texto com acentos e `\n`, `"tam"` e `"fonte"`; o cancelado com algo digitado tem `"t_limpo"`.
+    `"ferr":"texto"`, o texto com acentos e `\n`, `"tam"` e `"fonte"`; o cancelado com algo digitado tem `"t_limpo"`; um
+    texto só com espaços confirmado com Enter não gera linha.
 11. **Ajustes › Anotações:** rolar até a seção; trocar ferramenta, **cor** (diálogo), espessura, tamanho e fonte do texto
     e "somem após" → a **prévia** acompanha (traço e "Aa"); ligar o modo desenho → a barra começa com esse estilo; mudar
     na barra → a seção acompanha. O aviso de estado diz que as anotações ficam fora de `tela.mkv`.
@@ -8822,12 +8826,22 @@ nunca aparece: só `texto confirmado (N caractere(s))`).
     no desenhar → aviso amarelo "Também usado por: Voltz Studio: adicionar marcador" (e o mesmo na linha do marcador).
     "Restaurar padrão" volta a Ctrl+Shift+D; "Limpar atalho" deixa sem tecla (o botão Desenhar diz "sem atalho").
     `-Hotkeys` mostra as linhas `VoltzStudio.*` gravadas.
-13. **Modo clássico:** Ajustes → Abrir modo clássico → Configurações → Atalhos: as teclas do Voltz são as mesmas de
+13. **Ajustes › Atalhos pelo teclado:** com o foco em Ajustes, **Tab** até o "Limpar atalho" de uma linha com tecla → o
+    botão ganha a **borda lima** (o mesmo no "Restaurar padrão"); **Espaço** limpa só essa linha e o botão fica cinza;
+    **Espaço** de novo **não** limpa nem restaura outra linha (o foco foi para a seção, não para o botão seguinte). O
+    mesmo com o "Restaurar padrão". Clicar num campo de atalho (`-Log`: `editando (atalhos pausados)`) e depois no
+    **fundo** da seção (fora de campo e botão) → o campo perde o foco e o `-Log` mostra `edicao terminada (atalhos de
+    volta)`; o atalho de desenhar volta a funcionar.
+14. **Roda do mouse em Ajustes:** com o mouse sobre uma caixa (ferramenta, fonte, "somem após" de Anotações; formato,
+    qualidade, monitor, câmera, microfone) ou um slider (espessura, tamanho do texto, Mouse) **sem** ter clicado nela,
+    girar a roda → a página **rola** e o valor **não** muda. Clicar na caixa/slider (fechar a lista com Esc, se abrir) e
+    girar de novo com o mouse sobre ela → o valor muda. Nenhuma troca de monitor, câmera ou microfone sem querer.
+15. **Modo clássico:** Ajustes → Abrir modo clássico → Configurações → Atalhos: as teclas do Voltz são as mesmas de
     Ajustes; mudar uma lá, aplicar e voltar a Ajustes → aparece a nova (e, com duas teclas lá, Ajustes mostra a primeira
     e "+1 em Configurações → Atalhos").
-14. **Escala e posição:** Windows a 125% e 150% → o texto começa sob a ponta do cursor I e tem o mesmo tamanho relativo
+16. **Escala e posição:** Windows a 125% e 150% → o texto começa sob a ponta do cursor I e tem o mesmo tamanho relativo
     na prévia; a prévia de Ajustes nítida.
-15. **en-US:** trocar o idioma: "Text", "Text size", "Bold", "Custom color", a linha de dica, "Annotations", "Hotkeys",
+17. **en-US:** trocar o idioma: "Text", "Text size", "Bold", "Custom color", a linha de dica, "Annotations", "Hotkeys",
     "Clear hotkey", "Restore default".
 
 ---

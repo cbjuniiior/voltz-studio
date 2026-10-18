@@ -358,7 +358,7 @@ try {
         $st = Shell-State
         Check "A: recusado #$i (modo_desenho $($st.modo_desenho), recusa '$($st.desenho_recusa)')" ((-not $st.modo_desenho) -and $st.desenho_recusa -eq "teste")
     }
-    $style = '{"ferr":"seta","cor":"#4DA3FF","esp":8,"somem_apos_s":2}'
+    $style = '{"ferr":"seta","cor":"#4DA3FF","esp":8,"somem_apos_s":2,"tam":48,"fonte":"dm_sans_negrito"}'
     [void](VendorShell "SetAnnotationStyle" (ConvertTo-Json @{ estilo = $style } -Compress))
     $st = Shell-State
     Check "A: estilo aplicado ($($st.estilo))" ($st.estilo -eq $style)

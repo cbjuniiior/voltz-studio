@@ -64,6 +64,12 @@ UINT holeMessage()
 	return message;
 }
 
+UINT endTypingMessage()
+{
+	static const UINT message = registeredMessage(L"VoltzDrawInput.EndTyping", WM_APP + 3);
+	return message;
+}
+
 int64_t nowNs()
 {
 	return static_cast<int64_t>(os_gettime_ns());
@@ -240,6 +246,10 @@ LRESULT CALLBACK inputProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam
 	}
 	if (message == holeMessage()) {
 		applyHole(*state);
+		return 0;
+	}
+	if (message == endTypingMessage()) {
+		deliver(*state, state->session.endTyping());
 		return 0;
 	}
 	switch (message) {
@@ -549,6 +559,16 @@ void DrawInputWindow::holeChanged()
 	void *hwnd = handle_ ? handle_->hwnd.load() : nullptr;
 	if (hwnd) {
 		PostMessageW(static_cast<HWND>(hwnd), holeMessage(), 0, 0);
+	}
+#endif
+}
+
+void DrawInputWindow::endTyping()
+{
+#ifdef _WIN32
+	void *hwnd = handle_ ? handle_->hwnd.load() : nullptr;
+	if (hwnd) {
+		PostMessageW(static_cast<HWND>(hwnd), endTypingMessage(), 0, 0);
 	}
 #endif
 }

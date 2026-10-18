@@ -246,14 +246,39 @@ void DrawModeController::createToolbar()
 		style.fadeSeconds = seconds;
 		annotations_->setStyle(style);
 	});
-	connect(toolbar_, &DrawToolbar::undoClicked, this, [this]() { annotations_->undo(); });
-	connect(toolbar_, &DrawToolbar::clearClicked, this, [this]() { annotations_->clear(); });
+	connect(toolbar_, &DrawToolbar::undoClicked, this, [this]() { undoAnnotation(); });
+	connect(toolbar_, &DrawToolbar::clearClicked, this, [this]() { clearAnnotations(); });
 	connect(toolbar_, &DrawToolbar::exitClicked, this, [this]() {
 		if (input_) {
 			input_->requestExit(DrawExit::Button);
 		}
 	});
 	connect(toolbar_, &DrawToolbar::nativeRectChanged, this, [this]() { updateHole(); });
+}
+
+void DrawModeController::undoAnnotation()
+{
+	if (shutdown_ || !annotations_) {
+		return;
+	}
+	annotations_->undo();
+	/* desfazer durante a digitação tirou o texto: a sessão para de digitar (senão as teclas seguiriam para um texto que
+	 * não existe mais e o Esc só o "cancelaria" em vez de sair) */
+	if (input_) {
+		input_->endTyping();
+	}
+}
+
+void DrawModeController::clearAnnotations()
+{
+	if (shutdown_ || !annotations_) {
+		return;
+	}
+	annotations_->clear();
+	/* Limpar leva o texto em andamento junto: a sessão para de digitar (ver undoAnnotation) */
+	if (input_) {
+		input_->endTyping();
+	}
 }
 
 void DrawModeController::updateHole()
@@ -507,14 +532,7 @@ void DrawModeController::handleUndoHotkey(void *data, obs_hotkey_id, obs_hotkey_
 		return;
 	}
 	auto *self = static_cast<DrawModeController *>(data);
-	QMetaObject::invokeMethod(
-		self,
-		[self]() {
-			if (!self->shutdown_ && self->annotations_) {
-				self->annotations_->undo();
-			}
-		},
-		Qt::QueuedConnection);
+	QMetaObject::invokeMethod(self, [self]() { self->undoAnnotation(); }, Qt::QueuedConnection);
 }
 
 void DrawModeController::handleClearHotkey(void *data, obs_hotkey_id, obs_hotkey_t *, bool pressed)
@@ -523,14 +541,7 @@ void DrawModeController::handleClearHotkey(void *data, obs_hotkey_id, obs_hotkey
 		return;
 	}
 	auto *self = static_cast<DrawModeController *>(data);
-	QMetaObject::invokeMethod(
-		self,
-		[self]() {
-			if (!self->shutdown_ && self->annotations_) {
-				self->annotations_->clear();
-			}
-		},
-		Qt::QueuedConnection);
+	QMetaObject::invokeMethod(self, [self]() { self->clearAnnotations(); }, Qt::QueuedConnection);
 }
 
 void DrawModeController::handleFreezeHotkey(void *data, obs_hotkey_id, obs_hotkey_t *, bool pressed)

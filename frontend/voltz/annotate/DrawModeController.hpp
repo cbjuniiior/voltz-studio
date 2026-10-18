@@ -64,6 +64,9 @@ private:
 	void drain();
 	void finish(DrawExit reason);
 	void updateHole();
+	// Desfazer e Limpar da barra e dos atalhos: depois de mexer nas anotações, avisam a janela de entrada (endTyping).
+	void undoAnnotation();
+	void clearAnnotations();
 	void registerHotkeys();
 	void loadHotkeyBindings();
 	void unregisterHotkeys();

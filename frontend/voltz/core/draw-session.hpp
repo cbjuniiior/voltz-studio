@@ -81,7 +81,8 @@ struct DrawCommand {
 // andamento e confirma o texto que está sendo digitado (vazio = cancelado); depois de sair, ignora tudo.
 // Texto (Plano 4D): com a ferramenta texto, o clique começa a digitação na âncora; caracteres, Backspace e Shift+Enter
 // editam (limites do annotation-text); Enter confirma; Esc e Ctrl+Z cancelam só o texto (o Esc seguinte sai); clicar
-// de novo confirma e começa outro texto (ou o traço, se a ferramenta mudou). Digitar conta como atividade.
+// de novo confirma e começa outro texto (ou o traço, se a ferramenta mudou); Limpar e desfazer pela UI acabam com ele
+// (endTyping). Digitar conta como atividade.
 class DrawSession {
 public:
 	DrawSession(const CaptureMapping &mapping, int64_t startNs, int64_t idleNs = kDrawIdleNs,
@@ -90,6 +91,10 @@ public:
 	std::vector<DrawCommand> handle(const DrawInput &input);
 	// Saída pedida de fora (o mesmo atalho, botão Sair da barra, saída do app). Vazio se já saiu ou `reason` é None.
 	std::vector<DrawCommand> requestExit(DrawExit reason);
+	// A UI já tirou o texto em andamento (Limpar, desfazer pela barra ou pelo atalho): a digitação acaba aqui também —
+	// TextCancel (no AnnotationController, sem efeito se o texto já saiu; cancela o que tiver começado no meio tempo).
+	// Daí em diante teclas de texto não editam e o Esc sai. Vazio sem digitação ou depois de sair.
+	std::vector<DrawCommand> endTyping();
 
 	bool active() const { return exit_ == DrawExit::None; }
 	bool drawing() const { return drawing_; }

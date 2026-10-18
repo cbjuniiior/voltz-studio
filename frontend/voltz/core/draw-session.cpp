@@ -141,6 +141,16 @@ std::vector<DrawCommand> DrawSession::requestExit(DrawExit reason)
 	return finish(reason);
 }
 
+std::vector<DrawCommand> DrawSession::endTyping()
+{
+	if (!active() || !typing_) {
+		return {};
+	}
+	typing_ = false;
+	text_.clear();
+	return {command(DrawCommandType::TextCancel)};
+}
+
 std::vector<DrawCommand> DrawSession::handle(const DrawInput &input)
 {
 	if (!active()) {

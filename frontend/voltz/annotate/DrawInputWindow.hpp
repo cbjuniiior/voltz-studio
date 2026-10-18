@@ -60,6 +60,8 @@ public:
 	// Assíncronos (postam para a janela; nunca esperam a thread de entrada). Pedir a saída mais de uma vez é inócuo.
 	void requestExit(DrawExit reason);
 	void holeChanged();
+	// A UI tirou o texto em andamento (Limpar, desfazer): a DrawSession acaba a digitação (DrawSession::endTyping).
+	void endTyping();
 	// Espera a thread terminar (até timeoutMs). Falso = ainda viva (com prazo > 0, o destrutor não espera de novo).
 	bool wait(int timeoutMs);
 	// A janela ficou em primeiro plano ao nascer (pelo botão "Desenhar"); pelo atalho, o primeiro clique a ativa.

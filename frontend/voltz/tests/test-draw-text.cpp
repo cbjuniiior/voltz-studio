@@ -171,6 +171,32 @@ TEST_CASE("texto: Ctrl+Z durante a digitação cancela só o texto; depois desfa
 	CHECK(describe(session.handle(at(DrawInputKind::Undo, kStart + 3 * kMs))) == "undo");
 }
 
+TEST_CASE("texto: Limpar ou desfazer pela UI encerra a digitação; as teclas seguintes não editam e o Esc sai")
+{
+	DrawSession session = typingSession();
+	CHECK(describe(session.handle(typed(U'x', kStart + kMs))) == "edit:'x'");
+	/* a UI já tirou o texto (Limpar, desfazer pela barra ou atalho): a sessão o cancela também */
+	CHECK(describe(session.endTyping()) == "cancel");
+	CHECK_FALSE(session.typing());
+	CHECK(session.active());
+	CHECK(session.handle(typed(U'y', kStart + 2 * kMs)).empty());
+	CHECK(session.handle(at(DrawInputKind::Backspace, kStart + 3 * kMs)).empty());
+	CHECK(session.handle(enter(kStart + 4 * kMs, false)).empty());
+	CHECK(session.endTyping().empty()); // sem digitação: nada
+	/* o próximo texto começa vazio (nada do buffer de antes) */
+	CHECK(describe(session.handle(click(kStart + 5 * kMs, 600, 300, true))) == "textbegin(1000,500)");
+	CHECK(describe(session.handle(typed(U'z', kStart + 6 * kMs))) == "edit:'z'");
+	CHECK(describe(session.endTyping()) == "cancel");
+	CHECK(describe(session.handle(at(DrawInputKind::Escape, kStart + 7 * kMs))) == "exit:esc");
+	CHECK(session.endTyping().empty()); // depois de sair: nada
+
+	/* durante um traço não mexe nele */
+	DrawSession stroke(kMapping, kStart);
+	CHECK(describe(stroke.handle(click(kStart, 200, 100, false))) == "begin(200,100)");
+	CHECK(stroke.endTyping().empty());
+	CHECK(stroke.drawing());
+}
+
 TEST_CASE("texto: clicar de novo confirma e começa outro; com outra ferramenta confirma e começa o traço")
 {
 	DrawSession session = typingSession();

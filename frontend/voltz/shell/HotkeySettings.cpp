@@ -97,6 +97,7 @@ void setWarn(QLabel *label, bool warn)
 HotkeySettingsSection::HotkeySettingsSection(QWidget *parent) : QFrame(parent)
 {
 	setObjectName("panel");
+	setFocusPolicy(Qt::ClickFocus); /* ponto de repouso do foco: clicar no fundo tira o foco do campo de teclas */
 	auto *layout = new QVBoxLayout(this);
 	layout->setContentsMargins(16, 14, 16, 16);
 	layout->setSpacing(10);
@@ -127,7 +128,7 @@ HotkeySettingsSection::HotkeySettingsSection(QWidget *parent) : QFrame(parent)
 		auto *label = new QLabel(row.title, this);
 		formLabels_.append(label);
 		row.edit = new VoltzHotkeyEdit(this, obs_key_combination_t{0, OBS_KEY_NONE});
-		row.edit->setAccessibleName(QTStr("Voltz.Hotkeys.Edit") + QStringLiteral(" — ") + row.title);
+		row.edit->setAccessibleName(QTStr("Voltz.Hotkeys.Edit") + QStringLiteral(" \u2014 ") + row.title);
 		row.clear = new QToolButton(this);
 		row.clear->setObjectName("iconButton");
 		row.clear->setIcon(phosphorIcon(QStringLiteral("x"), palette::kText));
@@ -180,8 +181,16 @@ void HotkeySettingsSection::refreshRow(size_t index)
 					      : toObsCombination(bindings.front());
 	row.edit->ResetKey();
 	loading_ = false;
-	row.clear->setEnabled(!bindings.empty());
-	row.reset->setEnabled(!(bindings == defaultHotkeyBindings(row.name)));
+	/* Antes de desabilitar o botão com o foco, o foco vai para a seção: senão o Qt o passa ao próximo botão da ordem de
+	 * Tab (de outra linha) e um segundo Espaço limparia ou restauraria outro atalho. */
+	const auto setEnabledKeepingFocus = [this](QToolButton *button, bool enabled) {
+		if (!enabled && button->hasFocus()) {
+			setFocus(Qt::OtherFocusReason);
+		}
+		button->setEnabled(enabled);
+	};
+	setEnabledKeepingFocus(row.clear, !bindings.empty());
+	setEnabledKeepingFocus(row.reset, !(bindings == defaultHotkeyBindings(row.name)));
 
 	QStringList notes;
 	if (bindings.size() > 1) {

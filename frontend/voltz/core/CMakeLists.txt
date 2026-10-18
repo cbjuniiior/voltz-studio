@@ -33,6 +33,7 @@ target_sources(
     source-tree.cpp
     stroke-store.cpp
     svg-recolor.cpp
+    text-layout.cpp
     time-format.cpp
     voltz-version.cpp
   PUBLIC
@@ -61,6 +62,7 @@ target_sources(
     source-tree.hpp
     stroke-store.hpp
     svg-recolor.hpp
+    text-layout.hpp
     time-format.hpp
     voltz-version.hpp
 )

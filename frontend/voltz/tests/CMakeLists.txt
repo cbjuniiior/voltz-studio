@@ -33,6 +33,7 @@ target_sources(
     test-source-tree.cpp
     test-stroke-store.cpp
     test-svg-recolor.cpp
+    test-text-layout.cpp
     test-time-format.cpp
     test-version.cpp
 )

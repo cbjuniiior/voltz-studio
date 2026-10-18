@@ -132,7 +132,7 @@ o que o usuário mais sente no dia a dia (escrever na tela e trocar atalhos sem 
 |---|---|---|
 | Divisão | 4D = texto, seletor de cor, linha de dica, Ajustes › Anotações/Atalhos; 4E = todos os monitores e barra arrastável | Ver acima: 4D não mexe na segurança da entrada; 4E sim. |
 | Texto no plugin | **FreeType das deps + DM Sans embutida no `voltz-core`**; layout e rasterização no núcleo; o plugin usa o mesmo núcleo | Mesmo código e mesmos bytes nos dois lados (byte a byte igual com a mesma escala); o plugin não tem Qt. Alternativas descartadas: **bitmap do frontend pelo feed** (o plugin redesenha em outra escala e o `anotacoes.jsonl` precisaria do texto de qualquer jeito; um canal binário novo frontend → plugin); **stb_truetype** (mais um código de terceiro a baixar e auditar, quando o FreeType já está nas deps, na licença e no build do OBS); **DirectWrite** (só Windows, COM no núcleo, que precisa ficar puro e testável). |
-| Fontes | Só as duas embutidas: `dm_sans` (Regular) e `dm_sans_negrito` (Bold, padrão); tamanho = "em" em pixels da captura, 12–200 (padrão 48; barra: 24, 36, 56, 80) | Fonte do sistema não estaria igual no plugin nem no editor de outro PC; DM Sans é a fonte da marca e já vem no app. |
+| Fontes | Só as duas embutidas: `dm_sans` (Regular) e `dm_sans_negrito` (Bold, padrão); tamanho = "em" em pixels da captura, 12–200 (padrão 48; barra: 24, 36, 48, 72) | Fonte do sistema não estaria igual no plugin nem no editor de outro PC; DM Sans é a fonte da marca e já vem no app. |
 | Layout | `layoutText` com `GlyphMetrics` por interface (testado com métricas falsas); avanço sem hinting em unidades da fonte, sem kerning/ligaduras; linhas por `'\n'`; âncora = canto de cima à esquerda; cursor no fim da última linha | Testável sem fonte; proporcional ao tamanho (sobreposição com outra escala sai igual em proporção). |
 | Rasterização | Glifo do FreeType sem hinting, contorno deslocado pela fração da posição, maior cobertura por pixel (como os outros traços), mistura src-over opaca; corte no `strokeBounds` do texto (caixa do layout + 0,3 em + 2 px) | Mesmo resultado do redesenho parcial e do inteiro (doctest byte a byte); o retângulo nunca perde tinta (a raster corta nele). |
 | `anotacoes.jsonl` | `"texto"`, `"tam"`, `"fonte"` depois de `"pts"` só no texto; `"pts"` = a âncora; `"esp"` continua (formato da spec) | Leitores antigos ignoram campos novos; o editor reescreve o texto. |
@@ -4342,7 +4342,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   `frontend/cmake/feature-voltz.cmake`, `frontend/data/locale/voltz-pt-BR.ini`, `frontend/data/locale/voltz-en-US.ini`
 
 A barra ganha o T (texto, ícone `text-t` que já está no `.qrc`); com ele, as 4 espessuras dão lugar a 4 tamanhos ("A"
-de tamanhos crescentes: 24, 36, 56 e 80 px da captura) e ao negrito (`text-b`). "Mais cores" ganha o botão de cor
+de tamanhos crescentes: 24, 36, 48 e 72 px da captura) e ao negrito (`text-b`). "Mais cores" ganha o botão de cor
 personalizada (conta-gotas; mostra a cor quando ela não é da paleta) que abre o `ColorPicker` logo abaixo — tudo na
 mesma janela sem foco. A linha de dica, embaixo, mostra a dica do botão sob o mouse ou, sem botão, como sair (ou como
 digitar, com o texto). O `ToolbarImage` aceita `"ferramenta"` e `"seletor"` para desenhar esses estados sem janela.
@@ -4794,7 +4794,7 @@ namespace {
 constexpr int kTopMargin = 12;
 constexpr int kFadeSteps[] = {0, 3, 5, 10};
 constexpr int kWidths[] = {2, 4, 8, 16};
-constexpr int kTextSizes[] = {24, 36, 56, 80};
+constexpr int kTextSizes[] = {24, 36, 48, 72};
 const RgbColor kQuickColors[] = {{0xD4, 0xF5, 0x3C}, {0xFF, 0x4D, 0x4D}, {0x4D, 0xA3, 0xFF}, {0xFF, 0xE1, 0x4D}};
 const RgbColor kMoreColors[] = {{0xFF, 0xFF, 0xFF}, {0x09, 0x09, 0x0B}, {0xFF, 0x9F, 0x43}, {0x2E, 0xD5, 0x73},
 				{0xA5, 0x5E, 0xEA}, {0xFF, 0x6B, 0x9D}, {0x22, 0xD3, 0xEE}, {0x9C, 0xA3, 0xAF}};
@@ -8799,7 +8799,7 @@ nunca aparece: só `texto confirmado (N caractere(s))`).
    a **caneta** com um texto aberto e desenhar → o texto fica e o traço começa.
 5. **Saídas com o texto aberto:** clique direito, Ctrl+Shift+D, o X da barra, Alt+Tab e 30 s parado — em todas o texto
    **fica** (confirmado); com o texto vazio, nada fica. `-Log`: `texto confirmado (N caractere(s))`, nenhum conteúdo.
-6. **Estilo durante a digitação:** com um texto aberto, clicar nos "A" (24/36/56/80), no B e numa cor → o texto em
+6. **Estilo durante a digitação:** com um texto aberto, clicar nos "A" (24/36/48/72), no B e numa cor → o texto em
    andamento muda na hora, sem perder o cursor; o Esc continua chegando (a barra nunca fica ativa).
 7. **Pelo atalho sem clique antes:** com o Bloco de Notas em foco, Ctrl+Shift+D, T e digitar sem clicar → as letras vão
    para o Bloco de Notas (limite conhecido); clicar no monitor e digitar → texto do Voltz.

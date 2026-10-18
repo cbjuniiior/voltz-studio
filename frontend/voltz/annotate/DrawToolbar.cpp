@@ -47,7 +47,7 @@ namespace {
 constexpr int kTopMargin = 12;
 constexpr int kFadeSteps[] = {0, 3, 5, 10};
 constexpr int kWidths[] = {2, 4, 8, 16};
-constexpr int kTextSizes[] = {24, 36, 56, 80};
+constexpr int kTextSizes[] = {24, 36, 48, 72};
 const RgbColor kQuickColors[] = {{0xD4, 0xF5, 0x3C}, {0xFF, 0x4D, 0x4D}, {0x4D, 0xA3, 0xFF}, {0xFF, 0xE1, 0x4D}};
 const RgbColor kMoreColors[] = {{0xFF, 0xFF, 0xFF}, {0x09, 0x09, 0x0B}, {0xFF, 0x9F, 0x43}, {0x2E, 0xD5, 0x73},
 				{0xA5, 0x5E, 0xEA}, {0xFF, 0x6B, 0x9D}, {0x22, 0xD3, 0xEE}, {0x9C, 0xA3, 0xAF}};
@@ -427,6 +427,8 @@ void DrawToolbar::setAnnotationStyle(const AnnotationStyle &style)
 	if (textGroup_->isHidden() == text) {
 		widthGroup_->setVisible(!text);
 		textGroup_->setVisible(text);
+		/* o botão sob o mouse pode ter sumido com o grupo (sem Leave): a dica dele não fica (updateHint logo abaixo) */
+		hovered_.clear();
 		resizeAndRecenter();
 	}
 	updateFadeText();

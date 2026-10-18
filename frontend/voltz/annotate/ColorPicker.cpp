@@ -54,6 +54,10 @@ QRectF ColorPicker::hueRect() const
 
 void ColorPicker::setColor(const RgbColor &color)
 {
+	/* a cor que o próprio seletor acabou de escolher: a volta por RGB derivaria a marca (preto puro → saturação 0) */
+	if (color == this->color()) {
+		return;
+	}
 	const QColor hsv = toQColor(color).toHsv();
 	if (hsv.hsvHueF() >= 0.0) {
 		hue_ = hsv.hsvHueF(); /* cinza não tem matiz: fica a anterior */

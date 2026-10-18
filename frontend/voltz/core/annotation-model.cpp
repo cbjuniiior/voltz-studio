@@ -1,4 +1,5 @@
 #include "annotation-model.hpp"
+#include "annotation-text.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -21,7 +22,15 @@ constexpr ToolName kToolNames[] = {
 	{AnnotationTool::Pen, "caneta"},          {AnnotationTool::Highlighter, "marca_texto"},
 	{AnnotationTool::Line, "linha"},          {AnnotationTool::Arrow, "seta"},
 	{AnnotationTool::Rectangle, "retangulo"}, {AnnotationTool::Ellipse, "elipse"},
+	{AnnotationTool::Text, "texto"},
 };
+
+struct FontName {
+	TextFont font;
+	const char *name;
+};
+
+constexpr FontName kFontNames[] = {{TextFont::Regular, "dm_sans"}, {TextFont::Bold, "dm_sans_negrito"}};
 
 int toIntClamped(int64_t value)
 {
@@ -76,6 +85,19 @@ void readPoints(const Json &array, std::vector<StrokePoint> &out)
 	}
 }
 
+// "tam" e "fonte" (traço de texto e estilo).
+void readTextFields(const Json &object, int &size, TextFont &font)
+{
+	int64_t value = 0;
+	if (readInt64(object, "tam", value)) {
+		size = clampTextSize(toIntClamped(value));
+	}
+	const auto fontIt = object.find("fonte");
+	if (fontIt != object.end() && fontIt->is_string()) {
+		textFontFromString(fontIt->get<std::string>(), font);
+	}
+}
+
 } // namespace
 
 const char *toolToString(AnnotationTool tool)
@@ -101,7 +123,29 @@ bool toolFromString(const std::string &text, AnnotationTool &out)
 
 bool isShapeTool(AnnotationTool tool)
 {
-	return tool != AnnotationTool::Pen && tool != AnnotationTool::Highlighter;
+	return tool == AnnotationTool::Line || tool == AnnotationTool::Arrow || tool == AnnotationTool::Rectangle ||
+	       tool == AnnotationTool::Ellipse;
+}
+
+const char *textFontToString(TextFont font)
+{
+	for (const FontName &entry : kFontNames) {
+		if (entry.font == font) {
+			return entry.name;
+		}
+	}
+	return "dm_sans_negrito";
+}
+
+bool textFontFromString(const std::string &text, TextFont &out)
+{
+	for (const FontName &entry : kFontNames) {
+		if (text == entry.name) {
+			out = entry.font;
+			return true;
+		}
+	}
+	return false;
 }
 
 int clampStrokeWidth(int width)
@@ -109,9 +153,20 @@ int clampStrokeWidth(int width)
 	return std::clamp(width, kStrokeWidthMin, kStrokeWidthMax);
 }
 
+int clampTextSize(int size)
+{
+	return std::clamp(size, kTextSizeMin, kTextSizeMax);
+}
+
 void appendStrokePoints(Stroke &stroke, const std::vector<StrokePoint> &points)
 {
 	if (points.empty()) {
+		return;
+	}
+	if (stroke.tool == AnnotationTool::Text) {
+		if (stroke.points.empty()) {
+			stroke.points.push_back(points.front());
+		}
 		return;
 	}
 	if (isShapeTool(stroke.tool)) {
@@ -160,6 +215,11 @@ std::string strokeToJsonLine(const Stroke &stroke)
 	json["cor"] = formatHexColor(stroke.color);
 	json["esp"] = stroke.width;
 	json["pts"] = pointsArray(stroke.points);
+	if (stroke.tool == AnnotationTool::Text) {
+		json["texto"] = stroke.text;
+		json["tam"] = stroke.textSize;
+		json["fonte"] = textFontToString(stroke.textFont);
+	}
 	json["t_ini"] = stroke.startMs;
 	if (stroke.endMs >= 0) {
 		json["t_fim"] = stroke.endMs;
@@ -198,7 +258,20 @@ bool strokeFromJson(const std::string &json, Stroke &out)
 	}
 	const auto pointsIt = root.find("pts");
 	if (pointsIt != root.end() && pointsIt->is_array()) {
-		readPoints(*pointsIt, stroke.points);
+		std::vector<StrokePoint> points;
+		readPoints(*pointsIt, points);
+		if (tool == AnnotationTool::Text) {
+			appendStrokePoints(stroke, points); /* só a âncora */
+		} else {
+			stroke.points = std::move(points);
+		}
+	}
+	if (tool == AnnotationTool::Text) {
+		const auto textIt = root.find("texto");
+		if (textIt != root.end() && textIt->is_string()) {
+			stroke.text = sanitizeAnnotationText(textIt->get<std::string>());
+		}
+		readTextFields(root, stroke.textSize, stroke.textFont);
 	}
 	if (readInt64(root, "t_ini", value)) {
 		stroke.startMs = value;
@@ -217,6 +290,7 @@ AnnotationStyle clampAnnotationStyle(AnnotationStyle style)
 {
 	style.width = clampStrokeWidth(style.width);
 	style.fadeSeconds = std::clamp(style.fadeSeconds, 0, kFadeSecondsMax);
+	style.textSize = clampTextSize(style.textSize);
 	return style;
 }
 
@@ -227,6 +301,8 @@ std::string annotationStyleToJson(const AnnotationStyle &style)
 	json["cor"] = formatHexColor(style.color);
 	json["esp"] = style.width;
 	json["somem_apos_s"] = style.fadeSeconds;
+	json["tam"] = style.textSize;
+	json["fonte"] = textFontToString(style.textFont);
 	return json.dump();
 }
 
@@ -252,6 +328,7 @@ bool annotationStyleFromJson(const std::string &json, AnnotationStyle &out)
 	if (readInt64(root, "somem_apos_s", value)) {
 		out.fadeSeconds = toIntClamped(value);
 	}
+	readTextFields(root, out.textSize, out.textFont);
 	out = clampAnnotationStyle(out);
 	return true;
 }

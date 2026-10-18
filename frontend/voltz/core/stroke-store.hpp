@@ -3,6 +3,7 @@
 #include "annotation-model.hpp"
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace voltz {
@@ -29,6 +30,17 @@ public:
 	int begin(AnnotationTool tool, const RgbColor &color, int width, const StrokePoint &first, int64_t nowNs);
 	// Acrescenta pontos ao traço em andamento (appendStrokePoints). Falso sem traço em andamento ou sem pontos.
 	bool extend(const std::vector<StrokePoint> &points);
+	// Texto (Plano 4D): começa um traço de texto VAZIO com a âncora (canto de cima à esquerda da caixa), tamanho
+	// limitado e fonte. 0 se já há um em andamento.
+	int beginText(const RgbColor &color, int textSize, TextFont font, const StrokePoint &anchor, int64_t nowNs);
+	// Troca o texto do traço de texto em andamento (sanitizeAnnotationText). Falso sem traço de texto em andamento.
+	bool setOpenText(const std::string &text);
+	// Cor, tamanho (limitado) e fonte do texto em andamento (mudados na barra durante a digitação). Falso sem texto em
+	// andamento.
+	bool setOpenTextStyle(const RgbColor &color, int textSize, TextFont font);
+	// Tira o traço em andamento SEM devolvê-lo (texto cancelado que ficou vazio: nada apareceu, nada a registrar).
+	// Falso se não há traço em andamento.
+	bool discardOpen();
 	// Termina o traço em andamento; nullptr se não há. O ponteiro vale até a próxima mudança.
 	const LiveStroke *end(int64_t nowNs);
 	// Tira o traço mais recente (em andamento ou não). Vazio se não há traço.

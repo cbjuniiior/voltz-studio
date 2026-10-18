@@ -23,7 +23,7 @@ TEST_CASE("toolToString/toolFromString: as seis ferramentas e texto desconhecido
 		CHECK(parsed == tools[i]);
 	}
 	AnnotationTool unchanged = AnnotationTool::Arrow;
-	CHECK_FALSE(voltz::toolFromString("texto", unchanged));
+	CHECK_FALSE(voltz::toolFromString("pincel", unchanged));
 	CHECK(unchanged == AnnotationTool::Arrow);
 	CHECK_FALSE(voltz::isShapeTool(AnnotationTool::Pen));
 	CHECK_FALSE(voltz::isShapeTool(AnnotationTool::Highlighter));
@@ -81,7 +81,7 @@ TEST_CASE("strokeFromJson: ida e volta, leitura tolerante e recusas")
 	untouched.id = 42;
 	CHECK_FALSE(voltz::strokeFromJson("nao e json", untouched));
 	CHECK_FALSE(voltz::strokeFromJson(R"({"ferr":"seta"})", untouched));
-	CHECK_FALSE(voltz::strokeFromJson(R"({"id":1,"ferr":"texto"})", untouched));
+	CHECK_FALSE(voltz::strokeFromJson(R"({"id":1,"ferr":"pincel"})", untouched));
 	CHECK_FALSE(voltz::strokeFromJson("[1,2]", untouched));
 	CHECK(untouched.id == 42);
 }
@@ -129,7 +129,8 @@ TEST_CASE("pointsToJson/pointsFromJson")
 TEST_CASE("AnnotationStyle: padrão, limites e JSON")
 {
 	const voltz::AnnotationStyle style;
-	CHECK(voltz::annotationStyleToJson(style) == R"({"ferr":"caneta","cor":"#D4F53C","esp":4,"somem_apos_s":0})");
+	CHECK(voltz::annotationStyleToJson(style) ==
+	      R"({"ferr":"caneta","cor":"#D4F53C","esp":4,"somem_apos_s":0,"tam":48,"fonte":"dm_sans_negrito"})");
 	voltz::AnnotationStyle parsed;
 	REQUIRE(voltz::annotationStyleFromJson(R"({"ferr":"seta","cor":"#4DA3FF","esp":0,"somem_apos_s":999})",
 					       parsed));

@@ -1,4 +1,5 @@
 #include "stroke-store.hpp"
+#include "annotation-text.hpp"
 
 #include <algorithm>
 #include <utility>
@@ -27,6 +28,47 @@ bool StrokeStore::extend(const std::vector<StrokePoint> &points)
 		return false;
 	}
 	appendStrokePoints(visible_.back().stroke, points);
+	return true;
+}
+
+int StrokeStore::beginText(const RgbColor &color, int textSize, TextFont font, const StrokePoint &anchor, int64_t nowNs)
+{
+	const int id = begin(AnnotationTool::Text, color, kStrokeWidthMin, anchor, nowNs);
+	if (id != 0) {
+		Stroke &stroke = visible_.back().stroke;
+		stroke.textSize = clampTextSize(textSize);
+		stroke.textFont = font;
+	}
+	return id;
+}
+
+bool StrokeStore::setOpenText(const std::string &text)
+{
+	if (visible_.empty() || !visible_.back().open() || visible_.back().stroke.tool != AnnotationTool::Text) {
+		return false;
+	}
+	visible_.back().stroke.text = sanitizeAnnotationText(text);
+	return true;
+}
+
+bool StrokeStore::setOpenTextStyle(const RgbColor &color, int textSize, TextFont font)
+{
+	if (visible_.empty() || !visible_.back().open() || visible_.back().stroke.tool != AnnotationTool::Text) {
+		return false;
+	}
+	Stroke &stroke = visible_.back().stroke;
+	stroke.color = color;
+	stroke.textSize = clampTextSize(textSize);
+	stroke.textFont = font;
+	return true;
+}
+
+bool StrokeStore::discardOpen()
+{
+	if (visible_.empty() || !visible_.back().open()) {
+		return false;
+	}
+	visible_.pop_back();
 	return true;
 }
 

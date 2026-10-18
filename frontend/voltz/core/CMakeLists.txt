@@ -12,6 +12,7 @@ target_sources(
     annotation-journal.cpp
     annotation-model.cpp
     annotation-raster.cpp
+    annotation-text.cpp
     atomic-file.cpp
     cursor-track.cpp
     disk-space.cpp
@@ -38,6 +39,7 @@ target_sources(
     annotation-journal.hpp
     annotation-model.hpp
     annotation-raster.hpp
+    annotation-text.hpp
     atomic-file.hpp
     cursor-track.hpp
     disk-space.hpp

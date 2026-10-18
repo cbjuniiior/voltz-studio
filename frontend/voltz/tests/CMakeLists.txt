@@ -12,6 +12,7 @@ target_sources(
     test-annotation-model.cpp
     test-annotation-dirty.cpp
     test-annotation-raster.cpp
+    test-annotation-text.cpp
     test-atomic-file.cpp
     test-cursor-track.cpp
     test-disk-space.cpp

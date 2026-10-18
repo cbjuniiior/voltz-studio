@@ -105,6 +105,7 @@ struct InputState {
 	std::vector<DrawCommand> backlog;
 	bool holeDirty = false; // o buraco não foi lido (mutex ocupado): o tique tenta de novo
 	int64_t lastTickNs = 0;
+	wchar_t highSurrogate = 0; // WM_CHAR: primeira metade de um caractere fora do plano básico (emoji)
 };
 
 void releaseMouse(InputState &state)
@@ -244,18 +245,21 @@ LRESULT CALLBACK inputProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam
 	switch (message) {
 	case WM_SETCURSOR:
 		if (LOWORD(lParam) == HTCLIENT) {
-			SetCursor(LoadCursorW(nullptr, IDC_CROSS));
+			SetCursor(LoadCursorW(nullptr, state->shared->textTool.load() ? IDC_IBEAM : IDC_CROSS));
 			return TRUE;
 		}
 		break;
-	case WM_LBUTTONDOWN:
+	case WM_LBUTTONDOWN: {
 		/* o mouse fica com esta janela só entre apertar e soltar (arrastar para fora do monitor continua o traço) */
 		if (!state->capturing && state->session.active()) {
 			SetCapture(hwnd);
 			state->capturing = true;
 		}
-		deliver(*state, state->session.handle(pointerAt(DrawInputKind::LeftDown, *state, lParam)));
+		DrawInput input = pointerAt(DrawInputKind::LeftDown, *state, lParam);
+		input.textTool = state->shared->textTool.load();
+		deliver(*state, state->session.handle(input));
 		return 0;
+	}
 	case WM_MOUSEMOVE:
 		deliver(*state, state->session.handle(pointerAt(DrawInputKind::Move, *state, lParam)));
 		return 0;
@@ -273,13 +277,43 @@ LRESULT CALLBACK inputProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam
 			kind = DrawInputKind::Escape;
 		} else if (wParam == 'Z' && (GetKeyState(VK_CONTROL) & 0x8000) != 0) {
 			kind = DrawInputKind::Undo;
+		} else if (wParam == VK_BACK) {
+			kind = DrawInputKind::Backspace;
+		} else if (wParam == VK_RETURN) {
+			kind = DrawInputKind::Enter;
 		}
-		deliver(*state, state->session.handle(eventAt(kind)));
+		DrawInput input = eventAt(kind);
+		input.shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+		deliver(*state, state->session.handle(input));
 		if (message == WM_SYSKEYDOWN) {
 			break; /* Alt+F4: o DefWindowProc manda WM_CLOSE, que também sai */
 		}
 		return 0;
 	}
+	case WM_CHAR: {
+		/* o texto digitado é da DrawSession (que recusa controles como Backspace, Enter e Esc, já tratados acima);
+		 * um caractere fora do plano básico chega em duas metades */
+		const auto unit = static_cast<wchar_t>(wParam);
+		char32_t codepoint = static_cast<char32_t>(unit);
+		if (unit >= 0xD800 && unit <= 0xDBFF) {
+			state->highSurrogate = unit;
+			return 0;
+		}
+		if (unit >= 0xDC00 && unit <= 0xDFFF) {
+			if (state->highSurrogate == 0) {
+				return 0;
+			}
+			codepoint = 0x10000 + ((static_cast<char32_t>(state->highSurrogate) - 0xD800) << 10) +
+				    (static_cast<char32_t>(unit) - 0xDC00);
+		}
+		state->highSurrogate = 0;
+		DrawInput input = eventAt(DrawInputKind::Char);
+		input.codepoint = codepoint;
+		deliver(*state, state->session.handle(input));
+		return 0;
+	}
+	case WM_SYSCHAR:
+		return 0; /* Alt+letra: sem o aviso sonoro do DefWindowProc (a janela não tem menu) */
 	case WM_ACTIVATE:
 		deliver(*state,
 			state->session.handle(eventAt(LOWORD(wParam) == WA_INACTIVE ? DrawInputKind::Deactivated
@@ -402,6 +436,8 @@ void inputThreadMain(std::shared_ptr<DrawShared> shared, DrawInputWindow::Option
 	state.lastTickNs = nowNs();
 	MSG msg;
 	while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
+		/* WM_KEYDOWN → WM_CHAR (acentos por teclas mortas inclusive): a digitação do texto */
+		TranslateMessage(&msg);
 		DispatchMessageW(&msg);
 		/* WM_TIMER só sai com a fila vazia: com o mouse sempre em movimento, o tique (vigia) roda daqui */
 		if (nowNs() - state.lastTickNs >= kLateTickNs) {

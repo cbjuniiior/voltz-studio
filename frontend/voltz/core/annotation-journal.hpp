@@ -16,7 +16,7 @@ constexpr const char *kAnnotationsJournalUpdateKey = "t_limpo";
 // quando o traço termina e, quando ele sai da tela, a linha curta {"id":7,"t_limpo":9000}. No fim (e ao recuperar o
 // projeto) consolidateAnnotations junta tudo no formato da spec: uma linha completa por traço, com t_limpo.
 // Tempos em ms relativos a t0 (sem descontar pausas, spec §5.5), nunca negativos: o que já estava na tela no início
-// vale 0. Linhas sem "\n".
+// vale 0. Linhas sem "\n". Texto em branco (textIsBlank: nunca apareceu) não tem linha.
 class AnnotationJournal {
 public:
 	explicit AnnotationJournal(int64_t t0Ns) : t0Ns_(t0Ns) {}

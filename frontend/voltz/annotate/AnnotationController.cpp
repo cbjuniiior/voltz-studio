@@ -2,6 +2,8 @@
 #include "AnnotationTestVendor.hpp"
 #include "OverlayWindow.hpp"
 
+#include <voltz/core/annotation-font.hpp>
+#include <voltz/core/annotation-text.hpp>
 #include <voltz/core/live-protocol.hpp>
 #include <voltz/project/MonitorLocator.hpp>
 #include <voltz/shell/SharedSources.hpp>
@@ -167,6 +169,9 @@ AnnotationController::AnnotationController(QObject *parent) : QObject(parent)
 	if (style_.fadeSeconds > 0) {
 		blog(LOG_INFO, "[voltz] anotacoes: somem apos %d s", style_.fadeSeconds);
 	}
+	if (!embeddedFontAvailable(TextFont::Regular) || !embeddedFontAvailable(TextFont::Bold)) {
+		blog(LOG_WARNING, "[voltz] anotacoes: a fonte do texto nao abriu (o texto nao aparece)");
+	}
 	const bool forced = testMode_ && qEnvironmentVariableIsSet(live::kTestBurnedEnv);
 	/* Antes do Windows 10 2004 o WDA_EXCLUDEFROMCAPTURE vira caixa preta: nem tenta (spec §6.3). */
 	burned_ = forced || !SetDisplayAffinitySupported();
@@ -222,6 +227,9 @@ int AnnotationController::beginStroke(AnnotationTool tool, const RgbColor &color
 	if (store_.openId() != 0) {
 		endStroke();
 	}
+	if (tool == AnnotationTool::Text) {
+		return beginText(first); /* texto pelo pedido de teste InjectStroke: começa vazio */
+	}
 	const int id = store_.begin(tool, color, width, first, nowNs());
 	if (id == 0) {
 		return 0;
@@ -240,8 +248,8 @@ int AnnotationController::beginStroke(AnnotationTool tool, const RgbColor &color
 
 void AnnotationController::extendStroke(const std::vector<StrokePoint> &points)
 {
-	if (shutdown_ || points.empty() || store_.openId() == 0) {
-		return;
+	if (shutdown_ || points.empty() || store_.openId() == 0 || typingText()) {
+		return; /* o texto só tem a âncora */
 	}
 	const StrokeTail tail = strokeTail(store_.visible().back().stroke);
 	if (!store_.extend(points)) {
@@ -262,6 +270,10 @@ void AnnotationController::endStroke()
 	if (shutdown_) {
 		return;
 	}
+	if (typingText()) {
+		commitText();
+		return;
+	}
 	const LiveStroke *ended = store_.end(nowNs());
 	if (!ended) {
 		return;
@@ -274,21 +286,128 @@ void AnnotationController::endStroke()
 
 void AnnotationController::undo()
 {
-	if (!shutdown_) {
-		removed(store_.undo(nowNs()), false);
+	if (shutdown_) {
+		return;
 	}
+	if (typingText()) {
+		cancelText();
+		return;
+	}
+	removed(store_.undo(nowNs()), false);
 }
 
 void AnnotationController::clear()
 {
-	if (!shutdown_) {
-		removed(store_.clear(nowNs()), true);
+	if (shutdown_) {
+		return;
 	}
+	const Stroke caretBefore = caret_;
+	typing_ = false;
+	caret_ = Stroke{};
+	removed(store_.clear(nowNs()), true, &caretBefore);
 }
 
-void AnnotationController::removed(const std::vector<RemovedStroke> &strokes, bool all)
+int AnnotationController::beginText(const StrokePoint &anchor)
+{
+	if (shutdown_) {
+		return 0;
+	}
+	if (store_.openId() != 0) {
+		endStroke();
+	}
+	const int id = store_.beginText(style_.color, style_.textSize, style_.textFont, anchor, nowNs());
+	if (id == 0) {
+		return 0;
+	}
+	const Stroke &stroke = store_.visible().back().stroke;
+	/* vazio: nada vai ao plugin ainda (textChanged manda quando houver algo a mostrar) */
+	typing_ = true;
+	caret_ = textCaretStroke(stroke);
+	refreshOverlay(true, overlayBounds({&caret_}));
+	blog(LOG_INFO, "[voltz] anotacoes: texto comecado (tam %d, fonte %s)", stroke.textSize,
+	     textFontToString(stroke.textFont));
+	return id;
+}
+
+bool AnnotationController::typingText() const
+{
+	return typing_ && store_.openId() != 0 && store_.visible().back().stroke.tool == AnnotationTool::Text;
+}
+
+void AnnotationController::textChanged(const Stroke &before, const Stroke &caretBefore)
+{
+	const Stroke &after = store_.visible().back().stroke;
+	if (textIsBlank(after.text)) {
+		sendRemove(after.id); /* em branco (apagou tudo): nada no programa; id desconhecido no plugin = nada */
+	} else {
+		sendBegin(after); /* o plugin troca o traço de mesmo id inteiro */
+	}
+	caret_ = textCaretStroke(after);
+	refreshOverlay(true, overlayBounds({&before, &after, &caretBefore, &caret_}));
+}
+
+void AnnotationController::updateText(const std::string &text)
+{
+	if (shutdown_ || !typingText()) {
+		return;
+	}
+	const Stroke before = store_.visible().back().stroke;
+	const Stroke caretBefore = caret_;
+	if (!store_.setOpenText(text) || store_.visible().back().stroke.text == before.text) {
+		return;
+	}
+	textChanged(before, caretBefore);
+}
+
+void AnnotationController::commitText()
+{
+	if (shutdown_ || !typingText()) {
+		return;
+	}
+	if (textIsBlank(store_.visible().back().stroke.text)) {
+		cancelText(); /* vazio ou só espaços e quebras: nada a confirmar */
+		return;
+	}
+	const Stroke caretBefore = caret_;
+	typing_ = false;
+	caret_ = Stroke{};
+	const LiveStroke *ended = store_.end(nowNs());
+	if (!ended) {
+		return;
+	}
+	const LiveStroke copy = *ended;
+	emit strokeEnded(copy);
+	scheduleExpiry();
+	refreshOverlay(true, overlayBounds({&caretBefore}));
+	blog(LOG_INFO, "[voltz] anotacoes: texto confirmado (%zu caractere(s))", textCharCount(copy.stroke.text));
+}
+
+void AnnotationController::cancelText()
+{
+	if (shutdown_ || !typingText()) {
+		return;
+	}
+	const Stroke open = store_.visible().back().stroke;
+	const Stroke caretBefore = caret_;
+	typing_ = false;
+	caret_ = Stroke{};
+	if (textIsBlank(open.text)) {
+		/* nunca apareceu (nem no programa): sai sem registro no diário */
+		store_.discardOpen();
+		sendRemove(open.id);
+		refreshOverlay(true, overlayBounds({&caretBefore}));
+	} else {
+		removed(store_.undo(nowNs()), false, &caretBefore);
+	}
+	blog(LOG_INFO, "[voltz] anotacoes: texto cancelado");
+}
+
+void AnnotationController::removed(const std::vector<RemovedStroke> &strokes, bool all, const Stroke *extra)
 {
 	if (strokes.empty()) {
+		if (extra && !extra->points.empty()) {
+			refreshOverlay(true, overlayBounds({extra}));
+		}
 		return;
 	}
 	if (all) {
@@ -305,6 +424,9 @@ void AnnotationController::removed(const std::vector<RemovedStroke> &strokes, bo
 		PixelRect area;
 		for (const RemovedStroke &stroke : strokes) {
 			area = uniteRects(area, strokeBounds(stroke.live.stroke, scaleX, scaleY));
+		}
+		if (extra) {
+			area = uniteRects(area, strokeBounds(*extra, scaleX, scaleY));
 		}
 		dirty = area;
 	}
@@ -376,7 +498,7 @@ void AnnotationController::refreshOverlay(bool strokesChanged, const std::option
 			blog(LOG_INFO, "[voltz] anotacoes: sem captura de monitor; sem sobreposicao");
 		}
 	}
-	const std::vector<const Stroke *> strokes = strokePointers();
+	const std::vector<const Stroke *> strokes = overlayStrokes();
 	if (!hasTarget) {
 		if (overlay_) {
 			overlay_->render({}, 0, 0);
@@ -458,6 +580,31 @@ std::vector<const Stroke *> AnnotationController::strokePointers() const
 	return out;
 }
 
+std::vector<const Stroke *> AnnotationController::overlayStrokes() const
+{
+	std::vector<const Stroke *> out = strokePointers();
+	if (typingText() && !caret_.points.empty()) {
+		out.push_back(&caret_); /* por cima de tudo, só na sobreposição */
+	}
+	return out;
+}
+
+std::optional<PixelRect> AnnotationController::overlayBounds(std::initializer_list<const Stroke *> strokes) const
+{
+	double scaleX = 0.0;
+	double scaleY = 0.0;
+	if (!overlayScale(scaleX, scaleY)) {
+		return std::nullopt;
+	}
+	PixelRect area;
+	for (const Stroke *stroke : strokes) {
+		if (stroke) {
+			area = uniteRects(area, strokeBounds(*stroke, scaleX, scaleY));
+		}
+	}
+	return area;
+}
+
 void AnnotationController::setStyle(const AnnotationStyle &style)
 {
 	if (shutdown_) {
@@ -469,6 +616,18 @@ void AnnotationController::setStyle(const AnnotationStyle &style)
 	if (style_.fadeSeconds != fadeBefore) {
 		blog(LOG_INFO, "[voltz] anotacoes: somem apos %d s", style_.fadeSeconds);
 		scheduleExpiry();
+	}
+	if (typingText()) {
+		/* cor, tamanho e fonte escolhidos na barra durante a digitação valem para o texto em andamento */
+		const Stroke before = store_.visible().back().stroke;
+		const Stroke caretBefore = caret_;
+		if (store_.setOpenTextStyle(style_.color, style_.textSize, style_.textFont)) {
+			const Stroke &after = store_.visible().back().stroke;
+			if (!(after.color == before.color) || after.textSize != before.textSize ||
+			    after.textFont != before.textFont) {
+				textChanged(before, caretBefore);
+			}
+		}
 	}
 	emit styleChanged();
 	publishTestState();
@@ -590,6 +749,11 @@ void AnnotationController::publishTestState()
 	state.insert(QStringLiteral("captura"), QJsonArray{captureWidth, captureHeight});
 	state.insert(QStringLiteral("sobreposicao"), overlay);
 	state.insert(QStringLiteral("amostras"), samples);
+	state.insert(QStringLiteral("digitando"), typingText());
+	state.insert(QStringLiteral("cursor_texto"), caret_.points.size() == 2 && typingText()
+							     ? QJsonArray{caret_.points[0].x, caret_.points[0].y,
+									  caret_.points[1].x, caret_.points[1].y}
+							     : QJsonArray{});
 	state.insert(QStringLiteral("modo_desenho"), drawActive_);
 	state.insert(QStringLiteral("desenho_recusa"), QString::fromStdString(drawRefusal_));
 	state.insert(QStringLiteral("desenho_saida"), QString::fromStdString(drawExit_));

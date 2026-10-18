@@ -30,9 +30,10 @@ AnnotationController *gTarget = nullptr; // protegido por gMutex
 std::string gState = "{}";               // protegido por gMutex
 obs_websocket_vendor gVendor = nullptr;  // só na thread da UI
 
-constexpr const char *kRequests[] = {"InjectStroke",    "ExtendStroke",       "EndStroke",
-				     "UndoStroke",      "ClearStrokes",       "ProbeOverlay",
-				     "AnnotationState", "SetAnnotationStyle", "ToolbarImage"};
+constexpr const char *kRequests[] = {"InjectStroke", "ExtendStroke", "EndStroke",       "UndoStroke",
+				     "ClearStrokes", "ProbeOverlay", "InjectText",      "TypeText",
+				     "CommitText",   "CancelText",   "AnnotationState", "SetAnnotationStyle",
+				     "ToolbarImage"};
 
 // Entrega `work` na thread da UI sem esperar; falso se o controlador já saiu (EXIT). O mutex é segurado enquanto o evento
 // é postado: o stop() (que anula gTarget antes de o controlador morrer) espera; evento de objeto destruído o Qt descarta.
@@ -111,6 +112,40 @@ void probeOverlay(obs_data_t *request, obs_data_t *response, void *)
 	const std::vector<StrokePoint> points = pointsOf(request);
 	obs_data_set_bool(response, "ok",
 			  post([points](AnnotationController *controller) { controller->probeOverlay(points); }));
+}
+
+void injectText(obs_data_t *request, obs_data_t *response, void *)
+{
+	const std::vector<StrokePoint> points = pointsOf(request);
+	const std::string text = obs_data_get_string(request, "texto");
+	const bool open = obs_data_get_bool(request, "aberto");
+	const bool ok = !points.empty() && post([points, text, open](AnnotationController *controller) {
+		if (!controller->beginText(points.front())) {
+			return;
+		}
+		controller->updateText(text);
+		if (!open) {
+			controller->commitText();
+		}
+	});
+	obs_data_set_bool(response, "ok", ok);
+}
+
+void typeText(obs_data_t *request, obs_data_t *response, void *)
+{
+	const std::string text = obs_data_get_string(request, "texto");
+	obs_data_set_bool(response, "ok",
+			  post([text](AnnotationController *controller) { controller->updateText(text); }));
+}
+
+void commitText(obs_data_t *, obs_data_t *response, void *)
+{
+	obs_data_set_bool(response, "ok", post([](AnnotationController *controller) { controller->commitText(); }));
+}
+
+void cancelText(obs_data_t *, obs_data_t *response, void *)
+{
+	obs_data_set_bool(response, "ok", post([](AnnotationController *controller) { controller->cancelText(); }));
 }
 
 void setAnnotationStyle(obs_data_t *request, obs_data_t *response, void *)
@@ -202,6 +237,10 @@ void AnnotationTestVendor::start(AnnotationController *controller)
 	obs_websocket_vendor_register_request(gVendor, "UndoStroke", undoStroke, nullptr);
 	obs_websocket_vendor_register_request(gVendor, "ClearStrokes", clearStrokes, nullptr);
 	obs_websocket_vendor_register_request(gVendor, "ProbeOverlay", probeOverlay, nullptr);
+	obs_websocket_vendor_register_request(gVendor, "InjectText", injectText, nullptr);
+	obs_websocket_vendor_register_request(gVendor, "TypeText", typeText, nullptr);
+	obs_websocket_vendor_register_request(gVendor, "CommitText", commitText, nullptr);
+	obs_websocket_vendor_register_request(gVendor, "CancelText", cancelText, nullptr);
 	obs_websocket_vendor_register_request(gVendor, "AnnotationState", annotationState, nullptr);
 	obs_websocket_vendor_register_request(gVendor, "SetAnnotationStyle", setAnnotationStyle, nullptr);
 	obs_websocket_vendor_register_request(gVendor, "ToolbarImage", toolbarImage, nullptr);

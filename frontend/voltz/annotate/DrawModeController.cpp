@@ -60,6 +60,9 @@ DrawModeController::DrawModeController(AnnotationController *annotations, QObjec
 		if (toolbar_) {
 			toolbar_->setAnnotationStyle(annotations_->style());
 		}
+		if (shared_) {
+			shared_->textTool.store(annotations_->style().tool == AnnotationTool::Text);
+		}
 	});
 	connect(annotations_, &AnnotationController::burnedChanged, this, [this](bool burned) {
 		if (toolbar_) {
@@ -153,6 +156,7 @@ void DrawModeController::enter(DrawTrigger trigger)
 	const bool exclude = SetDisplayAffinitySupported();
 	shared_ = std::make_shared<DrawShared>();
 	shared_->uiHeartbeatNs.store(nowNs());
+	shared_->textTool.store(annotations_->style().tool == AnnotationTool::Text);
 	{
 		std::lock_guard<std::mutex> lock(shared_->mutex);
 		shared_->wake = &DrawModeController::wake;
@@ -331,6 +335,27 @@ void DrawModeController::drain()
 			flush();
 			annotations_->undo();
 			break;
+		case DrawCommandType::TextBegin:
+			flush();
+			if (!command.points.empty()) {
+				annotations_->beginText(command.points.front());
+				if (toolbar_) {
+					toolbar_->raiseWithoutActivating();
+				}
+			}
+			break;
+		case DrawCommandType::TextEdit:
+			flush();
+			annotations_->updateText(command.text);
+			break;
+		case DrawCommandType::TextCommit:
+			flush();
+			annotations_->commitText();
+			break;
+		case DrawCommandType::TextCancel:
+			flush();
+			annotations_->cancelText();
+			break;
 		case DrawCommandType::Exit:
 			flush();
 			finish(command.exit);
@@ -349,8 +374,8 @@ void DrawModeController::finish(DrawExit reason)
 	exitInFreeze_ = reason == DrawExit::Watchdog || (lastBeat != 0 && now - lastBeat > kDrawHeartbeatNs);
 	exitNs_ = now;
 	exitReason_ = reason;
-	/* Nenhum traço fica aberto (a sessão sempre manda o End antes do Exit; isto cobre a thread que não o entregou).
-	 * Sem traço aberto, não faz nada. */
+	/* Nenhum traço fica aberto (a sessão sempre manda o End/TextCommit antes do Exit; isto cobre a thread que não o
+	 * entregou — e confirma o texto em andamento). Sem traço aberto, não faz nada. */
 	if (annotations_) {
 		annotations_->endStroke();
 	}

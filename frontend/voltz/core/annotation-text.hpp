@@ -20,6 +20,9 @@ std::string encodeUtf8(const std::u32string &text);
 bool isTextCodepoint(char32_t codepoint);
 // Caracteres (códigos) do texto em UTF-8.
 size_t textCharCount(const std::string &text);
+// Nada a mostrar: vazio ou só espaços (U+0020, U+00A0) e quebras de linha. Texto assim confirmado ou cancelado sai sem
+// registro (não vai ao plugin nem ao anotacoes.jsonl).
+bool textIsBlank(const std::string &text);
 // Acrescenta `codepoint` no fim se for aceito e couber (kMaxTextChars caracteres, kMaxTextLines linhas). Falso = nada
 // mudou.
 bool appendTextCodepoint(std::string &text, char32_t codepoint);

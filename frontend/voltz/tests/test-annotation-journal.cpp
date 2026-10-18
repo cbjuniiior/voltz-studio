@@ -67,6 +67,16 @@ TEST_CASE("AnnotationJournal: traços de antes do início valem 0; em andamento 
 	REQUIRE(closing.size() == 1);
 	CHECK(closing[0] == R"({"id":2,"ferr":"caneta","cor":"#D4F53C","esp":4,"pts":[[4,4]],"t_ini":0,"t_fim":7000})");
 	CHECK(journal.finishOpen(visible, kT0 + 8000 * kMs).empty());
+
+	/* texto em branco (nunca apareceu): sem linha ao limpar nem no fim da gravação */
+	LiveStroke blank = makeLive(3, AnnotationTool::Text, kT0 + 100 * kMs, -1, {{4, 4}});
+	blank.stroke.text = " \n";
+	CHECK(journal.strokeRemoved(voltz::RemovedStroke{blank, kT0 + 200 * kMs}).empty());
+	CHECK(journal.finishOpen({blank}, kT0 + 300 * kMs).empty());
+	blank.endNs = kT0 + 150 * kMs;
+	CHECK(journal.strokeFinished(blank).empty());
+	CHECK(journal.initialLines({blank}).empty());
+	CHECK(journal.strokeCount() == 2);
 }
 
 TEST_CASE("consolidateAnnotations: junta t_limpo, mantém ordem e campos desconhecidos, ignora o resto")

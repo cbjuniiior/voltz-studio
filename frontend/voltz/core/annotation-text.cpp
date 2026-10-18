@@ -145,6 +145,16 @@ bool popTextCodepoint(std::string &text)
 	return true;
 }
 
+bool textIsBlank(const std::string &text)
+{
+	for (const char32_t codepoint : decodeUtf8(text)) {
+		if (codepoint != U' ' && codepoint != U'\n' && codepoint != 0xA0) {
+			return false;
+		}
+	}
+	return true;
+}
+
 std::string sanitizeAnnotationText(const std::string &text)
 {
 	const std::u32string input = decodeUtf8(text);

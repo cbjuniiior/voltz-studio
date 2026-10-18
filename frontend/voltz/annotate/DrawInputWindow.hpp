@@ -16,6 +16,8 @@ namespace voltz {
 // Estado dividido entre a thread de entrada do modo desenho e a thread da UI.
 struct DrawShared {
 	std::atomic<int64_t> uiHeartbeatNs{0}; // a UI escreve a cada 250 ms; a thread de entrada lê no tique (vigia)
+	// A ferramenta escolhida é o texto (a UI escreve ao mudar o estilo; a thread de entrada lê no clique e no cursor).
+	std::atomic<bool> textTool{false};
 	// Protege os campos abaixo. A UI só o segura por instantes; a thread de entrada, com a janela viva, só por try_lock.
 	std::mutex mutex;
 	std::vector<DrawCommand> commands; // thread de entrada → UI (DrawModeController::drain)
@@ -34,7 +36,9 @@ struct DrawInputHandle;
 // A janela que RECEBE o desenho (spec §6.2, "clicável apenas em modo desenho"). Este arquivo .cpp é o ÚNICO do Voltz
 // que pega o mouse ou o primeiro plano (conferido por grep; ver o Plano 4C). Janela Win32 "VoltzDrawInput" numa
 // thread própria, só sobre o monitor da Tela: em camadas com alfa 1/255 (invisível, mas recebe o mouse), sempre no topo,
-// fora da barra de tarefas, fora da captura quando o Windows suporta, cursor em cruz, sem dono. A thread não faz nada
+// fora da barra de tarefas, fora da captura quando o Windows suporta, cursor em cruz (ou em I com a ferramenta texto),
+// sem dono. Plano 4D: as teclas viram caracteres (TranslateMessage → WM_CHAR, com acentos e substitutos UTF-16
+// juntados) para a digitação do texto, que é da DrawSession; nenhuma API de foco nova. A thread não faz nada
 // além dela: roda a DrawSession (núcleo), que decide todas as saídas — inclusive o vigia (a UI parou de pulsar por 1 s)
 // —, e entrega os comandos pela fila do DrawShared sem esperar a UI. Ao sair: solta o mouse, esconde a janela, destrói e
 // devolve o primeiro plano a quem o tinha (se ainda era nosso). Recusa com VOLTZ_TEST_LIVE antes de criar a thread.

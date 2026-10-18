@@ -170,6 +170,11 @@ TEST_CASE("sanitizeAnnotationText: quebras, controles e cortes")
 	const std::string cut = voltz::sanitizeAnnotationText(many);
 	CHECK(std::count(cut.begin(), cut.end(), '\n') == static_cast<long>(voltz::kMaxTextLines) - 1);
 	CHECK(voltz::textCharCount(voltz::sanitizeAnnotationText(std::string(500, 'z'))) == voltz::kMaxTextChars);
+	/* em branco: nada a mostrar */
+	CHECK(voltz::textIsBlank(""));
+	CHECK(voltz::textIsBlank("  \n \xC2\xA0\n"));
+	CHECK_FALSE(voltz::textIsBlank(" .\n"));
+	CHECK_FALSE(voltz::textIsBlank(kOla));
 }
 
 TEST_CASE("StrokeStore: texto — beginText vazio, setOpenText, setOpenTextStyle, discardOpen")

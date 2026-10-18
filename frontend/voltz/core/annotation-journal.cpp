@@ -1,4 +1,5 @@
 #include "annotation-journal.hpp"
+#include "annotation-text.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -8,6 +9,16 @@
 #include <utility>
 
 namespace voltz {
+
+namespace {
+
+// Texto ainda em branco (cancelado por limpar, ou aberto no fim da gravação): nada apareceu, nada a registrar.
+bool blankText(const LiveStroke &live)
+{
+	return live.stroke.tool == AnnotationTool::Text && textIsBlank(live.stroke.text);
+}
+
+} // namespace
 
 int64_t AnnotationJournal::relativeMs(int64_t ns) const
 {
@@ -30,7 +41,7 @@ std::vector<std::string> AnnotationJournal::initialLines(const std::vector<LiveS
 {
 	std::vector<std::string> lines;
 	for (const LiveStroke &live : visible) {
-		if (!live.open() && written_.count(live.stroke.id) == 0) {
+		if (!live.open() && written_.count(live.stroke.id) == 0 && !blankText(live)) {
 			lines.push_back(fullLine(live, live.endNs, -1));
 		}
 	}
@@ -39,7 +50,7 @@ std::vector<std::string> AnnotationJournal::initialLines(const std::vector<LiveS
 
 std::string AnnotationJournal::strokeFinished(const LiveStroke &live)
 {
-	if (live.open() || written_.count(live.stroke.id) != 0) {
+	if (live.open() || written_.count(live.stroke.id) != 0 || blankText(live)) {
 		return {};
 	}
 	return fullLine(live, live.endNs, -1);
@@ -49,6 +60,9 @@ std::string AnnotationJournal::strokeRemoved(const RemovedStroke &removed)
 {
 	const LiveStroke &live = removed.live;
 	if (written_.count(live.stroke.id) == 0) {
+		if (blankText(live)) {
+			return {};
+		}
 		return fullLine(live, live.open() ? removed.removedNs : live.endNs, removed.removedNs);
 	}
 	char buffer[96];
@@ -61,7 +75,7 @@ std::vector<std::string> AnnotationJournal::finishOpen(const std::vector<LiveStr
 {
 	std::vector<std::string> lines;
 	for (const LiveStroke &live : visible) {
-		if (live.open() && written_.count(live.stroke.id) == 0) {
+		if (live.open() && written_.count(live.stroke.id) == 0 && !blankText(live)) {
 			lines.push_back(fullLine(live, endNs, -1));
 		}
 	}

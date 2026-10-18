@@ -7,6 +7,11 @@ set(VOLTZ_VERSION_MINOR 0)
 set(VOLTZ_VERSION_PATCH 0)
 set(VOLTZ_VERSION "${VOLTZ_VERSION_MAJOR}.${VOLTZ_VERSION_MINOR}.${VOLTZ_VERSION_PATCH}")
 
+# FreeType das deps do OBS para o texto das anotações (voltz-core, Plano 4D). Aqui, e não no voltz-core: o alvo importado
+# Freetype::Freetype só é visível no diretório em que nasce e abaixo dele — daqui valem o obs-studio, o voltz-core, os
+# testes e o plugin voltz-sources.
+find_package(Freetype 2.13 REQUIRED)
+
 add_subdirectory(voltz/core)
 
 # Plugin das fontes Voltz (Voltz Mouse). Usa o voltz-core, por isso entra aqui (depois dele) e não em

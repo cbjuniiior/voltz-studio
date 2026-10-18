@@ -9,6 +9,7 @@ add_library(Voltz::core ALIAS voltz-core)
 target_sources(
   voltz-core
   PRIVATE
+    annotation-font.cpp
     annotation-journal.cpp
     annotation-model.cpp
     annotation-raster.cpp
@@ -37,6 +38,7 @@ target_sources(
     time-format.cpp
     voltz-version.cpp
   PUBLIC
+    annotation-font.hpp
     annotation-journal.hpp
     annotation-model.hpp
     annotation-raster.hpp
@@ -66,6 +68,28 @@ target_sources(
     time-format.hpp
     voltz-version.hpp
 )
+
+# Texto das anotações (Plano 4D): as duas DM Sans (Regular e Bold, OFL) da casca embutidas no voltz-core — a sobreposição
+# (obs-studio) e a fonte Voltz Anotações (plugin) desenham o texto com os mesmos bytes — e lidas pelo FreeType das deps
+# do OBS (o mesmo do text-freetype2; o find_package fica no feature-voltz.cmake, visível para todos os alvos que ligam o
+# voltz-core). Ligado PUBLIC: o find_dependencies do OBS aceita o alvo Freetype::Freetype na interface (um PRIVATE
+# viraria $<LINK_ONLY:...>, que ele recusa — ver o nlohmann abaixo).
+set(_voltz_fonts_dir "${CMAKE_CURRENT_SOURCE_DIR}/../shell/fonts")
+set(_voltz_fonts_cpp "${CMAKE_CURRENT_BINARY_DIR}/annotation-font-data.cpp")
+add_custom_command(
+  OUTPUT "${_voltz_fonts_cpp}"
+  COMMAND
+    "${CMAKE_COMMAND}" "-DOUTPUT=${_voltz_fonts_cpp}" "-DREGULAR=${_voltz_fonts_dir}/DMSans-Regular.ttf"
+    "-DBOLD=${_voltz_fonts_dir}/DMSans-Bold.ttf" -P "${CMAKE_CURRENT_SOURCE_DIR}/embed-fonts.cmake"
+  DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/embed-fonts.cmake"
+    "${_voltz_fonts_dir}/DMSans-Regular.ttf"
+    "${_voltz_fonts_dir}/DMSans-Bold.ttf"
+  COMMENT "Voltz: embutindo as fontes do texto das anotacoes"
+  VERBATIM
+)
+target_sources(voltz-core PRIVATE "${_voltz_fonts_cpp}")
+target_link_libraries(voltz-core PUBLIC Freetype::Freetype)
 
 # Inclui a partir de frontend/ para usar <voltz/core/...>
 target_include_directories(voltz-core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../..")

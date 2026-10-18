@@ -11,6 +11,7 @@ target_sources(
     test-annotation-journal.cpp
     test-annotation-model.cpp
     test-annotation-dirty.cpp
+    test-annotation-font.cpp
     test-annotation-raster.cpp
     test-annotation-text.cpp
     test-atomic-file.cpp

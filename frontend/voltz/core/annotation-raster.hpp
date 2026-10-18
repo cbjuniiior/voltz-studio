@@ -40,7 +40,8 @@ struct StrokeShape {
 // Forma do traço com os pontos multiplicados por (scaleX, scaleY); (1, 1) = pixels da captura. O centro do pixel (x,y)
 // é (x+0,5, y+0,5). Caneta/marca-texto: cápsula entre pontos seguidos (um ponto só = bolinha); linha: primeiro → último;
 // seta: haste + ponta cheia (comprimento max(12, 4×esp), limitado ao tamanho da seta; largura = comprimento);
-// retângulo: 4 lados; elipse: polígono fechado inscrito no retângulo primeiro/último (24 a 180 lados, ~8 px por lado).
+// retângulo: 4 lados; elipse: polígono fechado inscrito no retângulo primeiro/último (24 a 180 lados, ~8 px por lado);
+// texto: nenhuma peça (os glifos vêm da fonte embutida, annotation-font).
 StrokeShape strokeShape(const Stroke &stroke, double scaleX, double scaleY);
 
 // Imagem BGRA com alfa pré-multiplicado (bytes B, G, R, A por pixel; linhas de `stride` bytes, de cima para baixo) — o
@@ -56,6 +57,8 @@ void clearRaster(const RasterImage &image);
 
 // Desenha por cima (src-over). Dentro do mesmo traço vale a MAIOR cobertura de cada pixel entre as peças, e só então
 // mistura: o marca-texto translúcido não escurece nas junções. Bordas suavizadas em ~1 px; o que sai da imagem é cortado.
+// Texto (Plano 4D): os glifos da DM Sans embutida (FreeType, sem hinting) com a âncora × escala e o "em" × a escala
+// média, opacos na cor do traço; o mesmo código na sobreposição e na fonte do plugin.
 void rasterizeStroke(const RasterImage &image, const Stroke &stroke, double scaleX, double scaleY);
 
 // Retângulo de pixels [left, right) × [top, bottom); vazio quando left >= right ou top >= bottom.
@@ -77,7 +80,7 @@ PixelRect uniteRects(const PixelRect &a, const PixelRect &b);
 PixelRect intersectRects(const PixelRect &a, const PixelRect &b);
 
 // Todo pixel que rasterizeStroke pode tocar (pixels da imagem, com a escala dada), sem cortar na imagem. Vazio se o
-// traço não desenha nada.
+// traço não desenha nada. Texto: a caixa do layout com folga de 0,3 "em" + 2 px (o texto é cortado nela).
 PixelRect strokeBounds(const Stroke &stroke, double scaleX, double scaleY);
 
 // rasterizeStroke só dentro de `clip` (cortado na imagem): fora dele nada muda; dentro, o mesmo resultado.

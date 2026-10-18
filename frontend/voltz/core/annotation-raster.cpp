@@ -1,4 +1,6 @@
 #include "annotation-raster.hpp"
+#include "annotation-font.hpp"
+#include "text-layout.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -15,6 +17,9 @@ constexpr int kEllipseMaxSides = 180;
 constexpr double kEllipseSideLength = 8.0;
 constexpr double kArrowHeadMin = 12.0;
 constexpr double kArrowHeadPerWidth = 4.0;
+// Folga do retângulo do texto em relação à caixa do layout, em "em" (+2 px): acentos acima do ascender, caudas abaixo do
+// descender, letras que passam do avanço e a suavização.
+constexpr double kTextInkMargin = 0.3;
 
 struct Point {
 	double x = 0.0;
@@ -178,6 +183,8 @@ StrokeShape strokeShape(const Stroke &stroke, double scaleX, double scaleY)
 		addClosedPolygon(shape, corners, radius);
 		break;
 	}
+	case AnnotationTool::Text:
+		break; /* o texto não é feito de peças: rasterizeTextClipped */
 	}
 	return shape;
 }
@@ -227,6 +234,36 @@ PixelRect shapeBounds(const StrokeShape &shape)
 	}
 	return PixelRect{boundCoordinate(std::floor(minX)), boundCoordinate(std::floor(minY)),
 			 boundCoordinate(std::ceil(maxX) + 1.0), boundCoordinate(std::ceil(maxY) + 1.0)};
+}
+
+// Mistura (src-over, pré-multiplicada) a máscara de cobertura (box, linha a linha) na imagem, na cor e opacidade dadas.
+void blendMask(const RasterImage &image, const PixelRect &box, const std::vector<uint8_t> &mask, const RgbColor &color,
+	       double opacity)
+{
+	const int maskWidth = box.right - box.left;
+	const int blue = color.b;
+	const int green = color.g;
+	const int red = color.r;
+	for (int y = box.top; y < box.bottom; y++) {
+		uint8_t *row = image.pixels + static_cast<size_t>(y) * static_cast<size_t>(image.stride);
+		const uint8_t *maskRow =
+			mask.data() + static_cast<size_t>(y - box.top) * static_cast<size_t>(maskWidth);
+		for (int x = box.left; x < box.right; x++) {
+			const int value = maskRow[x - box.left];
+			if (value == 0) {
+				continue;
+			}
+			const int alpha = static_cast<int>(std::lround(value * opacity));
+			if (alpha <= 0) {
+				continue;
+			}
+			uint8_t *pixel = row + static_cast<size_t>(x) * 4;
+			pixel[0] = blendChannel(blue, pixel[0], alpha);
+			pixel[1] = blendChannel(green, pixel[1], alpha);
+			pixel[2] = blendChannel(red, pixel[2], alpha);
+			pixel[3] = static_cast<uint8_t>(alpha + (pixel[3] * (255 - alpha) + 127) / 255);
+		}
+	}
 }
 
 // O rasterizador do 4B limitado a `clip` (e à imagem). Dentro do limite o resultado é o mesmo do desenho inteiro: a
@@ -287,29 +324,91 @@ void rasterizeShapeClipped(const RasterImage &image, const Stroke &stroke, const
 		}
 	}
 
-	const double opacity = strokeOpacity(stroke);
-	const int blue = stroke.color.b;
-	const int green = stroke.color.g;
-	const int red = stroke.color.r;
-	for (int y = top; y < bottom; y++) {
-		uint8_t *row = image.pixels + static_cast<size_t>(y) * static_cast<size_t>(image.stride);
-		const uint8_t *maskRow = mask.data() + static_cast<size_t>(y - top) * static_cast<size_t>(maskWidth);
-		for (int x = left; x < right; x++) {
-			const int value = maskRow[x - left];
-			if (value == 0) {
-				continue;
+	blendMask(image, box, mask, stroke.color, strokeOpacity(stroke));
+}
+
+// Texto: a âncora (canto do pixel) vai com a escala de cada eixo; o "em" escala pela média, como a espessura dos traços.
+bool textPlacement(const Stroke &stroke, double scaleX, double scaleY, double &anchorX, double &anchorY,
+		   double &pixelSize)
+{
+	if (stroke.tool != AnnotationTool::Text || stroke.points.empty() || stroke.text.empty() || scaleX <= 0.0 ||
+	    scaleY <= 0.0) {
+		return false;
+	}
+	anchorX = static_cast<double>(stroke.points.front().x) * scaleX;
+	anchorY = static_cast<double>(stroke.points.front().y) * scaleY;
+	pixelSize = static_cast<double>(clampTextSize(stroke.textSize)) * (scaleX + scaleY) / 2.0;
+	return true;
+}
+
+// A caixa do layout com uma folga para o que a letra desenha fora dela (acentos, caudas, suavização). O texto nunca
+// desenha fora disso (rasterizeTextClipped corta aqui): é o strokeBounds do texto.
+PixelRect textBounds(const Stroke &stroke, double scaleX, double scaleY)
+{
+	double anchorX = 0.0;
+	double anchorY = 0.0;
+	double pixelSize = 0.0;
+	if (!textPlacement(stroke, scaleX, scaleY, anchorX, anchorY, pixelSize)) {
+		return PixelRect{};
+	}
+	const TextLayout layout = layoutText(stroke.text, pixelSize, embeddedFontMetrics(stroke.textFont));
+	if (layout.glyphs.empty()) {
+		return PixelRect{};
+	}
+	const double margin = std::ceil(pixelSize * kTextInkMargin) + 2.0;
+	return PixelRect{boundCoordinate(std::floor(anchorX - margin)), boundCoordinate(std::floor(anchorY - margin)),
+			 boundCoordinate(std::ceil(anchorX + layout.width + margin)),
+			 boundCoordinate(std::ceil(anchorY + layout.height + margin))};
+}
+
+// Os glifos do texto (FreeType, annotation-font) numa máscara com a maior cobertura de cada pixel, limitada a `clip`,
+// à imagem e ao textBounds; mistura como os outros traços. A cobertura de um pixel não depende do recorte.
+void rasterizeTextClipped(const RasterImage &image, const Stroke &stroke, double scaleX, double scaleY,
+			  const PixelRect &clip)
+{
+	double anchorX = 0.0;
+	double anchorY = 0.0;
+	double pixelSize = 0.0;
+	if (!textPlacement(stroke, scaleX, scaleY, anchorX, anchorY, pixelSize)) {
+		return;
+	}
+	const PixelRect box = intersectRects(intersectRects(textBounds(stroke, scaleX, scaleY), clip),
+					     PixelRect{0, 0, image.width, image.height});
+	if (box.empty()) {
+		return;
+	}
+	const TextLayout layout = layoutText(stroke.text, pixelSize, embeddedFontMetrics(stroke.textFont));
+	const int maskWidth = box.right - box.left;
+	std::vector<uint8_t> mask(static_cast<size_t>(maskWidth) * static_cast<size_t>(box.bottom - box.top), 0);
+	GlyphBitmap glyph;
+	for (const PlacedGlyph &placed : layout.glyphs) {
+		const double originX = anchorX + placed.x;
+		const double baseline = anchorY + placed.baseline;
+		/* pula, sem rasterizar, a letra que nem com folga toca a caixa: só desempenho, o resultado é o mesmo */
+		const PixelRect reach{boundCoordinate(std::floor(originX - pixelSize)),
+				      boundCoordinate(std::floor(baseline - 1.5 * pixelSize)),
+				      boundCoordinate(std::ceil(originX + 2.0 * pixelSize)),
+				      boundCoordinate(std::ceil(baseline + pixelSize))};
+		if (intersectRects(reach, box).empty()) {
+			continue;
+		}
+		if (!renderGlyph(stroke.textFont, placed.codepoint, pixelSize, originX, baseline, glyph)) {
+			continue;
+		}
+		const PixelRect area = intersectRects(
+			PixelRect{glyph.left, glyph.top, glyph.left + glyph.width, glyph.top + glyph.height}, box);
+		for (int y = area.top; y < area.bottom; y++) {
+			const uint8_t *source = glyph.coverage.data() +
+						static_cast<size_t>(y - glyph.top) * static_cast<size_t>(glyph.width);
+			uint8_t *target =
+				mask.data() + static_cast<size_t>(y - box.top) * static_cast<size_t>(maskWidth);
+			for (int x = area.left; x < area.right; x++) {
+				uint8_t &cell = target[x - box.left];
+				cell = std::max(cell, source[x - glyph.left]);
 			}
-			const int alpha = static_cast<int>(std::lround(value * opacity));
-			if (alpha <= 0) {
-				continue;
-			}
-			uint8_t *pixel = row + static_cast<size_t>(x) * 4;
-			pixel[0] = blendChannel(blue, pixel[0], alpha);
-			pixel[1] = blendChannel(green, pixel[1], alpha);
-			pixel[2] = blendChannel(red, pixel[2], alpha);
-			pixel[3] = static_cast<uint8_t>(alpha + (pixel[3] * (255 - alpha) + 127) / 255);
 		}
 	}
+	blendMask(image, box, mask, stroke.color, 1.0);
 }
 
 } // namespace
@@ -335,6 +434,9 @@ PixelRect intersectRects(const PixelRect &a, const PixelRect &b)
 
 PixelRect strokeBounds(const Stroke &stroke, double scaleX, double scaleY)
 {
+	if (stroke.tool == AnnotationTool::Text) {
+		return textBounds(stroke, scaleX, scaleY);
+	}
 	return shapeBounds(strokeShape(stroke, scaleX, scaleY));
 }
 
@@ -347,6 +449,10 @@ void rasterizeStrokeClipped(const RasterImage &image, const Stroke &stroke, doub
 			    const PixelRect &clip)
 {
 	if (!image.pixels || image.width <= 0 || image.height <= 0) {
+		return;
+	}
+	if (stroke.tool == AnnotationTool::Text) {
+		rasterizeTextClipped(image, stroke, scaleX, scaleY, clip);
 		return;
 	}
 	rasterizeShapeClipped(image, stroke, strokeShape(stroke, scaleX, scaleY), clip);
@@ -369,6 +475,12 @@ void redrawRegion(const RasterImage &image, const std::vector<const Stroke *> &s
 	}
 	for (const Stroke *stroke : strokes) {
 		if (!stroke) {
+			continue;
+		}
+		if (stroke->tool == AnnotationTool::Text) {
+			if (!intersectRects(textBounds(*stroke, scaleX, scaleY), area).empty()) {
+				rasterizeTextClipped(image, *stroke, scaleX, scaleY, area);
+			}
 			continue;
 		}
 		const StrokeShape shape = strokeShape(*stroke, scaleX, scaleY);

@@ -421,6 +421,8 @@ $script:job = $null
 $textStyle = '{"ferr":"texto","cor":"#D4F53C","esp":4,"somem_apos_s":0,"tam":96,"fonte":"dm_sans_negrito"}'
 try {
     # Backup dentro do try: qualquer falha daqui em diante ainda restaura a config no finally
+    # Backup anterior (execucao abortada): o Move-Item poria a config DENTRO dele; cfgOwned segue falso (nada restaurado)
+    if (Test-Path -LiteralPath $bak) { throw "backup anterior em ${bak}: resolva antes" }
     if (Test-Path $cfg) { Move-Item $cfg $bak }
     $script:cfgOwned = $true
     if (Test-Path $logDir) { Remove-Item -Recurse -Force $logDir }

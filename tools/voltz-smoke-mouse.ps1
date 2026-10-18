@@ -170,6 +170,8 @@ $script:cfgOwned = $false
 $proc = $null
 try {
     # Backup dentro do try: qualquer falha daqui em diante ainda restaura a config no finally
+    # Backup anterior (execucao abortada): o Move-Item poria a config DENTRO dele; cfgOwned segue falso (nada restaurado)
+    if (Test-Path -LiteralPath $bak) { throw "backup anterior em ${bak}: resolva antes" }
     if (Test-Path $cfg) { Move-Item $cfg $bak }
     $script:cfgOwned = $true
     if (Test-Path $logDir) { Remove-Item -Recurse -Force $logDir }

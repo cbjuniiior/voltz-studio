@@ -18,6 +18,7 @@ target_sources(
     test-cursor-track.cpp
     test-disk-space.cpp
     test-draw-session.cpp
+    test-draw-text.cpp
     test-iso-encoders.cpp
     test-mouse-effects.cpp
     test-mouse-style.cpp

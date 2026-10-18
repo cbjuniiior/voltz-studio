@@ -1,4 +1,5 @@
 #include "draw-session.hpp"
+#include "annotation-text.hpp"
 
 #include <algorithm>
 #include <utility>
@@ -13,6 +14,13 @@ DrawCommand command(DrawCommandType type, std::vector<StrokePoint> points = {}, 
 	out.type = type;
 	out.points = std::move(points);
 	out.exit = exit;
+	return out;
+}
+
+DrawCommand textEdit(const std::string &text)
+{
+	DrawCommand out = command(DrawCommandType::TextEdit);
+	out.text = text;
 	return out;
 }
 
@@ -102,6 +110,16 @@ StrokePoint DrawSession::clampedPoint(int x, int y) const
 	return StrokePoint{point.x, point.y};
 }
 
+void DrawSession::closeText(std::vector<DrawCommand> &out)
+{
+	if (!typing_) {
+		return;
+	}
+	out.push_back(command(text_.empty() ? DrawCommandType::TextCancel : DrawCommandType::TextCommit));
+	typing_ = false;
+	text_.clear();
+}
+
 std::vector<DrawCommand> DrawSession::finish(DrawExit reason)
 {
 	std::vector<DrawCommand> out;
@@ -109,6 +127,7 @@ std::vector<DrawCommand> DrawSession::finish(DrawExit reason)
 		out.push_back(command(DrawCommandType::End));
 		drawing_ = false;
 	}
+	closeText(out);
 	exit_ = reason;
 	out.push_back(command(DrawCommandType::Exit, {}, reason));
 	return out;
@@ -139,6 +158,13 @@ std::vector<DrawCommand> DrawSession::handle(const DrawInput &input)
 		}
 		return {};
 	case DrawInputKind::Escape:
+		if (typing_) {
+			/* o primeiro Esc só cancela o texto (conta como atividade); o seguinte sai */
+			lastInputNs_ = std::max(lastInputNs_, input.tNs);
+			typing_ = false;
+			text_.clear();
+			return {command(DrawCommandType::TextCancel)};
+		}
 		return finish(DrawExit::Escape);
 	case DrawInputKind::RightDown:
 		return finish(DrawExit::RightClick);
@@ -162,6 +188,14 @@ std::vector<DrawCommand> DrawSession::handle(const DrawInput &input)
 		}
 		const CapturePoint point = mapToCapture(mapping_, input.x, input.y);
 		if (!point.inside) {
+			break;
+		}
+		/* clicar de novo confirma o texto que estava sendo digitado */
+		closeText(out);
+		if (input.textTool) {
+			typing_ = true;
+			text_.clear();
+			out.push_back(command(DrawCommandType::TextBegin, {StrokePoint{point.x, point.y}}));
 			break;
 		}
 		drawing_ = true;
@@ -190,12 +224,41 @@ std::vector<DrawCommand> DrawSession::handle(const DrawInput &input)
 		}
 		break;
 	case DrawInputKind::Undo:
+		if (typing_) {
+			/* durante a digitação, desfazer tira só o texto em andamento */
+			typing_ = false;
+			text_.clear();
+			out.push_back(command(DrawCommandType::TextCancel));
+			break;
+		}
 		/* desfazer tira o traço em andamento: o botão segue apertado, mas nada mais vai para ele */
 		if (drawing_) {
 			out.push_back(command(DrawCommandType::End));
 			drawing_ = false;
 		}
 		out.push_back(command(DrawCommandType::Undo));
+		break;
+	case DrawInputKind::Char:
+		if (typing_ && appendTextCodepoint(text_, input.codepoint)) {
+			out.push_back(textEdit(text_));
+		}
+		break;
+	case DrawInputKind::Backspace:
+		if (typing_ && popTextCodepoint(text_)) {
+			out.push_back(textEdit(text_));
+		}
+		break;
+	case DrawInputKind::Enter:
+		if (!typing_) {
+			break;
+		}
+		if (input.shift) {
+			if (appendTextCodepoint(text_, U'\n')) {
+				out.push_back(textEdit(text_));
+			}
+			break;
+		}
+		closeText(out);
 		break;
 	default:
 		break; /* Activated, OtherKey: só atividade */

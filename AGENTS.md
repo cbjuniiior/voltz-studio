@@ -27,8 +27,9 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
   - Testes: `ctest --test-dir build_x64/frontend/voltz/tests -C RelWithDebInfo --output-on-failure`
   - Smokes (`powershell -ExecutionPolicy Bypass -File tools/<nome>.ps1`; todos guardam/restauram a config portátil):
     `voltz-smoke` · `voltz-smoke-record` (grava ~15 s em `Vídeos\Voltz Studio`) · `voltz-smoke-project -OutDir <vazia>` ·
-    `voltz-smoke-mouse -OutDir <vazia>` · `voltz-smoke-annotations -OutDir <vazia>` · `voltz-smoke-draw`; demos manuais:
-    `voltz-annot-demo`, `voltz-draw-demo` (modo desenho, sem variável de teste).
+    `voltz-smoke-mouse -OutDir <vazia>` · `voltz-smoke-annotations -OutDir <vazia>` · `voltz-smoke-draw` ·
+    `voltz-smoke-text -OutDir <vazia>`; demos manuais: `voltz-annot-demo`, `voltz-draw-demo` (desenho e texto, sem
+    variável de teste; `-Hotkeys`).
   - Automação da casca: `tools/voltz-uia.ps1` (UI Automation; `-List`; nav = CheckBox) e `tools/voltz-ws.ps1` (obs-websocket).
   - Executável: `build_x64/rundir/RelWithDebInfo/bin/64bit/VoltzStudio.exe`.
     Testar com `--portable --multi` para não tocar config do OBS instalado.
@@ -38,9 +39,9 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
 - Planos 1–4A concluídos (fundação, casca, presets, tema, gravação em projeto com manifesto/marcadores/cursor/ISO,
   plugin voltz-sources com Voltz Mouse e grupo Tela Voltz); relato em `docs/HISTORICO.md`; pendências em
   `docs/voltz/backlog-plano-*.md`; patches no OBS em `docs/voltz/upstream-patches.md`.
-- Planos 4B–4C concluídos: anotações (núcleo, rasterizador com retângulo sujo, `anotacoes.jsonl`, fonte Voltz
-  Anotações, sobreposição fora da captura) e modo desenho (Ctrl+Shift+D/botão Desenhar, janela de entrada em thread
-  própria, saídas garantidas, barra). Testes: 170 casos + smokes de anotações e desenho.
+- Planos 4B–4D concluídos: anotações (núcleo, retângulo sujo, `anotacoes.jsonl`, fonte Voltz Anotações, sobreposição
+  fora da captura), modo desenho (atalho/botão, entrada em thread própria, saídas garantidas, barra), texto, seletor de
+  cor e Ajustes › Anotações/Atalhos. Testes: 204 casos + smokes de anotações, desenho e texto.
 
 ## Decisões
 - **Casca Qt nova** + `OBSBasic` oculta como motor (modo clássico = saída de emergência); não reformar `OBSBasic.ui`.
@@ -51,7 +52,6 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
 - Gravação em projeto: `programa.mp4` (MP4 híbrido, capítulos, 3 faixas) + ISO `tela.mkv`/`camera.mkv` via
   `obs_canvas` + `cursor.jsonl` + `anotacoes.jsonl` + `projeto.voltz`.
 - Instalador **Inno Setup** (repo do OBS não tem script de instalador; só gera ZIP).
-- Logo: obturador de 3 lâminas lima inclinado sobre squircle preto; bolinha REC só ao gravar.
 - Presets: fontes compartilhadas (Tela/Câmera/Fundo) por UUID em user.ini [Voltz]; câmera redonda = grupo 'Câmera redonda'
   + mask_filter_v2 com `data/voltz/mask-circle.png`. Ajustes de gravação só no modo de saída Simples (Avançado → modo
   clássico).
@@ -73,33 +73,25 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
   "queimadas": fonte não desenha + manifesto); `anotacoes.jsonl` = diário só de acréscimo, consolidado no fim/recuperação.
 - Modo desenho: só por ação do usuário (nunca com `VOLTZ_TEST_LIVE`), só no monitor da Tela; janela de entrada Win32 em
   thread própria (saídas e vigia de 1 s pela `DrawSession` do núcleo); captura/foco só em `annotate/DrawInputWindow.cpp`.
+- Texto: FreeType das deps + DM Sans embutida no `voltz-core` (mesmos bytes na sobreposição e no plugin); digitação na
+  `DrawSession` (WM_CHAR). Atalhos: tabela no núcleo (`hotkey-bindings`); Ajustes › Atalhos usa o `OBSHotkeyEdit`.
 
 ## Armadilhas
 - Preset upstream `windows-x64` exige **VS 2026**; usar o preset versionado `voltz-windows-x64` (VS 2022). Código só exige SDK ≥ 10.0.20348.
 - Armadilhas arquivadas (ATL/8006 do VS, gancho `WH_MOUSE_LL`, nlohmann em alvo estático, saídas/ordem/falha do ISO,
   quadros pulados, geração do projeto, fechamento OBSBasic/casca, `--startrecording`, `AddSourceDialog`, `blog` cedo,
-  laço do `QInputDialog`, log AJA/NVENC): `docs/HISTORICO.md` → "Poda do Plano 4B".
-- No Git Bash, flags do MSBuild com `/` (ex. `/v:minimal`) viram caminho → usar `-v:minimal`.
-- `.gitignore` do OBS é whitelist (`/*` + exceções): arquivo novo na raiz precisa de `!nome` para ser versionado.
-- Dentro de QWidget, função livre com nome de membro do Qt (`windowTitle`, `styleSheet()`) resolve para o membro:
-  qualificar (`voltz::windowTitle`) ou renomear (`toolbarStyleSheet`).
+  laço do `QInputDialog`, log AJA/NVENC; QSS da casca: especificidade, font-size, objectName antes do setStyleSheet):
+  `docs/HISTORICO.md` → "Poda do Plano 4B".
 - Build x86 auxiliar às vezes falha com MSB4018 "Touch"/ZERO_CHECK (race) — rodar de novo.
 - Regras da casca no QSS precisam do prefixo `#voltzShell` (o tema do OBS é global e tem `QPushButton { max-height }`).
 - Sinais do libobs (cena, saída, `channel_change`, `source_rename`) chegam fora da thread da UI: repassar com `Qt::QueuedConnection`.
-- A saída de gravação é recriada ao mudar configurações: reconectar o sinal `stop` a cada `RECORDING_STARTING`.
-- Armadilhas de QSS da casca (especificidade, font-size, objectName antes do setStyleSheet): `docs/HISTORICO.md` → "Poda do Plano 4B".
 - O projeto compila com `QT_NO_CONTEXTLESS_CONNECT`: todo `connect` com lambda precisa de objeto de contexto.
-- Widgets postos com `setItemWidget` não aparecem na UIA; o `SourcesPanel` usa uma fábrica `QAccessible` presa ao
-  `objectName` `sourcesList` — não renomear.
-- Filhos de grupo emitem sinais pela fonte do grupo: ligar o `signal_handler` de cada grupo para atualizar as Fontes.
 - Com "esconder da captura" ligado, `PrintWindow` sai preto: testes de captura escrevem `HideOBSWindowsFromCapture=false`
   no `user.ini` portátil. Os smokes apagam a config portátil (`build_x64/rundir/RelWithDebInfo/config`): backup antes.
 - Callbacks do frontend rodam do último registrado para o primeiro: criar o `ProjectRecorder` depois da `FrontendBridge`
   e o `MouseStyleStore` depois do recorder (o EXIT do store grava o estilo e solta o atalho antes); o `DrawModeController`
   (último) trata o EXIT e fecha o traço antes do recorder.
 - `TriggerHotkeyByName` (websocket) chama o callback do atalho na thread do websocket com o lock dos atalhos preso: só enfileirar.
-- `config_set_default_*` deste libobs grava o padrão também como valor do usuário: "ainda no padrão" = comparar com
-  `config_get_default_*` (`stillObsDefault()`), não `config_has_user_value`.
 - Warnings como erro valem também para o `voltz-core` e os testes (casts explícitos). `signals` é macro do Qt (não usar como nome).
 - UIA: "Gravar" é o nome da nav **e** do botão de gravar — `voltz-uia.ps1 -Name "Gravar"` pode iniciar uma gravação.
 - Testes ao vivo nunca com captura/webcam reais: ISO por `VOLTZ_TEST_ISO_SCREEN/CAMERA` (a "Tela teste" do cursor é
@@ -107,23 +99,28 @@ OBS Studio 32.2.2 com casca própria (marca VoltzPixel). Visão em 5 etapas: 1 B
   `GetSourceScreenshot` de cena sintética.
 - Armadilhas arquivadas do 4A–4B (grupos: item novo/entre cenas; show/hide no tick; Raw Input por processo; sRGB da
   fonte; PowerShell 5.1: BOM, array de 1, `$null`): `docs/HISTORICO.md` → "Poda do Plano 4C".
+- Arquivadas do 4C/4D (`setItemWidget`/UIA, sinais de filhos de grupo, `config_set_default_*`, WDA < 2004,
+  `QScreen::name()`, mutex da entrada, `/v` no Git Bash, `.gitignore` whitelist, função livre × membro do Qt, `stop`
+  da saída recriada): `docs/HISTORICO.md` → "Poda do Plano 4D".
+- `Freetype::Freetype` (importado) só existe no diretório do `find_package` e abaixo: fica no `feature-voltz.cmake`.
+- Atalhos do OBS disparam enquanto se grava a tecla: o campo pausa (`DisableHotkeys`) e devolve ao perder o foco.
 - `proc_handler` não tem remoção: quem chama procedimentos de plugin para no `EXIT` (antes do descarregamento).
 - Fornecedor do obs-websocket: plugin só no `obs_module_post_load`; frontend depois do `OBSInit`, com mutex próprio (o
   callback roda sem lock e o unregister não espera); `obs_data` não guarda lista de números (pontos/estado como texto
   JSON); `CreateInput` recusa fontes `OBS_SOURCE_CAP_DISABLED`.
 - `OBSApp::notify` reaplica `HideOBSWindowsFromCapture` (inclusive `WDA_NONE`) em toda janela Qt mostrada: janela que
   precisa ficar fora da captura é Win32 pura ou tem a propriedade `isOBSProjectorWindow`.
-- `WDA_EXCLUDEFROMCAPTURE` antes do Windows 10 2004 vira caixa preta: só com `SetDisplayAffinitySupported()`.
 - Testes com sobreposição: `VOLTZ_TEST_OVERLAY_RECT` fora do desktop virtual + `Assert-OverlaySafe` a cada traço + vigia
   (`FindWindowEx` ∪ `EnumWindows`); fechar por `WM_CLOSE` na casca guardada (o `MainWindowHandle` vira a sobreposição).
 - `HTTRANSPARENT` só passa o clique a janelas da mesma thread; dono de outra thread liga as filas de entrada;
   `SetWindowLongPtr(GWL_EXSTYLE)` espera a thread dona. Teste nunca liga o modo desenho (só prova a recusa).
-- Qt 6.11: `QScreen::name()` é o nome amigável (repete em monitores iguais): achar por `HMONITOR` (`screenForMonitor`).
-- Thread de entrada nunca bloqueia no `DrawShared::mutex` com a janela viva (backlog + `try_lock`); sob ele só
-  atribuição/swap. Gatilho enfileirado numa trava da UI chega depois do drain: recusa de 500 ms
-  (`recusado (recente)`); o botão Desenhar lê o estado no `pressed`.
+- Testes ao vivo trazem a casca para o primeiro plano: a entrada real do usuário pode cair nela.
+- A UIA do Qt não expõe `ScrollItemPattern`/`ScrollPattern`: Ajustes rola pelo `RangeValuePattern` da barra vertical.
+- Desabilitar o botão com foco passa o foco ao próximo do Tab (outra linha): estacionar o foco antes (`HotkeySettings`).
+- A roda do mouse muda slider/caixa sem foco ao rolar os Ajustes: `guardWheel` (`shell/FormFields`) em todo campo novo.
+- O app cria `Vídeos\Voltz Studio` vazia a cada abertura: testes só a removem se a criaram e ela está vazia.
 
 ## Próximos passos
-1. Usuário roda o roteiro manual do 4C; depois escrever e executar o Plano 4D (texto, Ajustes › Anotações/Atalhos,
-   todos os monitores) a partir do fim do plano 4C e do `docs/voltz/backlog-plano-4.md`.
+1. Usuário roda os roteiros manuais do 4C e do 4D; depois escrever e executar o Plano 4E (todos os monitores, barra
+   arrastável) a partir do fim do plano 4D e do `docs/voltz/backlog-plano-4.md`.
 2. Depois: Plano 5 (marca visual + instalador + CI).

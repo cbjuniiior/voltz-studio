@@ -198,3 +198,55 @@ automaticamente; consultar sob demanda. Detalhes de cada plano: `docs/superpower
   pontos do plano (monitor por `HMONITOR`, EXIT no próprio callback, mutex sem bloqueio na thread de entrada, recusa de
   500 ms depois de uma trava da UI, barra...): seção "Desvios aceitos" no fim do plano. Roteiro manual no plano;
   pendências em `docs/voltz/backlog-plano-4.md`.
+
+## Poda do Plano 4D (texto que saiu do CLAUDE.md, 2026-10-18)
+
+### Trocas e apagamentos do plano (na ordem)
+    `voltz-smoke-mouse -OutDir <vazia>` · `voltz-smoke-annotations -OutDir <vazia>` · `voltz-smoke-draw`; demos manuais:
+    `voltz-annot-demo`, `voltz-draw-demo` (modo desenho, sem variável de teste).
+
+- Planos 4B–4C concluídos: anotações (núcleo, rasterizador com retângulo sujo, `anotacoes.jsonl`, fonte Voltz
+  Anotações, sobreposição fora da captura) e modo desenho (Ctrl+Shift+D/botão Desenhar, janela de entrada em thread
+  própria, saídas garantidas, barra). Testes: 170 casos + smokes de anotações e desenho.
+
+- Logo: obturador de 3 lâminas lima inclinado sobre squircle preto; bolinha REC só ao gravar.
+
+- Widgets postos com `setItemWidget` não aparecem na UIA; o `SourcesPanel` usa uma fábrica `QAccessible` presa ao
+  `objectName` `sourcesList` — não renomear.
+
+- Filhos de grupo emitem sinais pela fonte do grupo: ligar o `signal_handler` de cada grupo para atualizar as Fontes.
+
+- `config_set_default_*` deste libobs grava o padrão também como valor do usuário: "ainda no padrão" = comparar com
+  `config_get_default_*` (`stillObsDefault()`), não `config_has_user_value`.
+
+- `WDA_EXCLUDEFROMCAPTURE` antes do Windows 10 2004 vira caixa preta: só com `SetDisplayAffinitySupported()`.
+
+- Qt 6.11: `QScreen::name()` é o nome amigável (repete em monitores iguais): achar por `HMONITOR` (`screenForMonitor`).
+
+- Thread de entrada nunca bloqueia no `DrawShared::mutex` com a janela viva (backlog + `try_lock`); sob ele só
+  atribuição/swap. Gatilho enfileirado numa trava da UI chega depois do drain: recusa de 500 ms
+  (`recusado (recente)`); o botão Desenhar lê o estado no `pressed`.
+
+1. Usuário roda o roteiro manual do 4C; depois escrever e executar o Plano 4D (texto, Ajustes › Anotações/Atalhos,
+   todos os monitores) a partir do fim do plano 4C e do `docs/voltz/backlog-plano-4.md`.
+
+### Armadilhas arquivadas a mais (para o CLAUDE.md caber no limite com as lições novas do 4D)
+- No Git Bash, flags do MSBuild com `/` (ex. `/v:minimal`) viram caminho → usar `-v:minimal`.
+- `.gitignore` do OBS é whitelist (`/*` + exceções): arquivo novo na raiz precisa de `!nome` para ser versionado.
+- Dentro de QWidget, função livre com nome de membro do Qt (`windowTitle`, `styleSheet()`) resolve para o membro:
+  qualificar (`voltz::windowTitle`) ou renomear (`toolbarStyleSheet`).
+- A saída de gravação é recriada ao mudar configurações: reconectar o sinal `stop` a cada `RECORDING_STARTING`.
+
+### Ponteiro trocado (o de QSS entrou no primeiro ponteiro de arquivadas)
+- Armadilhas de QSS da casca (especificidade, font-size, objectName antes do setStyleSheet): `docs/HISTORICO.md` → "Poda do Plano 4B".
+
+## Plano 4D (2026-10-18)
+- Texto nas anotações: modelo (`"ferr":"texto"`, UTF-8, 280 caracteres/12 linhas), layout no núcleo e rasterização com
+  FreeType das deps + DM Sans embutida no `voltz-core` — o mesmo desenho na sobreposição e na fonte do plugin; digitação
+  na `DrawSession` pela janela de entrada (WM_CHAR), sem API de foco nova; texto em branco (`textIsBlank`) cancela e
+  não registra; o texto nunca vai para o log.
+- Barra com o T (tamanhos e negrito), seletor de cor completo sem diálogo e linha de dica; Ajustes › Anotações (estilo
+  com prévia pelo núcleo) e › Atalhos (`OBSHotkeyEdit` sem patch, atalhos pausados com o campo em foco, validação e
+  conflitos pela tabela `hotkey-bindings` do núcleo).
+- 204 casos de teste + `tools/voltz-smoke-text.ps1`; demo `tools/voltz-draw-demo.ps1 -Hotkeys`. Roteiro manual no fim do
+  plano; pendências e medidas em `docs/voltz/backlog-plano-4.md`.

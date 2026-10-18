@@ -105,12 +105,30 @@
   `QSignalBlocker`); barra com fundo alfa 1, `WS_EX_NOACTIVATE` e afinidade antes do `show()`, recentraliza ao crescer e
   volta para cima da sobreposição a cada traço.
 
-## Próximo: Plano 4D (texto, Ajustes, todos os monitores)
-Ferramenta de texto (`"ferr":"texto"`, fonte rasterizada também no plugin), Ajustes › Anotações (estilo padrão com
-seletor de cor completo, "somem após", aviso de "queimadas") e Ajustes › Atalhos (`OBSHotkeyEdit` para marcador,
-holofote, desenhar, desfazer, limpar; migrar `ProjectRecorder`/`MouseStyleStore` para `HotkeyBinding`), desenho e
-sobreposição em todos os monitores, barra arrastável. Ver o fim de
-`docs/superpowers/plans/2026-10-17-voltz-plano-4c-modo-desenho.md`.
+## Feito no Plano 4D
+- **Núcleo:** texto no modelo (`"ferr":"texto"`, `"texto"`, `"tam"`, `"fonte"` no `anotacoes.jsonl`; âncora em
+  `"pts"`), UTF-8 e limites (`annotation-text`: 280 caracteres, 12 linhas), estilo com tamanho/fonte do texto, texto em
+  andamento no `StrokeStore`; layout com métricas por interface (`text-layout`); FreeType das deps + DM Sans Regular/Bold
+  embutidas no `voltz-core` (`embed-fonts.cmake`, `annotation-font`) com o texto no rasterizador (mesmo desenho na
+  sobreposição e na fonte do plugin, parcial = inteiro byte a byte); digitação na `DrawSession`
+  (`TextBegin/TextEdit/TextCommit/TextCancel`, Esc e Ctrl+Z cancelam só o texto, toda saída confirma); atalhos
+  (`hotkey-bindings`: tabela com os padrões, formato do perfil, regra de combinação, conflitos).
+- **Casca:** texto ao vivo (`AnnotationController`: texto inteiro ao plugin a cada mudança, cursor só na sobreposição,
+  conteúdo nunca no log); a janela de entrada traduz teclas (`TranslateMessage`/`WM_CHAR`, substitutos, `WM_SYSCHAR`
+  engolido, cursor em I) sem nenhuma API de foco nova; barra com o T, tamanhos e negrito, seletor de cor completo
+  (`ColorPicker`, sem diálogo) e linha de dica; Ajustes › Anotações (estilo com prévia pelo núcleo, estado, atalho) e
+  Ajustes › Atalhos (`OBSHotkeyEdit` sem patch, atalhos pausados com o campo em foco, validação, conflitos, limpar e
+  restaurar); marcador e holofote carregam o atalho pelo `HotkeyBinding`; Limpar e desfazer (barra/atalho) encerram
+  também a digitação na `DrawSession` (`endTyping`).
+- Testes: 204 casos; `tools/voltz-smoke-text.ps1` (fases A–B); `tools/voltz-draw-demo.ps1 -Hotkeys`; pedidos novos
+  `InjectText`, `TypeText`, `CommitText`, `CancelText`, `HotkeyState` e `ToolbarImage {ferramenta, seletor}`; smokes com
+  guarda de backup anterior e limpeza passo a passo (`Cleanup`/`Restore-Config`).
+
+## Próximo: Plano 4E (todos os monitores, barra arrastável)
+Desenho e sobreposição em todos os monitores (traços fora da captura só na sobreposição, em pixels do desktop; nada no
+`anotacoes.jsonl` nem no programa), janela de entrada sobre mais de um monitor, barra arrastável com posição salva por
+monitor e o buraco acompanhando; geometria no núcleo e monitores falsos fora do desktop virtual nos testes. Ver o fim de
+`docs/superpowers/plans/2026-10-17-voltz-plano-4d-texto-ajustes.md`.
 
 ## Pendências e limites do 4A
 - O mouse ao vivo só acompanha a **Tela compartilhada** quando ela é captura de monitor; captura de janela ou outra
@@ -206,12 +224,10 @@ sobreposição em todos os monitores, barra arrastável. Ver o fim de
 - O modo não sai quando a gravação começa ou para.
 - `DisableProcessWindowsGhosting` vale para o processo todo: com o Voltz travado, a janela dele não vira fantasma (não
   dá para arrastá-la/minimizá-la até voltar; o Gerenciador de Tarefas funciona).
-- A barra fica no alto e ao centro do monitor da Tela (não arrasta); sem diálogo de cor (4 + 8 cores); a região da
+- A barra fica no alto e ao centro do monitor da Tela (não arrasta); a região da
   janela de entrada tem um buraco retangular do tamanho da barra (fundo da barra com alfa 1 para os cantos não deixarem
   o clique passar). `SetWindowRgn` numa janela em camadas (o buraco) só é confirmado pelo roteiro manual.
 - Monitor da Tela não achado entre as telas do Qt → a barra cai no monitor principal (com aviso no log).
-- As dicas (tooltips) da barra não aparecem: a janela nunca fica ativa. Ligá-las exige tirar a janela de dica da
-  captura (4D).
 - No Windows < 10 2004 (sem `WDA_EXCLUDEFROMCAPTURE`) a barra e a janela de entrada aparecem na captura (além dos
   traços "queimados").
 - O `cursor.jsonl` continua registrando os cliques feitos ao desenhar (separá-los fica para o editor).
@@ -226,6 +242,8 @@ sobreposição em todos os monitores, barra arrastável. Ver o fim de
 - `VOLTZ_DEBUG_FREEZE_UI` (como `VOLTZ_TEST_LIVE`) fica no código de produção; avaliar guarda de compilação no Plano 5.
 - Pendências do 4B que continuam: limite de número de traços, "somem após" sem animação, monitor trocado no meio da
   gravação não vira evento no `anotacoes.jsonl`, pedidos de teste da casca enfileirados (~400 ms).
+- Decisão (4D): o modo desenho não sai ao começar/parar a gravação (pelo botão Gravar já sai por foco; pelo atalho,
+  quem desenha quer continuar).
 
 ## Testes manuais pendentes do 4C
 - Todo o "Roteiro de teste manual do Plano 4C" do fim do plano (ligar/sair por cada caminho — inclusive pelo atalho sem
@@ -233,3 +251,51 @@ sobreposição em todos os monitores, barra arrastável. Ver o fim de
   a casca em outro monitor, vigia com `-Freeze` e atalho durante a trava, ligar logo depois de abrir/trocar de coleção,
   halo sem onda ao desenhar e com onda depois, gravação com traços e `-Close` gravando com traço aberto, escala 125/150%,
   monitor à esquerda e dois monitores do mesmo modelo, queimadas numa VM < 2004, textos em en-US).
+
+## Pendências e limites do 4D
+- Texto sem kerning, ligaduras e escritas complexas (layout próprio, sem HarfBuzz); caractere que a DM Sans não tem
+  (emoji, CJK) vira o retângulo `.notdef`. Só as duas fontes embutidas (DM Sans e DM Sans Negrito).
+- Sem quebra automática, cursor só no fim, sem seleção nem colar (Ctrl+V não cola); até 280 caracteres e 12 linhas;
+  texto confirmado não se edita (desfazer e escrever de novo). Ctrl+Z durante a digitação cancela o texto inteiro.
+- `textIsBlank` só considera U+0020, U+00A0 e `\n` (U+3000/U+2003 contam como tinta: o texto "invisível" é registrado).
+- IME (chinês, japonês): a composição usa a janela padrão do Windows, no canto; não testado.
+- Pelo atalho sem clique antes (janela de entrada ainda não ativa), as teclas vão para o app em uso: o primeiro clique
+  ativa e já começa o texto (limite do 4C).
+- Sobreposição com escala ≠ 1 (monitor ≠ captura): o tamanho do texto usa a escala média; pode diferir ~1 px do programa.
+- O plugin não avisa no log quando a fonte embutida falha (só a casca avisa).
+- `static EmbeddedFonts` e a ordem de destruição no descarregamento: risco teórico (o controller e a sobreposição morrem
+  no EXIT).
+- `discardOpen` consome um id (buraco inofensivo na numeração).
+- Ajustes › Atalhos edita só a primeira tecla de cada atalho (as outras, do modo clássico, ficam e aparecem como "+N");
+  combinação sem Ctrl/Alt/Windows é recusada (sozinhas, só F1–F24 e mouse lateral); conflito só avisa; o campo só ganha
+  foco por clique (sem acesso só pelo teclado) e, com o foco, **todos** os atalhos do OBS ficam pausados até sair do
+  campo.
+- `checkVoltzHotkeyCombo` aceita só modificador como tecla (`OBS_KEY_CONTROL`/`SHIFT`/`ALT`/`META`) e nome de tecla
+  inexistente com Ctrl. Só acontece num perfil editado à mão.
+- O seletor de cor não tem campo hexadecimal nem lista de cores recentes; em Ajustes a cor vem do diálogo do Qt. A marca
+  do quadrado do seletor tem desvio de 1 px (irrelevante).
+- A seção Anotações e a de Atalhos ficam abaixo de Mouse: a rolagem e a edição por teclado só foram vistas no roteiro.
+  As linhas de checkbox do Mouse (Halo, Clique, Holofote) ficam um pouco mais baixas que as demais.
+- Medidas do smoke do texto (sobreposição 2560×1440, texto 96 px), por execução: parciais média 430 µs / máx 1 397 µs,
+  completa 6 414 µs, fonte máx 6 303 µs; parciais 450 / 1 285 µs, completa 10 017 µs, fonte máx 17 882 µs; sobreposição
+  máx 8 933 µs (parciais média 936 µs, completa 48 114 µs), fonte máx **121 277 µs** (acima de 100 ms; logo após um
+  build completo: única falha do smoke); Task 12: 15 parciais média 416 µs / máx 1 359 µs, completa 6 883 µs, fonte máx
+  5 771 µs. A fonte do plugin varia muito com a carga da máquina (o `raster_us` inclui o envio da textura inteira):
+  pendente medir o raster da fonte do plugin com a máquina sob carga.
+- Smokes: `Restore-Config`/`Cleanup` copiados em 4 smokes (extrair para um módulo comum); espera fixa de 15 s na
+  abertura; os testes ao vivo trazem a casca para o primeiro plano e a entrada real do usuário pode cair nela durante o
+  smoke; o smoke nunca clica no campo de atalho (o caminho de foco do `VoltzHotkeyEdit` fica no roteiro manual).
+- Testes do núcleo a reforçar: UTF-8 acima de U+10FFFF (`F4 90 80 80`), sobrelonga de 3 bytes e 4 bytes truncada no
+  fim; `setOpenText`/`setOpenTextStyle` com texto já encerrado; Shift+Enter no limite de 12 linhas; Esc renovando a
+  atividade e Esc + 30 s sem texto; teclas recusadas (`\b`/0x1B) contando como atividade (Tick em t + ocioso − 1 ms);
+  `unitsPerEm<=0` no layout; literais `U'á'` em vez de `\u` no `test-text-layout.cpp`. `decodeUtf8` tem um
+  `if/continue/else if` redundante (cosmético).
+- Pendências do 4B/4C que continuam: limite de número de traços, "somem após" sem animação, monitor trocado no meio da
+  gravação não vira evento, pedidos de teste da casca enfileirados (~400 ms), vigia sai em travadas legítimas, atalhos
+  do OBS não consomem a tecla.
+
+## Testes manuais pendentes do 4D
+- Todo o "Roteiro de teste manual do Plano 4D" do fim do plano (digitar de verdade, teclas mortas e AltGr, Shift+Enter,
+  Esc/Ctrl+Z só no texto, saídas com o texto aberto, seletor de cor arrastando, linha de dica, gravação com texto,
+  Ajustes › Anotações e › Atalhos com o teclado, roda do mouse em Ajustes, atalho novo com outro app em foco, modo
+  clássico, 125/150%, en-US); inclui o caminho de foco do campo de atalho (clicar, gravar a tecla, sair).
